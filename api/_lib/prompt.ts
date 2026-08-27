@@ -23,13 +23,18 @@ Return only facts worth reusing weeks later. For each, pick exactly one type:
 - gotcha: a non-obvious pitfall and its fix
 - person: a stable fact about a person the user works with
 - preference: a lasting user preference or goal
+- plan: a multi-step plan, spec, task list, or working doc the user wants to keep and continue later
 
 Rules:
 - One self-contained fact per memory; it must make sense with no surrounding context.
+- ALWAYS capture anything the user explicitly asks you to "remember / save / store / keep",
+  even if it is longer or does not fit a neat type — use type "plan" for plans/specs/notes,
+  else the closest type. For an explicitly-requested plan/note, keep the user's full content
+  (do not compress it to one sentence).
 - Convert relative dates ("today", "last week") to absolute using the provided date.
 - Use the user's own wording where possible.
-- Do NOT extract: secrets/API keys/passwords, small talk, questions, this-session-only
-  details, or anything trivially re-derivable.
+- Do NOT extract: secrets/API keys/passwords, or small talk/questions — unless the user
+  explicitly asks to keep it.
 - If nothing is worth remembering, return an empty list. Precision over recall.`;
 
 export function buildSystemPrompt(recalled: { type: string; text: string }[], scope: string): string {

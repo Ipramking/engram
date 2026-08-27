@@ -14,11 +14,11 @@ import { MemWalMock } from '@mysten-incubation/memwal';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: join(__dirname, '..', '.env') });
 
-export const TYPES = ['decision', 'config', 'gotcha', 'person', 'preference'];
+export const TYPES = ['decision', 'config', 'gotcha', 'person', 'preference', 'plan'];
 export const nsFor = (scope, code) => (scope === 'team' ? `team:${code || 'default'}` : 'me');
 export const enc = (type, text) => `[${TYPES.includes(type) ? type : 'note'}] ${String(text).trim()}`;
 export const dec = (raw) => {
-  const m = String(raw).match(/^\[(decision|config|gotcha|person|preference)\]\s*/i);
+  const m = String(raw).match(/^\[(decision|config|gotcha|person|preference|plan)\]\s*/i);
   return m ? { type: m[1].toLowerCase(), text: raw.replace(m[0], '').trim() } : { type: 'note', text: String(raw).trim() };
 };
 
@@ -106,10 +106,13 @@ export function createEngram({ backend = pickBackend(), lockNamespace = null } =
     {
       name: 'engram_remember',
       description:
-        `Store ONE durable fact worth reusing weeks later, in ${where}. Call this the moment the user states such a fact. ` +
-        'Pick exactly one type: decision (a choice + its reason), config (a concrete setup value or where it lives), ' +
-        'gotcha (a non-obvious pitfall + fix), person (a stable fact about a teammate), preference (a lasting user preference/goal). ' +
-        "Write one self-contained sentence (absolute dates, the user's wording). NEVER store secrets/API keys, questions, small talk, or this-session-only details." +
+        `Store durable knowledge worth reusing later, in ${where}. Call this the moment the user states such a fact, ` +
+        'AND whenever the user asks you to "remember / save / store / keep" something (a work plan, spec, notes, a snippet) — ' +
+        'store it even if it is longer or does not fit neatly. Pick one type: decision (a choice + its reason), ' +
+        'config (a setup value or where it lives), gotcha (a pitfall + fix), person (a stable fact about a teammate), ' +
+        'preference (a lasting preference/goal), plan (a multi-step plan, spec, task list, or working doc to keep and continue later). ' +
+        "For a normal fact write one self-contained sentence; for an explicitly-requested plan/note keep the user's full content. " +
+        'NEVER store secrets/API keys, or throwaway small talk unless the user explicitly asks to keep it.' +
         (scoped ? '' : ' Use scope "team" for shared team facts, else "personal".'),
       inputSchema: {
         type: 'object',
@@ -124,8 +127,10 @@ export function createEngram({ backend = pickBackend(), lockNamespace = null } =
     {
       name: 'engram_recall',
       description:
-        `Recall the memories most relevant to a query from ${where}, before answering anything that depends on a past ` +
-        'decision, the user\'s setup/preferences, or a person. Returns typed facts you should treat as ground truth and cite briefly.',
+        `Recall the memories most relevant to a query from ${where} — match by MEANING, so a few keywords or a full ` +
+        'sentence both work. Call it before answering anything that depends on a past decision, plan, the user\'s ' +
+        'setup/preferences, or a person, and whenever the user asks "what did we/I decide, plan, or store about X". ' +
+        'Returns typed facts you should treat as ground truth and cite briefly.',
       inputSchema: {
         type: 'object',
         properties: { query: { type: 'string' }, ...scopeProps },

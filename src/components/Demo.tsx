@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Brain, Lock, Users, Play, RotateCcw, Search } from 'lucide-react'
 import type { ChatMsg, Memory, Scope } from '../types'
 import { getHealth, inspectorLink, recallMemories, sendChat } from '../lib/api'
 
@@ -8,6 +9,7 @@ const TYPE_META: Record<string, { label: string; dot: string; cls: string }> = {
   gotcha: { label: 'gotcha', dot: '#f0c07a', cls: 'text-amber-200 border-amber-400/30 bg-amber-400/10' },
   person: { label: 'person', dot: '#e4a79c', cls: 'text-rose-100 border-rose/30 bg-rose/10' },
   preference: { label: 'preference', dot: '#f2a6c0', cls: 'text-pink-200 border-pink-400/30 bg-pink-400/10' },
+  plan: { label: 'plan', dot: '#8fe0b8', cls: 'text-emerald-100 border-emerald-400/30 bg-emerald-400/10' },
   note: { label: 'note', dot: '#a99ab0', cls: 'text-mut border-line bg-surface-2' },
 }
 
@@ -20,6 +22,7 @@ const TOUR: Step[] = [
   { kind: 'send', label: 'Tell it a decision', hint: 'It captures a durable fact', text: 'We moved the DB to Neon Postgres today because the Render free tier expired.' },
   { kind: 'send', label: 'Ask about it', hint: 'It recalls what you stored', text: "What's my database setup?" },
   { kind: 'send', label: 'Remember a teammate', hint: 'A fact about a person', text: "Ada leads frontend, prefers Tailwind, she's in WAT timezone." },
+  { kind: 'send', label: 'Save a plan', hint: 'Store on request — any content', text: 'Remember this plan: 1) ship the MCP endpoint, 2) record the demo video, 3) submit before the deadline.' },
   { kind: 'scope', scope: 'team', label: 'Switch to Team', hint: 'A separate, shared memory' },
   { kind: 'send', label: 'Ask in Team scope', hint: 'Personal facts stay private', text: 'What do we know so far?' },
 ]
@@ -145,7 +148,11 @@ export default function Demo() {
                 onClick={() => setScope(s)}
                 className={`rounded-full px-3 py-1 transition ${scope === s ? 'bg-gradient-to-r from-rose to-violet text-bg font-medium' : 'text-mut hover:text-txt'}`}
               >
-                {s === 'personal' ? '🔒 Personal' : '👥 Team'}
+                {s === 'personal' ? (
+                  <span className="inline-flex items-center gap-1.5"><Lock size={12} /> Personal</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5"><Users size={12} /> Team</span>
+                )}
               </button>
             ))}
           </div>
@@ -187,11 +194,15 @@ export default function Demo() {
               disabled={busy}
               className="rounded-full bg-gradient-to-r from-rose to-violet px-4 py-1.5 text-xs font-medium text-bg transition hover:opacity-90 disabled:opacity-40"
             >
-              {cur?.kind === 'scope' ? `→ ${cur.label}` : `▶ Run: ${cur?.label}`}
+              {cur?.kind === 'scope' ? (
+                <span className="inline-flex items-center gap-1.5">→ {cur.label}</span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5"><Play size={12} /> Run: {cur?.label}</span>
+              )}
             </button>
           ) : (
-            <button onClick={() => { setStep(0); setThreads({}); setSessions({}); setScope('personal') }} className="rounded-full border border-line px-4 py-1.5 text-xs text-mut hover:text-txt">
-              ↺ Restart tour
+            <button onClick={() => { setStep(0); setThreads({}); setSessions({}); setScope('personal') }} className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-1.5 text-xs text-mut hover:text-txt">
+              <RotateCcw size={12} /> Restart tour
             </button>
           )}
         </div>
@@ -204,7 +215,7 @@ export default function Demo() {
             {messages.length === 0 && (
               <div className="grid h-full place-items-center px-6 text-center">
                 <div className="max-w-sm">
-                  <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-rose to-violet text-2xl text-bg animate-float">🧠</div>
+                  <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-rose to-violet text-bg animate-float"><Brain size={26} /></div>
                   <p className="mb-1 font-display text-xl text-txt">Watch it remember</p>
                   <p className="text-sm text-mut">Hit <span className="text-rose">Run</span> on the guided tour above — or just type a decision, config, gotcha, or a fact about someone.</p>
                 </div>
@@ -244,7 +255,7 @@ export default function Demo() {
               placeholder="recall… e.g. deploy setup"
               className="flex-1 rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-sm text-txt outline-none focus:border-rose/60"
             />
-            <button onClick={runRecall} className="rounded-xl border border-line bg-surface-2 px-3 text-sm text-rose transition hover:border-rose/50">↳</button>
+            <button onClick={runRecall} className="grid place-items-center rounded-xl border border-line bg-surface-2 px-3 text-rose transition hover:border-rose/50"><Search size={15} /></button>
           </div>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5">
             {results.length > 0 && (
@@ -290,7 +301,7 @@ function Bubble({ m }: { m: ChatMsg }) {
         <div className="flex max-w-[88%] flex-col gap-1.5">
           {m.remembered.map((r, i) => (
             <div key={i} className="flex items-center gap-2 rounded-xl border border-rose/25 bg-rose/[0.06] px-3 py-2">
-              <span className="text-sm">🧠</span>
+              <Brain size={14} className="text-rose" />
               <TypeTag type={r.type} />
               <span className="flex-1 truncate text-[12.5px] text-txt/90" title={r.text}>{r.text}</span>
               <BlobProof blobId={r.blobId} />

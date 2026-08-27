@@ -1,0 +1,11 @@
+import { spawn } from 'node:child_process';
+const child = spawn('node',['mcp/engram-mcp.mjs'],{stdio:['pipe','pipe','pipe'],env:{...process.env,ENGRAM_MCP_BACKEND:'mock'}});
+let buf='';const p=new Map();child.stdout.on('data',d=>{buf+=d;let i;while((i=buf.indexOf('\n'))>=0){const l=buf.slice(0,i).trim();buf=buf.slice(i+1);if(!l)continue;let m;try{m=JSON.parse(l)}catch{continue}if(m.id&&p.has(m.id)){p.get(m.id)(m);p.delete(m.id)}}});child.stderr.on('data',()=>{});
+let id=0;const s=(method,params)=>{const i=++id;const q=new Promise(r=>p.set(i,r));child.stdin.write(JSON.stringify({jsonrpc:'2.0',id:i,method,params})+'\n');return q};
+const call=async(n,a)=>(await s('tools/call',{name:n,arguments:a})).result.content[0].text;
+await s('initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'t',version:'1'}});
+child.stdin.write(JSON.stringify({jsonrpc:'2.0',method:'notifications/initialized',params:{}})+'\n');
+console.log('list:', (await s('tools/list',{})).result.tools[0].inputSchema.properties.type.enum.join('|'));
+console.log(await call('engram_remember',{text:'Launch plan: 1) ship MCP 2) record demo 3) submit',type:'plan',scope:'personal'}));
+console.log(await call('engram_recall',{query:'what is our launch plan',scope:'personal'}));
+child.kill();process.exit(0);

@@ -25,9 +25,10 @@ Before you answer, call `recall` whenever the user:
   session;
 - asks anything whose correct answer likely depends on a past decision.
 
-Use recalled memories as ground truth for your answer. Briefly tell the user
-which memory you used ("Per your Aug 3 note, the DB is on Neon…") so the memory
-is visible, not magic.
+Use recalled memories as ground truth for your answer. Recall matches by
+**meaning**, so a few keywords or a whole sentence both retrieve the right
+memory. Briefly tell the user which memory you used ("Per your Aug 3 note, the DB
+is on Neon…") so the memory is visible, not magic.
 
 ## 2. When to REMEMBER (write memory)
 
@@ -45,6 +46,13 @@ later**. The five things worth storing:
   ("Ada leads frontend, prefers Tailwind, is in WAT timezone.")
 - **preference / goal** — a lasting user preference or objective
   ("User wants every UI to work on both phone and desktop.")
+- **plan** — a multi-step plan, spec, task list, or working doc to keep and
+  continue later ("Our launch plan: 1) ship the MCP, 2) record the demo, 3) submit.")
+
+**Also — store on request.** Whenever the user explicitly asks you to *remember /
+save / store / keep* something, store it, even a longer plan, note, or snippet
+that doesn't fit a neat type. Use type `plan` (or the closest type) and keep the
+user's full content. Recall it later by any words or sentence they use.
 
 ## 3. When NOT to remember
 

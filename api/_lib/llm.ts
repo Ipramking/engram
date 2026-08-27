@@ -82,8 +82,16 @@ function offlineReply(system: string, messages: ChatMsg[]): string {
 
 function offlineExtract(userText: string): { type: MemoryType; text: string }[] {
   const t = userText.trim();
-  if (t.length < 12 || t.endsWith("?")) return [];
+  if (t.length < 4) return [];
   const lower = t.toLowerCase();
+  // Explicit request to keep something (a plan, note, snippet) — store the full
+  // content verbatim, minus the "remember/save/store this:" lead-in.
+  const ask = lower.match(/\b(remember|save|store|keep|note)( this| that)?\b[:,-]?\s*/);
+  if (ask) {
+    const body = t.slice((ask.index ?? 0) + ask[0].length).trim() || t;
+    return [{ type: "plan", text: body }];
+  }
+  if (t.endsWith("?")) return [];
   let type: MemoryType | null = null;
   if (/\b(decid|chose|moved|switch|migrat|because|instead of)\b/.test(lower)) type = "decision";
   else if (/\b(env|url|key lives|set in|config|port|token|variable|\.env|dashboard)\b/.test(lower))
