@@ -1,0 +1,41 @@
+{
+  "name": "engram-walrus",
+  "version": "0.1.0",
+  "description": "Portable, verifiable memory for AI agents — an MCP server on Walrus. Personal & team scope, typed capture. Connect it to any AI: store a fact in one, recall it in another.",
+  "type": "module",
+  "bin": {
+    "engram-walrus": "bin.mjs"
+  },
+  "files": [
+    "bin.mjs",
+    "core.mjs",
+    "PROMPT.md",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "walrus",
+    "memory",
+    "ai",
+    "agent",
+    "sui",
+    "claude",
+    "cursor",
+    "llm"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ipramking/engram.git",
+    "directory": "packages/engram-mcp"
+  },
+  "homepage": "https://engram-pearl.vercel.app",
+  "dependencies": {
+    "@mysten-incubation/memwal": "^0.1.5",
+    "@mysten-incubation/memwal-mcp": "^0.0.11"
+  }
+}
