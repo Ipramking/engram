@@ -66,21 +66,38 @@ export default function App() {
   const [teamCode, setTeamCode] = useState('sui-lagos')
   const [model, setModel] = useState('')
   const [status, setStatus] = useState<{ mock: boolean; llm: boolean }>({ mock: true, llm: false })
-  const [messages, setMessages] = useState<ChatMsg[]>([])
+  const [threads, setThreads] = useState<Record<string, ChatMsg[]>>({})
+  const [sessions, setSessions] = useState<Record<string, Memory[]>>({})
   const [input, setInput] = useState('')
   const [pinType, setPinType] = useState('decision')
   const [busy, setBusy] = useState(false)
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Memory[]>([])
-  const [session, setSession] = useState<Memory[]>([])
   const [panelOpen, setPanelOpen] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // Each scope is its own conversation + session log. This is the security
+  // boundary in the UI: personal chat history is NEVER sent to the model while
+  // you're in team scope (and vice-versa), so the model can't answer a team
+  // question using something you said in personal.
+  const scopeKey = scope === 'team' ? `team:${teamCode}` : 'personal'
+  const messages = threads[scopeKey] ?? []
+  const session = sessions[scopeKey] ?? []
+  const setMessages = (v: ChatMsg[] | ((p: ChatMsg[]) => ChatMsg[])) =>
+    setThreads((t) => ({ ...t, [scopeKey]: typeof v === 'function' ? (v as (p: ChatMsg[]) => ChatMsg[])(t[scopeKey] ?? []) : v }))
+  const setSession = (v: Memory[] | ((p: Memory[]) => Memory[])) =>
+    setSessions((s) => ({ ...s, [scopeKey]: typeof v === 'function' ? (v as (p: Memory[]) => Memory[])(s[scopeKey] ?? []) : v }))
+
   useEffect(() => {
     getHealth().then((h) => setStatus({ mock: h.mock, llm: h.llm }))
   }, [])
+  // Switching scope clears the recall search so you never see another scope's hits.
+  useEffect(() => {
+    setResults([])
+    setQuery('')
+  }, [scopeKey])
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
