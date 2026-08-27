@@ -1,0 +1,13 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+const url = new URL('https://engram-mcp.onrender.com/mcp?token=3FKSWhWUyprn22PC8KYNWBZt&room=hackathon');
+const transport = new StreamableHTTPClientTransport(url);
+const client = new Client({ name: 'remote-test', version: '1.0.0' });
+await client.connect(transport);
+const tools = await client.listTools();
+console.log('TOOLS:', tools.tools.map(t => t.name).join(', '));
+const r1 = await client.callTool({ name: 'engram_remember', arguments: { text: 'The Engram team endpoint went live on Render at engram-mcp.onrender.com on 2026-08-27.', type: 'decision' } });
+console.log('REMEMBER:', r1.content[0].text);
+const r2 = await client.callTool({ name: 'engram_recall', arguments: { query: 'where is the team endpoint hosted?' } });
+console.log('RECALL:', r2.content[0].text);
+await client.close();
