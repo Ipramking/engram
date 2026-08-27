@@ -61,8 +61,8 @@ export function memwalFor(scope: Scope, teamCode = "default"): MemwalClient {
   return client;
 }
 
-export const MEMORY_TYPES = ["decision", "config", "gotcha", "person", "preference", "plan"] as const;
-export type MemoryType = (typeof MEMORY_TYPES)[number];
+import { MEMORY_TYPES, type MemoryType } from "./types";
+export { MEMORY_TYPES, type MemoryType };
 
 // We encode the tag as a compact prefix so it survives store -> recall even
 // though recall returns plain text. `[decision] We moved the DB...`

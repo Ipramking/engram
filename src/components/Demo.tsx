@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Brain, Lock, Users, Play, RotateCcw, Search } from 'lucide-react'
 import type { ChatMsg, Memory, Scope } from '../types'
-import { getHealth, inspectorLink, recallMemories, sendChat } from '../lib/api'
+import { getHealth, inspectorLink } from '../lib/api'
+import { demoRecall, demoRemember, demoReset, clientReply, clientExtract } from '../lib/demoMemory'
 
 const TYPE_META: Record<string, { label: string; dot: string; cls: string }> = {
   decision: { label: 'decision', dot: '#9b8dff', cls: 'text-violet-200 border-violet-400/30 bg-violet-400/10' },
@@ -100,21 +101,35 @@ export default function Demo() {
     const history = [...messages, { role: 'user' as const, content }]
     setMessages([...history, { role: 'assistant', content: '', pending: true }])
     setBusy(true)
+    const recalled = demoRecall(scopeKey, content).map((m) => ({ type: m.type, text: m.text, blobId: m.blobId }))
     try {
-      const res = await sendChat(history.map((m) => ({ role: m.role, content: m.content })), scope, teamCode, model || undefined)
-      setMessages([...history, { role: 'assistant', content: res.reply, recalled: res.recalled, remembered: res.remembered }])
-      if (res.remembered?.length) setSession((s) => [...res.remembered, ...s])
-    } catch (e: any) {
-      setMessages([...history, { role: 'assistant', content: `⚠️ ${e.message ?? 'request failed'}` }])
+      let reply = ''
+      let facts: { type: string; text: string }[] = []
+      try {
+        const r = await fetch('/api/answer', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ messages: history.map((m) => ({ role: m.role, content: m.content })), recalled, scope, model: model || undefined }),
+        })
+        if (!r.ok) throw new Error('no api')
+        const j = await r.json()
+        reply = j.reply
+        facts = j.remembered ?? []
+      } catch {
+        reply = clientReply(demoRecall(scopeKey, content), content)
+        facts = clientExtract(content)
+      }
+      const remembered = facts.map((f) => demoRemember(scopeKey, f.type, f.text))
+      setMessages([...history, { role: 'assistant', content: reply, recalled, remembered }])
+      if (remembered.length) setSession((s) => [...remembered, ...s])
     } finally {
       setBusy(false)
     }
   }
 
-  async function runRecall() {
+  function runRecall() {
     if (!query.trim()) return
-    const r = await recallMemories(query, scope, teamCode)
-    setResults(r.results)
+    setResults(demoRecall(scopeKey, query))
   }
 
   function runStep() {
@@ -201,7 +216,7 @@ export default function Demo() {
               )}
             </button>
           ) : (
-            <button onClick={() => { setStep(0); setThreads({}); setSessions({}); setScope('personal') }} className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-1.5 text-xs text-mut hover:text-txt">
+            <button onClick={() => { demoReset(); setStep(0); setThreads({}); setSessions({}); setScope('personal') }} className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-1.5 text-xs text-mut hover:text-txt">
               <RotateCcw size={12} /> Restart tour
             </button>
           )}

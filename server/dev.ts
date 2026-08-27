@@ -4,6 +4,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import chat from "../api/chat";
+import answer from "../api/answer";
 import remember from "../api/remember";
 import recall from "../api/recall";
 import health from "../api/health";
@@ -21,6 +22,7 @@ const wrap =
     });
 
 app.post("/api/chat", wrap(chat));
+app.post("/api/answer", wrap(answer));
 app.post("/api/remember", wrap(remember));
 app.post("/api/recall", wrap(recall));
 app.all("/api/health", wrap(health));

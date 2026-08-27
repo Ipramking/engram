@@ -1,14 +1,7 @@
-// Status endpoint — tells the UI whether we're on the real relayer or the mock,
-// and whether an LLM is wired up.
-import { memwalFor, isMock } from "./_lib/memwal";
-import { llmEnabled } from "./_lib/llm";
+// Lightweight status for the web demo badge — env-only, no Walrus SDK import.
+const env = ((globalThis as any).process?.env ?? {}) as Record<string, string | undefined>;
 
 export default async function handler(_req: any, res: any) {
-  let health: any = null;
-  try {
-    health = (await memwalFor("personal").health?.()) ?? null;
-  } catch (e) {
-    health = { error: String(e) };
-  }
-  res.status(200).json({ mock: isMock(), llm: llmEnabled(), health });
+  const mock = Boolean(env.ENGRAM_USE_MOCK) || !env.MEMWAL_PRIVATE_KEY;
+  res.status(200).json({ mock, llm: Boolean(env.GROQ_API_KEY) });
 }

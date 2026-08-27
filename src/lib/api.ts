@@ -48,7 +48,7 @@ export async function getHealth() {
 }
 
 export function inspectorLink(blobId?: string): string | null {
-  if (!blobId || blobId.startsWith('mock-')) return null
+  if (!blobId || blobId.startsWith('mock-') || blobId.startsWith('demo-')) return null
   return INSPECTOR_BASE + blobId
 }
 

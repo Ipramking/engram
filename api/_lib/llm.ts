@@ -5,7 +5,7 @@ import { generateText, generateObject } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { z } from "zod";
 import { EXTRACTION_INSTRUCTIONS } from "./prompt";
-import { MEMORY_TYPES, type MemoryType } from "./memwal";
+import { MEMORY_TYPES, type MemoryType } from "./types";
 
 export type ChatMsg = { role: "user" | "assistant"; content: string };
 

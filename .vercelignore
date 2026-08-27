@@ -1,0 +1,9 @@
+# Keep the heavy, demo-unused functions and local-only code out of the Vercel
+# bundle. The deployed demo only needs /api/answer and /api/health.
+api/chat.ts
+api/remember.ts
+api/recall.ts
+server
+scripts
+mcp
+docs
