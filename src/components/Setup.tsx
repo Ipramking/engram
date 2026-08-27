@@ -5,11 +5,8 @@ import { ENGRAM_PROMPT, downloadText } from '../lib/promptText'
 const REPO = 'https://github.com/Ipramking/engram'
 const ENDPOINT = 'https://engram-mcp.onrender.com'
 const URL = `${ENDPOINT}/mcp?token=<TOKEN>&room=<team>`
-const FILE = '/absolute/path/to/engram/mcp/engram-mcp.mjs'
-
-const CLONE = `git clone ${REPO}
-cd engram && pnpm install
-pnpm login:memwal   # sign in — creates YOUR private Walrus account`
+const NPX = `{ "mcpServers": { "engram": { "command": "npx", "args": ["-y", "engram-walrus"] } } }`
+const LOGIN = `npx engram-walrus login   # one-time browser sign-in — your own private Walrus account`
 
 type Cat = 'CLI' | 'App' | 'IDE' | 'Web' | 'Mobile'
 type Client = {
@@ -23,7 +20,7 @@ type Client = {
 const CLIENTS: Client[] = [
   {
     id: 'claude-code', name: 'Claude Code', cat: 'CLI', icon: Terminal, blurb: 'Anthropic’s terminal agent',
-    local: `claude mcp add engram --env ENGRAM_MCP_BACKEND=bridge -- node ${FILE}`,
+    local: `claude mcp add engram -- npx -y engram-walrus`,
     remote: `claude mcp add --transport http engram "${URL}"`,
     uiNote: 'Then run /mcp to confirm the engram_* tools are listed.',
   },
@@ -31,11 +28,7 @@ const CLIENTS: Client[] = [
     id: 'claude-desktop', name: 'Claude Desktop', cat: 'App', icon: Monitor, blurb: 'The Claude app (Mac / Windows)',
     local: `{
   "mcpServers": {
-    "engram": {
-      "command": "node",
-      "args": ["${FILE}"],
-      "env": { "ENGRAM_MCP_BACKEND": "bridge" }
-    }
+    "engram": { "command": "npx", "args": ["-y", "engram-walrus"] }
   }
 }`,
     remote: `{
@@ -50,33 +43,33 @@ const CLIENTS: Client[] = [
   },
   {
     id: 'cursor', name: 'Cursor', cat: 'IDE', icon: Code2, blurb: 'AI-first code editor',
-    local: `{ "mcpServers": { "engram": { "command": "node", "args": ["${FILE}"] } } }`,
+    local: NPX,
     remote: `{ "mcpServers": { "engram": { "url": "${URL}" } } }`,
     uiNote: 'Edit ~/.cursor/mcp.json (or Settings → Tools & MCP), then reload.',
   },
   {
     id: 'vscode', name: 'VS Code', cat: 'IDE', icon: Code2, blurb: 'Copilot agent mode',
-    local: `{ "servers": { "engram": { "type": "stdio", "command": "node", "args": ["${FILE}"] } } }`,
+    local: `{ "servers": { "engram": { "type": "stdio", "command": "npx", "args": ["-y", "engram-walrus"] } } }`,
     remote: `{ "servers": { "engram": { "type": "http", "url": "${URL}" } } }`,
     uiNote: 'Put it in .vscode/mcp.json, then open Copilot Chat in Agent mode.',
   },
   {
     id: 'antigravity', name: 'Antigravity', cat: 'IDE', icon: Code2, blurb: 'Google’s agentic IDE',
-    local: `{ "mcpServers": { "engram": { "command": "node", "args": ["${FILE}"] } } }`,
+    local: NPX,
     remote: `{ "mcpServers": { "engram": { "url": "${URL}" } } }`,
     uiNote: 'Command Palette → “MCP”, or edit %APPDATA%\\Antigravity\\User\\mcp.json, then reload.',
   },
   {
     id: 'windsurf', name: 'Windsurf', cat: 'IDE', icon: Code2, blurb: 'Codeium’s agentic IDE',
-    local: `{ "mcpServers": { "engram": { "command": "node", "args": ["${FILE}"] } } }`,
+    local: NPX,
     remote: `{ "mcpServers": { "engram": { "serverUrl": "${URL}" } } }`,
     uiNote: 'Settings → Cascade → MCP Servers → Add, then refresh.',
   },
   {
     id: 'codex', name: 'Codex', cat: 'CLI', icon: Terminal, blurb: 'OpenAI’s terminal agent', lang: 'toml',
     local: `[mcp_servers.engram]
-command = "node"
-args = ["${FILE}"]`,
+command = "npx"
+args = ["-y", "engram-walrus"]`,
     remote: `[mcp_servers.engram]
 command = "npx"
 args = ["-y", "mcp-remote", "${URL}"]`,
@@ -84,7 +77,7 @@ args = ["-y", "mcp-remote", "${URL}"]`,
   },
   {
     id: 'gemini', name: 'Gemini CLI', cat: 'CLI', icon: Terminal, blurb: 'Google’s terminal agent',
-    local: `{ "mcpServers": { "engram": { "command": "node", "args": ["${FILE}"] } } }`,
+    local: NPX,
     remote: `{ "mcpServers": { "engram": { "httpUrl": "${URL}" } } }`,
     uiNote: 'Add to ~/.gemini/settings.json, then run /mcp to verify.',
   },
@@ -238,16 +231,16 @@ function Steps({ client, mode }: { client: Client; mode: 'personal' | 'team' }) 
             <div className="min-w-0 flex-1">
               <p className="text-sm leading-relaxed text-txt/90">
                 {mode === 'personal'
-                  ? 'Install Engram and sign in — once. This is YOUR private Walrus account:'
+                  ? 'Sign in once — opens a browser and creates your own private Walrus account. No install, no token:'
                   : 'Grab your team URL from “Create your team” above (your token + a room name).'}
               </p>
-              {mode === 'personal' && <CodeBlock code={CLONE} />}
+              {mode === 'personal' && <CodeBlock code={LOGIN} />}
             </div>
           </li>
           <li className="step-in flex gap-3" style={{ animationDelay: '70ms' }}>
             <Num n={2} />
             <div className="min-w-0 flex-1">
-              <p className="text-sm leading-relaxed text-txt/90">Add it to {client.name}{mode === 'personal' ? ' (use the real absolute path to the file)' : ''}:</p>
+              <p className="text-sm leading-relaxed text-txt/90">Add it to {client.name}:</p>
               <CodeBlock code={code} />
               {client.uiNote && <p className="mt-2 text-xs leading-relaxed text-faint">{client.uiNote}</p>}
             </div>
