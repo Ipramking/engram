@@ -1,0 +1,12 @@
+import 'dotenv/config';
+import fs from 'fs'; import os from 'os';
+import { MemWal } from '@mysten-incubation/memwal';
+const creds = JSON.parse(fs.readFileSync(os.homedir()+'/.memwal/credentials.json','utf8'));
+const mem = MemWal.create({ key: process.env.MEMWAL_PRIVATE_KEY, accountId: process.env.MEMWAL_ACCOUNT_ID, serverUrl: process.env.MEMWAL_SERVER_URL, namespace:'me' });
+const pub = await mem.getPublicKey();
+const pubHex = Buffer.from(pub).toString('hex');
+console.log('SDK-derived pubkey :', pubHex);
+console.log('registered pubkey  :', creds.delegatePublicKeyHex);
+console.log('MATCH              :', pubHex.toLowerCase() === creds.delegatePublicKeyHex.toLowerCase());
+console.log('accountId in env   :', (process.env.MEMWAL_ACCOUNT_ID||'').slice(0,12)+'…');
+console.log('accountId in creds :', creds.accountId.slice(0,12)+'…', ' match:', process.env.MEMWAL_ACCOUNT_ID===creds.accountId);

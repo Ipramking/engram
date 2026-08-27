@@ -1,0 +1,12 @@
+import { spawn } from 'node:child_process';
+const child = spawn('node', ['mcp/engram-mcp.mjs'], { stdio:['pipe','pipe','pipe'], env:{...process.env, ENGRAM_MCP_BACKEND:'bridge'} });
+let buf='';const pending=new Map();
+child.stdout.on('data',d=>{buf+=d;let i;while((i=buf.indexOf('\n'))>=0){const l=buf.slice(0,i).trim();buf=buf.slice(i+1);if(!l)continue;let m;try{m=JSON.parse(l)}catch{continue}if(m.id&&pending.has(m.id)){pending.get(m.id)(m);pending.delete(m.id)}}});
+child.stderr.on('data',()=>{});
+let id=0;const send=(method,params)=>{const i=++id;const p=new Promise(r=>pending.set(i,r));child.stdin.write(JSON.stringify({jsonrpc:'2.0',id:i,method,params})+'\n');return p};
+const call=async(n,a)=>(await send('tools/call',{name:n,arguments:a})).result.content[0].text;
+await send('initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'t',version:'1'}});
+child.stdin.write(JSON.stringify({jsonrpc:'2.0',method:'notifications/initialized',params:{}})+'\n');
+console.log('STORE:', await call('engram_remember',{text:'The delegate key and accountId live in ~/.memwal/credentials.json.',type:'config',scope:'personal'}));
+console.log('\nRECALL "where are my walrus credentials?":\n'+await call('engram_recall',{query:'where are my walrus credentials stored?',scope:'personal'}));
+child.kill();process.exit(0);
