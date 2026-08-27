@@ -1,41 +1,139 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-ink: #0a0a0f;
-  --color-panel: #111119;
-  --color-panel-2: #16161f;
-  --color-line: #24242f;
-  --color-mut: #8b8b9a;
-  --color-txt: #e7e7ef;
-  --color-brand: #4dd6c2; /* walrus teal */
-  --color-brand-2: #7c6cff; /* violet */
+  --color-bg: #0e0910;
+  --color-bg-2: #130b16;
+  --color-surface: #1a1220;
+  --color-surface-2: #221830;
+  --color-line: #2e2036;
+  --color-line-2: #3a2a44;
+  --color-rose: #e4a79c;
+  --color-rose-deep: #c98a80;
+  --color-violet: #7c6cff;
+  --color-violet-soft: #9b8dff;
+  --color-txt: #f3eef5;
+  --color-mut: #a99ab0;
+  --color-faint: #6f6178;
+
+  --font-display: 'Fraunces', Georgia, serif;
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   html,
   body,
   #root {
-    height: 100%;
+    min-height: 100%;
   }
   body {
     margin: 0;
     background:
-      radial-gradient(1200px 600px at 80% -10%, rgba(124, 108, 255, 0.12), transparent 60%),
-      radial-gradient(900px 500px at 0% 110%, rgba(77, 214, 194, 0.1), transparent 55%),
-      var(--color-ink);
+      radial-gradient(1100px 620px at 78% -8%, rgba(124, 108, 255, 0.16), transparent 60%),
+      radial-gradient(900px 560px at 10% 8%, rgba(228, 167, 156, 0.1), transparent 55%),
+      radial-gradient(1000px 700px at 50% 120%, rgba(124, 108, 255, 0.1), transparent 60%),
+      var(--color-bg);
     color: var(--color-txt);
     font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.01em;
   }
   * {
     box-sizing: border-box;
   }
+  ::selection {
+    background: rgba(228, 167, 156, 0.28);
+    color: #fff;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.04;
+  }
 }
 
-/* thin scrollbars */
+/* subtle film grain over everything for a premium texture */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@utility text-gradient {
+  background: linear-gradient(102deg, var(--color-rose) 0%, #f0d0c8 30%, var(--color-violet-soft) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility glass {
+  background: linear-gradient(180deg, rgba(34, 24, 48, 0.6), rgba(26, 18, 32, 0.4));
+  border: 1px solid var(--color-line);
+  backdrop-filter: blur(14px);
+}
+
+@utility hairline-t {
+  border-top: 1px solid var(--color-line);
+}
+
+/* scroll reveal */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+[data-reveal].in {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.animate-float { animation: float-slow 6s ease-in-out infinite; }
+.caret::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  background: var(--color-rose);
+  vertical-align: -0.1em;
+  animation: blink 1s step-end infinite;
+}
+
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-line) transparent;
+  scrollbar-color: var(--color-line-2) transparent;
 }
