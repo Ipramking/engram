@@ -82,6 +82,12 @@ args = ["-y", "mcp-remote", "${URL}"]`,
     uiNote: 'Add to ~/.gemini/settings.json, then run /mcp to verify.',
   },
   {
+    id: 'claude-web', name: 'Claude (web)', cat: 'Web', icon: Globe, blurb: 'claude.ai custom connector',
+    local: null,
+    remote: URL,
+    uiNote: 'Settings → Connectors → Add custom connector → Name: Engram · URL: paste above → Add (no auth — the token is already in the URL). Then in a new chat, open the tools menu and enable Engram. Needs a paid plan.',
+  },
+  {
     id: 'chatgpt', name: 'ChatGPT', cat: 'Web', icon: Globe, blurb: 'Web & desktop connectors',
     local: null,
     remote: URL,

@@ -115,5 +115,18 @@ async function bySession(req, res) {
 app.get('/mcp', bySession);
 app.delete('/mcp', bySession);
 
+// Keep the free-tier instance awake: ping our own PUBLIC url every 10 min so
+// Render's load balancer registers inbound traffic and never idles us out.
+// RENDER_EXTERNAL_URL is injected by Render. Opt out with ENGRAM_NO_KEEPALIVE=1.
+const selfUrl = process.env.RENDER_EXTERNAL_URL;
+if (selfUrl && !process.env.ENGRAM_NO_KEEPALIVE && typeof fetch === 'function') {
+  const ping = () =>
+    fetch(new URL('/health', selfUrl).href)
+      .then((r) => console.log(`[engram-http] keepalive ${r.status}`))
+      .catch((e) => console.error('[engram-http] keepalive failed:', e.message));
+  setInterval(ping, 10 * 60 * 1000).unref();
+  console.log(`[engram-http] keepalive on -> ${selfUrl}`);
+}
+
 const port = Number(process.env.PORT || 8788);
 app.listen(port, () => console.log(`[engram-http] listening on :${port}  (backend=${sharedBackend.kind}, token=${TOKEN ? 'on' : 'off'})`));
