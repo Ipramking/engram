@@ -6,7 +6,9 @@ services:
     name: engram-mcp
     runtime: node
     plan: free
-    buildCommand: corepack enable && pnpm install
+    # Render's /usr/bin is read-only, so `corepack enable` fails — run pnpm via
+    # npx instead (no global symlink needed).
+    buildCommand: npx --yes pnpm@10.14.0 install --no-frozen-lockfile
     startCommand: node mcp/engram-http.mjs
     healthCheckPath: /health
     envVars:

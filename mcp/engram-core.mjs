@@ -61,7 +61,23 @@ function bridgeBackend() {
     await call('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'engram', version: '0.1.0' } });
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }) + '\n');
   })();
-  const tool = async (name, args) => { await ready; const res = await call('tools/call', { name, arguments: args }); const t = res.result?.content?.[0]?.text ?? ''; if (res.result?.isError) throw new Error(t || 'bridge tool error'); return t; };
+  // The first bridge call after connect reliably 401s while the seal session
+  // primes; a retry then succeeds. Swallow transient auth/upstream flaps and
+  // retry a few times before surfacing the error.
+  const isFlap = (t) => /\b401\b|\b503\b|AUTH_REJECTED|unauthorized|not signed in|upstream|unavailable/i.test(t);
+  const tool = async (name, args) => {
+    await ready;
+    let lastErr = 'bridge tool error';
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const res = await call('tools/call', { name, arguments: args });
+      const t = res.result?.content?.[0]?.text ?? '';
+      if (!res.result?.isError) return t;
+      lastErr = t || lastErr;
+      if (!isFlap(lastErr)) break; // a real error (bad args etc.) — don't retry
+      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+    throw new Error(lastErr);
+  };
   return {
     kind: 'bridge',
     async remember(ns, text) { const t = await tool('memwal_remember', { text, namespace: ns }); const m = t.match(/blob_id[=:\s]+([A-Za-z0-9_-]+)/i) || t.match(/\/blob\/([A-Za-z0-9_-]+)/i); return m ? m[1] : undefined; },
