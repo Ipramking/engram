@@ -127,7 +127,7 @@ export default function Setup() {
   const client = CLIENTS.find((c) => c.id === active)!
 
   return (
-    <section id="setup" className="mx-auto max-w-6xl px-5 py-24">
+    <section id="setup" className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
       <div data-reveal className="mb-8 text-center">
         <p className="mb-3 font-mono text-xs tracking-widest text-rose uppercase">Set it up</p>
         <h2 className="text-4xl sm:text-5xl">Connect it to any AI.</h2>

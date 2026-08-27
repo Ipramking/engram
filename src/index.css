@@ -29,6 +29,11 @@
   #root {
     min-height: 100%;
   }
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
   body {
     margin: 0;
     background:
@@ -142,4 +147,12 @@ body::after {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-line-2) transparent;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

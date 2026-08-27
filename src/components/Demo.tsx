@@ -190,19 +190,21 @@ export default function Demo() {
       </div>
 
       {/* guided tour rail */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-bg/30 px-4 py-2.5 sm:px-5">
-        <span className="mr-1 text-[11px] font-medium tracking-widest text-faint uppercase">Guided tour</span>
-        {TOUR.map((s, i) => (
-          <span
-            key={i}
-            className={`rounded-full px-2.5 py-1 text-[11px] transition ${
-              i < step ? 'text-rose/70 line-through decoration-rose/30' : i === step ? 'bg-rose/15 text-rose ring-1 ring-rose/30' : 'text-faint'
-            }`}
-          >
-            {i + 1}. {s.label}
-          </span>
-        ))}
-        <div className="ml-auto flex items-center gap-2">
+      <div className="flex items-center gap-2 border-b border-line bg-bg/30 px-4 py-2.5 sm:px-5">
+        <span className="mr-1 shrink-0 text-[11px] font-medium tracking-widest text-faint uppercase">Guided tour</span>
+        <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto sm:flex-wrap">
+          {TOUR.map((s, i) => (
+            <span
+              key={i}
+              className={`shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] transition ${
+                i < step ? 'text-rose/70 line-through decoration-rose/30' : i === step ? 'bg-rose/15 text-rose ring-1 ring-rose/30' : 'text-faint'
+              }`}
+            >
+              {i + 1}. {s.label}
+            </span>
+          ))}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
           {step < TOUR.length ? (
             <button
               onClick={runStep}

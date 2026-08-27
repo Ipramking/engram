@@ -95,16 +95,16 @@ function Nav() {
 
 function Hero() {
   return (
-    <header className="relative mx-auto max-w-6xl px-5 pt-20 pb-16 sm:pt-28 sm:pb-24">
-      <div className="grid items-center gap-14 lg:grid-cols-[1.1fr_0.9fr]">
+    <header className="relative mx-auto max-w-6xl px-5 pt-16 pb-16 sm:pt-28 sm:pb-24">
+      <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
         <div data-reveal>
           <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/50 px-3 py-1 text-xs text-mut">
             <Sparkles size={13} className="text-rose" /> Portable memory for AI agents · on Walrus
           </span>
-          <h1 className="mt-6 text-[3.1rem] leading-[1.02] sm:text-[4.4rem]">
+          <h1 className="mt-6 text-[2.55rem] leading-[1.05] sm:text-[4.4rem] sm:leading-[1.02]">
             Your agent<br />finally <span className="text-gradient italic">remembers</span>.
           </h1>
-          <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-mut">
+          <p className="mt-6 max-w-xl text-[15.5px] leading-relaxed text-mut sm:text-[17px]">
             Work across your AIs without re-explaining a thing. Engram stores what matters and remembers
             it across <span className="text-txt">every AI you connect</span> — store a fact in Claude,
             recall it in Cursor. Portable, verifiable on Walrus, and shareable with your team.
@@ -150,10 +150,10 @@ function HeroCard() {
           <span className="inline-flex items-center gap-1 text-[11px] text-rose"><Check size={12} /> remembered</span>
         </div>
       </div>
-      <div className="absolute -right-4 -top-4 inline-flex rotate-6 items-center gap-1.5 rounded-xl border border-line glass px-3 py-1.5 text-[11px] text-mut animate-float" style={{ animationDelay: '1.5s' }}>
+      <div className="absolute -right-1 -top-3 inline-flex rotate-6 items-center gap-1.5 rounded-xl border border-line glass px-3 py-1.5 text-[11px] text-mut animate-float sm:-right-4 sm:-top-4" style={{ animationDelay: '1.5s' }}>
         <Users size={12} /> team scope
       </div>
-      <div className="absolute -left-5 bottom-6 inline-flex -rotate-6 items-center gap-1.5 rounded-xl border border-line glass px-3 py-1.5 text-[11px] text-mut animate-float" style={{ animationDelay: '0.8s' }}>
+      <div className="absolute -left-1 bottom-6 inline-flex -rotate-6 items-center gap-1.5 rounded-xl border border-line glass px-3 py-1.5 text-[11px] text-mut animate-float sm:-left-5" style={{ animationDelay: '0.8s' }}>
         <Lock size={12} /> personal
       </div>
     </div>
@@ -179,7 +179,7 @@ function Marquee() {
 
 function Problem() {
   return (
-    <section className="mx-auto max-w-6xl px-5 py-24">
+    <section className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
       <div className="grid gap-10 lg:grid-cols-2 lg:items-end">
         <h2 data-reveal className="text-4xl leading-tight sm:text-5xl">
           Every new session,<br />your agent <span className="text-mut italic">forgets</span> everything.
@@ -239,7 +239,7 @@ function Remembers() {
 
 function How() {
   return (
-    <section id="how" className="mx-auto max-w-6xl px-5 py-24">
+    <section id="how" className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
       <div data-reveal className="mb-14 max-w-2xl">
         <p className="mb-3 font-mono text-xs tracking-widest text-rose uppercase">How it works</p>
         <h2 className="text-4xl sm:text-5xl">Remember once. Recall forever.</h2>
@@ -275,7 +275,7 @@ function How() {
 function Team() {
   const cfg = `{\n  "mcpServers": {\n    "engram": {\n      "url": "${ENDPOINT}/mcp?token=<TOKEN>&room=<team>"\n    }\n  }\n}`
   return (
-    <section id="team" className="mx-auto max-w-6xl px-5 py-24">
+    <section id="team" className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
       <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
         <div data-reveal>
           <p className="mb-3 font-mono text-xs tracking-widest text-rose uppercase">Shared memory</p>
@@ -306,7 +306,7 @@ function Team() {
 
 function DemoSection() {
   return (
-    <section id="demo" className="mx-auto max-w-6xl px-5 py-24">
+    <section id="demo" className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
       <div data-reveal className="mb-10 text-center">
         <p className="mb-3 font-mono text-xs tracking-widest text-rose uppercase">Interactive tutorial</p>
         <h2 className="text-4xl sm:text-5xl">See it for yourself.</h2>
