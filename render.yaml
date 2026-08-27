@@ -1,0 +1,18 @@
+# Render Blueprint for the Engram team MCP endpoint.
+# Free web service (no trial expiry — it just sleeps after 15 min idle and
+# cold-starts on the next request). Set the two secret env vars in the dashboard.
+services:
+  - type: web
+    name: engram-mcp
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install
+    startCommand: node mcp/engram-http.mjs
+    healthCheckPath: /health
+    envVars:
+      - key: ENGRAM_MCP_BACKEND
+        value: bridge
+      - key: ENGRAM_TEAM_TOKEN
+        sync: false   # a shared secret teammates put in the URL (?token=…)
+      - key: ENGRAM_CREDS_JSON
+        sync: false   # paste the contents of ~/.memwal/credentials.json (the account the endpoint uses)

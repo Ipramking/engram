@@ -9,12 +9,14 @@
     "dev:api": "tsx watch server/dev.ts",
     "smoke": "node scripts/roundtrip.mjs",
     "login:memwal": "memwal-mcp login --prod",
+    "serve:http": "node mcp/engram-http.mjs",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
     "@ai-sdk/groq": "^4.0.33",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@mysten-incubation/memwal": "^0.1.5",
     "@openrouter/ai-sdk-provider": "^3.0.0",
     "ai": "^7.0.83",

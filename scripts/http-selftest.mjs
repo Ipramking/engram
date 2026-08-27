@@ -1,0 +1,14 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+const url = new URL('http://localhost:8788/mcp?room=sui-lagos');
+const transport = new StreamableHTTPClientTransport(url);
+const client = new Client({ name: 'engram-http-test', version: '1.0.0' });
+await client.connect(transport);
+const tools = await client.listTools();
+console.log('TOOLS:', tools.tools.map(t => t.name).join(', '));
+console.log('remember schema props:', Object.keys(tools.tools[0].inputSchema.properties).join(', '), '(should NOT include scope)');
+const r1 = await client.callTool({ name: 'engram_remember', arguments: { text: 'The team hosts the Engram endpoint on Render.', type: 'config' } });
+console.log('REMEMBER:', r1.content[0].text);
+const r2 = await client.callTool({ name: 'engram_recall', arguments: { query: 'where is the endpoint hosted?' } });
+console.log('RECALL:', r2.content[0].text);
+await client.close();
