@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Terminal, Monitor, Code2, Globe, Smartphone, Copy, Check, Download, ArrowRight, User, Users, KeyRound, Rocket } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Terminal, Monitor, Code2, Globe, Smartphone, Copy, Check, Download, ArrowRight, User, Users, KeyRound, Rocket, Share2, Zap } from 'lucide-react'
 import { ENGRAM_PROMPT, downloadText } from '../lib/promptText'
 
 const REPO = 'https://github.com/Ipramking/engram'
@@ -137,6 +137,9 @@ export default function Setup() {
         </p>
       </div>
 
+      {/* one-tap add — the fastest path, especially on mobile */}
+      <QuickConnect />
+
       {/* mode toggle */}
       <div data-reveal className="mb-8 flex justify-center">
         <div className="flex rounded-full border border-line bg-surface/50 p-1">
@@ -207,6 +210,99 @@ export default function Setup() {
         </div>
       </div>
     </section>
+  )
+}
+
+function QuickConnect() {
+  const [token, setToken] = useState('')
+  const [room, setRoom] = useState('my-space')
+  const [copied, setCopied] = useState(false)
+  const [canShare, setCanShare] = useState(false)
+
+  useEffect(() => {
+    try {
+      setToken(localStorage.getItem('engram.token') ?? '')
+      setRoom(localStorage.getItem('engram.room') || 'my-space')
+    } catch {}
+    setCanShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function')
+  }, [])
+  useEffect(() => { try { localStorage.setItem('engram.token', token) } catch {} }, [token])
+  useEffect(() => { try { localStorage.setItem('engram.room', room) } catch {} }, [room])
+
+  const ready = token.trim().length > 0
+  const url = `${ENDPOINT}/mcp?token=${encodeURIComponent(token.trim() || '<TOKEN>')}&room=${encodeURIComponent(room.trim() || 'my-space')}`
+
+  const copy = () => { navigator.clipboard?.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+  const share = () => { navigator.share?.({ title: 'Engram', text: 'Add Engram memory to your AI — paste this connector URL:', url }).catch(() => {}) }
+
+  return (
+    <div data-reveal className="mb-10">
+      <div className="relative overflow-hidden rounded-3xl border border-rose/30 bg-gradient-to-b from-rose/[0.08] to-violet/[0.05] p-5 sm:p-7">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-rose/20 blur-3xl" />
+        <div className="relative">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-rose to-violet text-bg"><Zap size={16} /></span>
+            <h3 className="text-xl sm:text-2xl">Add Engram to your AI</h3>
+          </div>
+          <p className="mb-5 text-sm text-mut">One URL. Paste it into your AI’s connector settings — that’s the whole setup.</p>
+
+          <div className="grid gap-2.5 sm:grid-cols-[1fr_180px]">
+            <label className="min-w-0">
+              <span className="mb-1 block text-[11px] font-medium tracking-wide text-faint uppercase">Team token</span>
+              <input
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="paste your ENGRAM_TEAM_TOKEN"
+                className="w-full rounded-xl border border-line bg-bg/50 px-3.5 py-2.5 font-mono text-sm text-txt outline-none transition placeholder:text-faint/70 focus:border-rose/60"
+              />
+            </label>
+            <label className="min-w-0">
+              <span className="mb-1 block text-[11px] font-medium tracking-wide text-faint uppercase">Room</span>
+              <input
+                value={room}
+                onChange={(e) => setRoom(e.target.value)}
+                placeholder="my-space"
+                className="w-full rounded-xl border border-line bg-bg/50 px-3.5 py-2.5 font-mono text-sm text-txt outline-none transition placeholder:text-faint/70 focus:border-rose/60"
+              />
+            </label>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2 rounded-xl border border-line bg-bg/60 px-3.5 py-2.5">
+            <span className={`min-w-0 flex-1 truncate font-mono text-[12px] ${ready ? 'text-txt/90' : 'text-faint'}`}>{url}</span>
+          </div>
+
+          <div className="mt-3 flex flex-col gap-2.5 sm:flex-row">
+            <button
+              onClick={copy}
+              disabled={!ready}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-rose to-violet px-6 py-3 text-sm font-medium text-bg transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-1"
+            >
+              {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? 'Copied — now paste it in' : 'Copy connect URL'}
+            </button>
+            {canShare && (
+              <button
+                onClick={share}
+                disabled={!ready}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-line px-6 py-3 text-sm text-txt transition hover:border-rose/50 disabled:opacity-40 sm:w-auto"
+              >
+                <Share2 size={15} /> Share
+              </button>
+            )}
+          </div>
+
+          {!ready && (
+            <p className="mt-3 text-xs text-faint">
+              No token yet? <a href="#setup" className="text-rose/80 hover:text-rose">Create your team below</a> to generate one (takes ~2 min, free).
+            </p>
+          )}
+
+          <div className="mt-5 grid gap-2 border-t border-line/70 pt-4 text-sm text-mut sm:grid-cols-2">
+            <p className="flex items-start gap-2"><span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-rose/40 bg-rose/10 font-mono text-[11px] text-rose">1</span> Open your AI’s <b className="font-medium text-txt">Connectors</b> settings → Add custom connector.</p>
+            <p className="flex items-start gap-2"><span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-rose/40 bg-rose/10 font-mono text-[11px] text-rose">2</span> Paste the URL → <b className="font-medium text-txt">Add</b> (no auth). Then paste the Engram prompt. Done.</p>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
