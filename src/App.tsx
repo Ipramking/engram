@@ -97,7 +97,7 @@ function Hero() {
   return (
     <header className="relative mx-auto max-w-6xl px-5 pt-16 pb-16 sm:pt-28 sm:pb-24">
       <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
-        <div data-reveal>
+        <div data-reveal className="min-w-0">
           <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/50 px-3 py-1 text-xs text-mut">
             <Sparkles size={13} className="text-rose" /> Portable memory for AI agents · on Walrus
           </span>
@@ -276,28 +276,28 @@ function Team() {
   const cfg = `{\n  "mcpServers": {\n    "engram": {\n      "url": "${ENDPOINT}/mcp?token=<TOKEN>&room=<team>"\n    }\n  }\n}`
   return (
     <section id="team" className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
-      <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-        <div data-reveal>
+      <div className="grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-12">
+        <div data-reveal className="min-w-0">
           <p className="mb-3 font-mono text-xs tracking-widest text-rose uppercase">Shared memory</p>
-          <h2 className="text-4xl sm:text-5xl">One brain for<br />your whole team.</h2>
-          <p className="mt-5 text-lg leading-relaxed text-mut">
+          <h2 className="text-[2.1rem] leading-[1.08] sm:text-5xl sm:leading-tight">One brain for<br />your whole team.</h2>
+          <p className="mt-5 text-base leading-relaxed text-mut sm:text-lg">
             Flip to team scope and every teammate’s agent reads and writes the same pool — shared
             decisions, conventions, who-owns-what. Onboard someone in seconds; nobody re-explains the
             architecture. Personal memory stays private.
           </p>
           <ul className="mt-6 space-y-2.5 text-sm text-mut">
             {['One URL — no install for teammates', 'Scoped by a room, gated by a token', 'Personal ↔ team, never mixed'].map((f) => (
-              <li key={f} className="flex items-center gap-2.5"><Check size={15} className="text-rose" />{f}</li>
+              <li key={f} className="flex items-start gap-2.5"><Check size={15} className="mt-0.5 shrink-0 text-rose" />{f}</li>
             ))}
           </ul>
         </div>
-        <div data-reveal className="rounded-3xl border border-line glass p-6">
+        <div data-reveal className="min-w-0 rounded-3xl border border-line glass p-5 sm:p-6">
           <div className="mb-3 flex items-center justify-between">
-            <span className="font-mono text-[11px] text-faint">team endpoint · live</span>
-            <span className="flex items-center gap-1.5 text-[11px] text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> online</span>
+            <span className="font-mono text-[11px] text-faint">team endpoint · always-on</span>
+            <span className="flex items-center gap-1.5 text-[11px] text-emerald-300"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> online</span>
           </div>
-          <pre className="overflow-x-auto rounded-2xl border border-line bg-bg/50 p-4 font-mono text-[12px] leading-relaxed whitespace-pre text-txt/90">{cfg}</pre>
-          <p className="mt-3 font-mono text-xs text-faint">{ENDPOINT}</p>
+          <pre className="overflow-x-auto rounded-2xl border border-line bg-bg/50 p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap break-all text-txt/90 sm:whitespace-pre sm:break-normal">{cfg}</pre>
+          <p className="mt-3 truncate font-mono text-xs text-faint">{ENDPOINT}</p>
         </div>
       </div>
     </section>
