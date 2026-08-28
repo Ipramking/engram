@@ -95,8 +95,8 @@ function Nav() {
 
 function Hero() {
   return (
-    <header className="relative mx-auto max-w-6xl px-5 pt-16 pb-16 sm:pt-28 sm:pb-24">
-      <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
+    <header className="relative mx-auto max-w-6xl px-5 pt-10 pb-14 sm:pt-28 sm:pb-24">
+      <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
         <div data-reveal className="min-w-0">
           <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/50 px-3 py-1 text-xs text-mut">
             <Sparkles size={13} className="text-rose" /> Portable memory for AI agents · on Walrus
@@ -109,14 +109,14 @@ function Hero() {
             it across <span className="text-txt">every AI you connect</span> — store a fact in Claude,
             recall it in Cursor. Portable, verifiable on Walrus, and shareable with your team.
           </p>
-          <div className="mt-9 flex flex-wrap items-center gap-3">
-            <a href="#demo" className="rounded-full bg-gradient-to-r from-rose to-violet px-6 py-3 text-sm font-medium text-bg transition hover:opacity-90">
+          <div className="mt-8 flex flex-col gap-3 sm:mt-9 sm:flex-row sm:flex-wrap sm:items-center">
+            <a href="#demo" className="rounded-full bg-gradient-to-r from-rose to-violet px-6 py-3 text-center text-sm font-medium text-bg transition hover:opacity-90 sm:w-auto">
               Try the live demo
             </a>
-            <a href="#setup" className="rounded-full border border-line px-6 py-3 text-sm text-txt transition hover:border-rose/50">
+            <a href="#setup" className="rounded-full border border-line px-6 py-3 text-center text-sm text-txt transition hover:border-rose/50 sm:w-auto">
               Set it up on your AI →
             </a>
-            <button onClick={() => downloadText('engram-prompt.txt', ENGRAM_PROMPT)} className="inline-flex items-center gap-2 px-2 py-3 text-sm text-mut transition hover:text-rose">
+            <button onClick={() => downloadText('engram-prompt.txt', ENGRAM_PROMPT)} className="inline-flex items-center justify-center gap-2 px-2 py-3 text-sm text-mut transition hover:text-rose sm:justify-start">
               <Download size={15} /> Download the prompt
             </button>
           </div>

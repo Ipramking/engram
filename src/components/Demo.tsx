@@ -225,9 +225,9 @@ export default function Demo() {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_320px]">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px]">
         {/* chat */}
-        <div className="flex min-h-[440px] flex-col border-b border-line lg:border-b-0 lg:border-r">
+        <div className="flex min-h-[440px] min-w-0 flex-col border-b border-line lg:border-b-0 lg:border-r">
           <div ref={scrollRef} className="max-h-[520px] min-h-[360px] flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
             {messages.length === 0 && (
               <div className="grid h-full place-items-center px-6 text-center">
@@ -249,7 +249,7 @@ export default function Demo() {
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input) } }}
                 rows={1}
                 placeholder={`Tell Engram something worth remembering (${scopeLabel})…`}
-                className="max-h-40 min-h-[44px] flex-1 resize-none rounded-2xl border border-line bg-bg/40 px-3.5 py-3 text-sm text-txt outline-none transition focus:border-rose/60"
+                className="max-h-40 min-h-[44px] min-w-0 flex-1 resize-none rounded-2xl border border-line bg-bg/40 px-3.5 py-3 text-sm text-txt outline-none transition focus:border-rose/60"
               />
               <button
                 onClick={() => send(input)}

@@ -107,7 +107,7 @@ function CodeBlock({ code }: { code: string }) {
   const [done, setDone] = useState(false)
   return (
     <div className="relative mt-2 rounded-xl border border-line bg-bg/60">
-      <pre className="overflow-x-auto p-3.5 pr-11 font-mono text-[12px] leading-relaxed whitespace-pre text-txt/90">{code}</pre>
+      <pre className="overflow-x-auto p-3.5 pr-11 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap break-all text-txt/90 sm:text-[12px] sm:whitespace-pre sm:break-normal">{code}</pre>
       <button
         onClick={() => { navigator.clipboard?.writeText(code); setDone(true); setTimeout(() => setDone(false), 1300) }}
         className="absolute right-2 top-2 rounded-md border border-line bg-surface p-1.5 text-mut transition hover:border-rose/50 hover:text-rose"
@@ -169,8 +169,8 @@ export default function Setup() {
       </div>
 
       {/* selector + steps */}
-      <div data-reveal className="grid gap-6 lg:grid-cols-[300px_1fr]">
-        <div>
+      <div data-reveal className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr]">
+        <div className="min-w-0">
           <div className="mb-3 flex flex-wrap gap-1.5">
             {CATS.map((c) => (
               <button key={c} onClick={() => setCat(c)} className={`rounded-full px-3 py-1 text-xs transition ${cat === c ? 'bg-rose/15 text-rose ring-1 ring-rose/30' : 'text-faint hover:text-txt'}`}>
@@ -202,7 +202,7 @@ export default function Setup() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-line glass p-6 sm:p-7">
+        <div className="min-w-0 rounded-3xl border border-line glass p-5 sm:p-7">
           <Steps key={`${client.id}-${mode}`} client={client} mode={mode} />
         </div>
       </div>
@@ -215,13 +215,13 @@ function Steps({ client, mode }: { client: Client; mode: 'personal' | 'team' }) 
   const code = mode === 'personal' ? client.local! : client.remote
   return (
     <div className="step-in">
-      <div className="mb-5 flex items-center gap-3">
-        <span className="grid h-10 w-10 place-items-center rounded-xl border border-rose/40 bg-rose/10 text-rose"><client.icon size={19} /></span>
-        <div>
+      <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-rose/40 bg-rose/10 text-rose"><client.icon size={19} /></span>
+        <div className="min-w-0">
           <h3 className="text-xl leading-none">{client.name}</h3>
           <p className="mt-1 text-xs text-faint">{client.cat} · {mode === 'personal' ? 'private, on your machine' : 'shared team · one URL'}</p>
         </div>
-        <span className="ml-auto rounded-full border border-line px-2.5 py-1 font-mono text-[10.5px] text-faint">{mode === 'personal' ? 'local · your account' : 'remote · one URL'}</span>
+        <span className="ml-auto shrink-0 rounded-full border border-line px-2.5 py-1 font-mono text-[10.5px] text-faint">{mode === 'personal' ? 'local · your account' : 'remote · one URL'}</span>
       </div>
 
       {na ? (
@@ -309,9 +309,9 @@ function TeamIntro() {
           <p className="mt-1.5 text-sm text-mut">One shared endpoint = one shared memory. Set it up once, then share the URL.</p>
         </div>
       </div>
-      <ol className="grid gap-4 sm:grid-cols-2">
+      <ol className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {steps.map((s, i) => (
-          <li key={i} className="rounded-2xl border border-line bg-bg/30 p-4">
+          <li key={i} className="min-w-0 rounded-2xl border border-line bg-bg/30 p-4">
             <div className="mb-2 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg border border-line bg-bg/40 text-rose"><s.icon size={15} /></span>
               <span className="font-mono text-[11px] text-faint">Step {i + 1}</span>
