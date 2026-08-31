@@ -20,6 +20,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { createEngram, pickBackend } from './engram-core.mjs';
+import { verify } from './token.mjs';
 
 // On a host, provision the Walrus login from env (no browser). Provide the
 // contents of ~/.memwal/credentials.json as ENGRAM_CREDS_JSON.
@@ -43,7 +44,8 @@ provisionCreds();
 const TOKEN = process.env.ENGRAM_TEAM_TOKEN || '';
 const sharedBackend = pickBackend(); // one bridge for the whole process
 
-const roomNs = (room) => `team:${String(room || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'default'}`;
+const slug = (r) => String(r || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'default';
+const roomNs = (room, tid) => (tid ? `team:${tid}:${slug(room)}` : `team:${slug(room)}`);
 
 function buildServer(lockNamespace) {
   const { TOOLS, handleTool } = createEngram({ backend: sharedBackend, lockNamespace });
@@ -61,9 +63,21 @@ function buildServer(lockNamespace) {
 }
 
 function authed(req, res) {
-  if (!TOKEN) return true;
-  const t = req.query.token || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (t === TOKEN) return true;
+  const token = req.query.token || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (token) {
+    const verified = verify(token);
+    if (verified?.tid) {
+      req.tenantId = verified.tid;
+      return true;
+    }
+    if (TOKEN && token === TOKEN) {
+      req.tenantId = null;
+      return true;
+    }
+  } else if (!TOKEN && !process.env.ENGRAM_SIGNING_SECRET) {
+    req.tenantId = null;
+    return true;
+  }
   res.status(401).json({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized: bad or missing token' }, id: null });
   return false;
 }
@@ -74,7 +88,7 @@ app.use(express.json({ limit: '1mb' }));
 
 app.get('/', (_req, res) =>
   res.type('text').send('Engram MCP endpoint. Point your agent at /mcp?token=…&room=…  (backend=' + sharedBackend.kind + ')'));
-app.get('/health', (_req, res) => res.json({ ok: true, backend: sharedBackend.kind, tokenRequired: Boolean(TOKEN) }));
+app.get('/health', (_req, res) => res.json({ ok: true, backend: sharedBackend.kind, tokenRequired: Boolean(TOKEN || process.env.ENGRAM_SIGNING_SECRET) }));
 
 // Stateful Streamable HTTP with per-session transports (the pattern real MCP
 // clients expect: initialize → Mcp-Session-Id → subsequent requests reuse it).
@@ -88,7 +102,7 @@ app.post('/mcp', async (req, res) => {
     const sid = req.headers['mcp-session-id'];
     let transport = sid ? transports[sid] : undefined;
     if (!transport && isInit(req.body)) {
-      const lockNamespace = roomNs(req.query.room);
+      const lockNamespace = roomNs(req.query.room, req.tenantId);
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (id) => { transports[id] = transport; },
