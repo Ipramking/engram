@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Brain, Lock, Users, GitBranch, Settings2, TriangleAlert, UserRound, Star,
-  Link2, Check, Sparkles, Download, ClipboardList,
+  Link2, Check, Sparkles, Download, ClipboardList, ArrowRight,
 } from 'lucide-react'
 import Demo from './components/Demo'
-import Setup from './components/Setup'
+import { Nav, Footer } from './components/Chrome'
 import { ENGRAM_PROMPT, downloadText } from './lib/promptText'
 
-const REPO = 'https://github.com/Ipramking/engram'
 const ENDPOINT = 'https://engram-mcp.onrender.com'
 const PROOF_BLOB = '2iD9wFtosZo0AwOEmEmHWyjWw6T_gOuY899xrqU2qdI'
 
@@ -50,46 +50,8 @@ export default function App() {
       <How />
       <Team />
       <DemoSection />
-      <Setup />
       <Footer />
     </div>
-  )
-}
-
-function Wordmark({ size = 'text-lg' }: { size?: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-rose to-violet text-bg shadow-lg shadow-violet/20">
-        <Brain size={17} strokeWidth={2.2} />
-      </div>
-      <span className={`font-display ${size} tracking-tight text-txt`}>Engram</span>
-    </div>
-  )
-}
-
-function Nav() {
-  const [scrolled, setScrolled] = useState(false)
-  useEffect(() => {
-    const on = () => setScrolled(window.scrollY > 12)
-    on(); window.addEventListener('scroll', on)
-    return () => window.removeEventListener('scroll', on)
-  }, [])
-  return (
-    <nav className={`sticky top-0 z-50 transition-colors ${scrolled ? 'border-b border-line glass' : 'border-b border-transparent'}`}>
-      <div className="mx-auto flex max-w-6xl items-center gap-6 px-5 py-3.5">
-        <Wordmark />
-        <div className="ml-auto hidden items-center gap-7 text-sm text-mut md:flex">
-          <a href="#how" className="transition hover:text-txt">How it works</a>
-          <a href="#team" className="transition hover:text-txt">Team</a>
-          <a href="#demo" className="transition hover:text-txt">Demo</a>
-          <a href="#setup" className="transition hover:text-txt">Set up</a>
-          <a href={REPO} target="_blank" rel="noreferrer" className="transition hover:text-txt">GitHub ↗</a>
-        </div>
-        <a href="#setup" className="rounded-full bg-gradient-to-r from-rose to-violet px-4 py-2 text-sm font-medium text-bg transition hover:opacity-90">
-          Get started
-        </a>
-      </div>
-    </nav>
   )
 }
 
@@ -113,9 +75,9 @@ function Hero() {
             <a href="#demo" className="rounded-full bg-gradient-to-r from-rose to-violet px-6 py-3 text-center text-sm font-medium text-bg transition hover:opacity-90 sm:w-auto">
               Try the live demo
             </a>
-            <a href="#setup" className="rounded-full border border-line px-6 py-3 text-center text-sm text-txt transition hover:border-rose/50 sm:w-auto">
-              Set it up on your AI →
-            </a>
+            <Link to="/setup" className="inline-flex items-center justify-center gap-2 rounded-full border border-line px-6 py-3 text-center text-sm text-txt transition hover:border-rose/50 sm:w-auto">
+              Set it up on your AI <ArrowRight size={15} />
+            </Link>
             <button onClick={() => downloadText('engram-prompt.txt', ENGRAM_PROMPT)} className="inline-flex items-center justify-center gap-2 px-2 py-3 text-sm text-mut transition hover:text-rose sm:justify-start">
               <Download size={15} /> Download the prompt
             </button>
@@ -290,6 +252,11 @@ function Team() {
               <li key={f} className="flex items-start gap-2.5"><Check size={15} className="mt-0.5 shrink-0 text-rose" />{f}</li>
             ))}
           </ul>
+          <div className="mt-7">
+            <Link to="/setup" className="inline-flex items-center gap-2 rounded-full border border-line px-5 py-2.5 text-sm text-txt transition hover:border-rose/50">
+              Set up team memory <ArrowRight size={15} />
+            </Link>
+          </div>
         </div>
         <div data-reveal className="min-w-0 rounded-3xl border border-line glass p-5 sm:p-6">
           <div className="mb-3 flex items-center justify-between">
@@ -319,22 +286,5 @@ function DemoSection() {
         <Demo />
       </div>
     </section>
-  )
-}
-
-function Footer() {
-  return (
-    <footer className="hairline-t mt-10">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-5 py-12 sm:flex-row sm:items-center">
-        <Wordmark />
-        <p className="text-sm text-faint sm:ml-4">Portable, verifiable memory for AI agents — on Walrus.</p>
-        <div className="flex items-center gap-6 text-sm text-mut sm:ml-auto">
-          <a href="#demo" className="hover:text-txt">Demo</a>
-          <a href="#setup" className="hover:text-txt">Set up</a>
-          <a href={REPO} target="_blank" rel="noreferrer" className="hover:text-txt">GitHub ↗</a>
-        </div>
-      </div>
-      <p className="pb-8 text-center font-mono text-[11px] text-faint">Built for the Walrus Memory hackathon · SuiHub Lagos</p>
-    </footer>
   )
 }

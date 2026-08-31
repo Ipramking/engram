@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Terminal, Monitor, Code2, Globe, Smartphone, Copy, Check, Download, ArrowRight, User, Users, KeyRound, Rocket, Share2, Zap } from 'lucide-react'
 import { ENGRAM_PROMPT, downloadText } from '../lib/promptText'
 
@@ -103,7 +104,7 @@ args = ["-y", "mcp-remote", "${URL}"]`,
 
 const CATS: (Cat | 'All')[] = ['All', 'CLI', 'App', 'IDE', 'Web', 'Mobile']
 
-function CodeBlock({ code }: { code: string }) {
+export function CodeBlock({ code }: { code: string }) {
   const [done, setDone] = useState(false)
   return (
     <div className="relative mt-2 rounded-xl border border-line bg-bg/60">
@@ -157,7 +158,7 @@ export default function Setup() {
 
       {/* mode intro panel */}
       <div data-reveal className="mb-8">
-        {mode === 'personal' ? <PersonalIntro /> : <TeamIntro />}
+        {mode === 'personal' ? <PersonalIntro onSwitchToTeam={() => setMode('team')} /> : <TeamIntro />}
       </div>
 
       {/* download prompt */}
@@ -197,7 +198,7 @@ export default function Setup() {
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-sm text-txt">{c.name}</span>
-                    <span className="block truncate text-[11px] text-faint">{na ? 'needs a hosted endpoint' : c.blurb}</span>
+                    <span className="block truncate text-[11px] text-faint">{na ? 'needs a hosted URL' : c.blurb}</span>
                   </span>
                 </button>
               )
@@ -206,26 +207,22 @@ export default function Setup() {
         </div>
 
         <div className="min-w-0 rounded-3xl border border-line glass p-5 sm:p-7">
-          <Steps key={`${client.id}-${mode}`} client={client} mode={mode} />
+          <Steps key={`${client.id}-${mode}`} client={client} mode={mode} onSwitchToTeam={() => setMode('team')} />
         </div>
       </div>
     </section>
   )
 }
 
-function QuickConnect() {
-  const [token, setToken] = useState('')
-  const [room, setRoom] = useState('my-space')
+export function QuickConnect() {
+  const [token, setToken] = useState(() => {
+    try { return localStorage.getItem('engram.token') ?? '' } catch { return '' }
+  })
+  const [room, setRoom] = useState(() => {
+    try { return localStorage.getItem('engram.room') || 'my-space' } catch { return 'my-space' }
+  })
   const [copied, setCopied] = useState(false)
-  const [canShare, setCanShare] = useState(false)
-
-  useEffect(() => {
-    try {
-      setToken(localStorage.getItem('engram.token') ?? '')
-      setRoom(localStorage.getItem('engram.room') || 'my-space')
-    } catch {}
-    setCanShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function')
-  }, [])
+  const [canShare] = useState(() => typeof navigator !== 'undefined' && typeof navigator.share === 'function')
   useEffect(() => { try { localStorage.setItem('engram.token', token) } catch {} }, [token])
   useEffect(() => { try { localStorage.setItem('engram.room', room) } catch {} }, [room])
 
@@ -248,11 +245,11 @@ function QuickConnect() {
 
           <div className="grid gap-2.5 sm:grid-cols-[1fr_180px]">
             <label className="min-w-0">
-              <span className="mb-1 block text-[11px] font-medium tracking-wide text-faint uppercase">Team token</span>
+              <span className="mb-1 block text-[11px] font-medium tracking-wide text-faint uppercase">Space / Team token</span>
               <input
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                placeholder="paste your ENGRAM_TEAM_TOKEN"
+                placeholder="paste your space or team token"
                 className="w-full rounded-xl border border-line bg-bg/50 px-3.5 py-2.5 font-mono text-sm text-txt outline-none transition placeholder:text-faint/70 focus:border-rose/60"
               />
             </label>
@@ -292,7 +289,7 @@ function QuickConnect() {
 
           {!ready && (
             <p className="mt-3 text-xs text-faint">
-              No token yet? <a href="#setup" className="text-rose/80 hover:text-rose">Create your team below</a> to generate one (takes ~2 min, free).
+              No token yet? <Link to="/setup/token" className="text-rose/90 font-medium underline underline-offset-2 hover:text-rose">Create your space →</Link> for an instant token, or configure self-hosting below.
             </p>
           )}
 
@@ -306,7 +303,7 @@ function QuickConnect() {
   )
 }
 
-function Steps({ client, mode }: { client: Client; mode: 'personal' | 'team' }) {
+export function Steps({ client, mode, onSwitchToTeam }: { client: Client; mode: 'personal' | 'team'; onSwitchToTeam?: () => void }) {
   const na = mode === 'personal' && !client.local
   const code = mode === 'personal' ? client.local! : client.remote
   return (
@@ -322,9 +319,7 @@ function Steps({ client, mode }: { client: Client; mode: 'personal' | 'team' }) 
 
       {na ? (
         <div className="rounded-2xl border border-line bg-bg/40 p-5 text-sm leading-relaxed text-mut">
-          <b className="text-txt">{client.name}</b> can’t run a local server. Deploy your own endpoint (it works
-          solo too — switch to <b className="text-rose">My team</b> above and follow “Create your team,” using
-          it just for yourself), then add the URL here.
+          <b className="text-txt">{client.name}</b> needs a hosted URL connector. <Link to="/setup/token" className="text-rose font-medium underline underline-offset-2">Create your space</Link> to get an instant URL, or deploy your own endpoint under <button onClick={onSwitchToTeam} className="text-rose font-medium underline underline-offset-2">My team</button>.
         </div>
       ) : (
         <ol className="space-y-4">
@@ -334,7 +329,7 @@ function Steps({ client, mode }: { client: Client; mode: 'personal' | 'team' }) 
               <p className="text-sm leading-relaxed text-txt/90">
                 {mode === 'personal'
                   ? 'Sign in once — opens a browser and creates your own private Walrus account. No install, no token:'
-                  : 'Grab your team URL from “Create your team” above (your token + a room name).'}
+                  : 'Grab your space URL above or create a hosted token (your token + a room name).'}
               </p>
               {mode === 'personal' && <CodeBlock code={LOGIN} />}
             </div>
@@ -363,11 +358,11 @@ function Steps({ client, mode }: { client: Client; mode: 'personal' | 'team' }) 
   )
 }
 
-function Num({ n }: { n: number }) {
+export function Num({ n }: { n: number }) {
   return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-line bg-bg/50 font-mono text-[11px] text-rose">{n}</span>
 }
 
-function PersonalIntro() {
+export function PersonalIntro({ onSwitchToTeam }: { onSwitchToTeam?: () => void }) {
   return (
     <div className="rounded-3xl border border-line glass p-6">
       <div className="flex items-center gap-3">
@@ -380,14 +375,13 @@ function PersonalIntro() {
       <p className="mt-4 text-sm leading-relaxed text-mut">
         Connect Engram to every AI on your computer and they all share <b className="text-txt">your</b> memory —
         store a fact in Claude Code, recall it in Cursor. Desktop, IDE and CLI tools connect locally below.
-        Want it on your phone too? That needs a hosted endpoint — switch to <b className="text-rose">My team</b> and
-        run it solo.
+        Want it on your phone or web AI too? <Link to="/setup/token" className="text-rose font-medium underline underline-offset-2 hover:decoration-rose">Create your space →</Link> for an instant hosted token (or deploy your own under <button onClick={onSwitchToTeam} className="text-rose font-medium underline underline-offset-2">My team</button>).
       </p>
     </div>
   )
 }
 
-function TeamIntro() {
+export function TeamIntro() {
   const genToken = `node -e "console.log(require('crypto').randomBytes(18).toString('base64url'))"`
   const url = `${ENDPOINT}/mcp?token=<YOUR_TOKEN>&room=acme-eng`
   const steps = [
@@ -418,15 +412,19 @@ function TeamIntro() {
           </li>
         ))}
       </ol>
-      <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-faint">
-        Share the finished URL with teammates — they just paste it into their AI (steps below), no install.
-        Full deploy guide: <a href={`${REPO}/blob/main/mcp/ENDPOINT.md`} target="_blank" rel="noreferrer" className="text-rose/80 hover:text-rose">mcp/ENDPOINT.md</a>.
-      </p>
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-xs text-faint">
+        <p>
+          Need an instant hosted token without self-hosting? <Link to="/setup/token" className="text-rose font-medium underline underline-offset-2">Create your space →</Link>
+        </p>
+        <a href={`${REPO}/blob/main/mcp/ENDPOINT.md`} target="_blank" rel="noreferrer" className="text-rose/80 hover:text-rose">
+          Full deploy guide: mcp/ENDPOINT.md ↗
+        </a>
+      </div>
     </div>
   )
 }
 
-function CopyPrompt() {
+export function CopyPrompt() {
   const [done, setDone] = useState(false)
   return (
     <button
