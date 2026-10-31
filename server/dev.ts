@@ -38,10 +38,10 @@ app.post("/api/answer", wrap(answer));
 app.post("/api/remember", wrap(remember));
 app.post("/api/recall", wrap(recall));
 app.post("/api/provision", wrap(provision));
-app.all("/api/auth*", wrap(auth));
-app.all("/api/keys*", wrap(keys));
-app.all("/api/teams*", wrap(teams));
-app.all("/api/usage*", wrap(usage));
+app.all(/^\/api\/auth(?:\/.*)?$/, wrap(auth));
+app.all(/^\/api\/keys(?:\/.*)?$/, wrap(keys));
+app.all(/^\/api\/teams(?:\/.*)?$/, wrap(teams));
+app.all(/^\/api\/usage(?:\/.*)?$/, wrap(usage));
 app.all("/api/health", wrap(health));
 
 const port = Number(process.env.PORT ?? 8787);

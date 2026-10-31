@@ -34,7 +34,7 @@ export default async function handler(req: any, res: any) {
 
         if (createError) {
           // If already registered, suggest signing in
-          if (createError.message.includes('already registered')) {
+          if (/already.*registered/i.test(createError.message)) {
             return res.status(400).json({ error: 'This email is already registered. Please sign in instead.' })
           }
           return res.status(400).json({ error: createError.message })
