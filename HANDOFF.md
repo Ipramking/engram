@@ -48,10 +48,11 @@ engram/
 │   ├── context/
 │   │   └── AuthContext.tsx      # React authentication state & token persistence
 │   ├── pages/
+│   │   ├── DocsPage.tsx         # Comprehensive official documentation hub (/docs)
 │   │   ├── LoginPage.tsx        # Sign-in page with quick demo accounts
 │   │   ├── RegisterPage.tsx     # Sign-up page with plan feature summary
 │   │   ├── DashboardPage.tsx    # User dashboard (Keys, Teams, Usage, Explorer)
-│   │   ├── SetupPage.tsx        # Documentation & setup guides
+│   │   ├── SetupPage.tsx        # Setup snippet selector wizard
 │   │   └── TokenPage.tsx        # Legacy space token provisioning
 │   ├── components/
 │   │   └── Chrome.tsx           # Responsive Nav & Footer with auth status
