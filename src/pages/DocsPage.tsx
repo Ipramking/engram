@@ -677,16 +677,16 @@ Output: "• (config) DATABASE_URL is in Render env  [blob 2iD9wF...]"`}
   const prevArticle = activeIndex > 0 ? articles[activeIndex - 1] : null
   const nextArticle = activeIndex < articles.length - 1 ? articles[activeIndex + 1] : null
 
-  // Grouped for sidebar
+  // Grouped for sidebar (filters actively with search)
   const categories = useMemo(() => {
     const map = new Map<string, DocArticle[]>()
-    articles.forEach((a) => {
+    filteredArticles.forEach((a) => {
       const list = map.get(a.category) || []
       list.push(a)
       map.set(a.category, list)
     })
     return Array.from(map.entries())
-  }, [articles])
+  }, [filteredArticles])
 
   return (
     <div className="min-h-screen bg-bg text-txt flex flex-col justify-between">
@@ -725,23 +725,44 @@ Output: "• (config) DATABASE_URL is in Render env  [blob 2iD9wF...]"`}
 
       {/* Standard 3-Column Web3 Documentation Layout */}
       <div className="mx-auto w-full max-w-7xl px-5 py-8 flex-1">
-        <div className="grid gap-8 lg:grid-cols-[260px_1fr_220px]">
-          {/* ── LEFT COLUMN: SIDEBAR NAVIGATION ── */}
-          <aside className="space-y-6">
-            {/* Search Input */}
-            <div className="relative">
-              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search documentation…"
-                className="w-full rounded-2xl border border-line bg-surface/60 pl-9 pr-3 py-2 text-xs text-txt placeholder:text-faint focus:border-rose/50 focus:outline-none transition"
-              />
+        {/* Mobile Topic Selector */}
+        <div className="lg:hidden mb-6 space-y-2">
+          <label className="block text-xs font-mono uppercase text-mut">Documentation Topic</label>
+          <select
+            value={activeArticleId}
+            onChange={(e) => {
+              setActiveArticleId(e.target.value)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            className="w-full rounded-2xl border border-line bg-surface/80 p-3 text-xs text-txt focus:border-rose/50"
+          >
+            {articles.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.category} — {a.title}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid gap-8 lg:grid-cols-[260px_1fr_220px] items-start">
+          {/* ── LEFT COLUMN: STATIONARY SIDEBAR NAVIGATION ── */}
+          <aside className="hidden lg:block sticky top-20 h-[calc(100vh-6rem)] overflow-y-auto pr-2 pb-10 space-y-5">
+            {/* Search Input pinned at top of stationary sidebar */}
+            <div className="sticky top-0 z-10 bg-bg/95 backdrop-blur-md pb-2 pt-1">
+              <div className="relative">
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search documentation…"
+                  className="w-full rounded-2xl border border-line bg-surface/70 pl-9 pr-3 py-2 text-xs text-txt placeholder:text-faint focus:border-rose/50 focus:outline-none transition shadow-sm"
+                />
+              </div>
             </div>
 
-            {/* Nav Tree */}
-            <div className="space-y-6 sticky top-20">
+            {/* Nav Tree (Stationary, with no layout shift on selection) */}
+            <div className="space-y-5">
               {categories.map(([cat, items]) => (
                 <div key={cat}>
                   <p className="font-mono text-[10.5px] uppercase tracking-wider text-faint mb-2 px-2">
@@ -755,15 +776,15 @@ Output: "• (config) DATABASE_URL is in Render env  [blob 2iD9wF...]"`}
                             setActiveArticleId(item.id)
                             window.scrollTo({ top: 0, behavior: 'smooth' })
                           }}
-                          className={`w-full text-left py-2 px-3 rounded-xl transition flex items-center justify-between ${
+                          className={`w-full text-left py-2 px-3 rounded-xl transition flex items-center justify-between border ${
                             activeArticleId === item.id
-                              ? 'bg-rose/15 text-rose font-medium border border-rose/30'
-                              : 'text-mut hover:text-txt hover:bg-surface/40'
+                              ? 'bg-rose/15 text-rose font-medium border-rose/30 shadow-sm'
+                              : 'border-transparent text-mut hover:text-txt hover:bg-surface/40 hover:border-line/40'
                           }`}
                         >
                           <span className="truncate">{item.title}</span>
                           {item.badge && (
-                            <span className="ml-2 rounded bg-surface/80 px-1.5 py-0.5 font-mono text-[9.5px] uppercase text-faint">
+                            <span className="ml-2 rounded bg-surface/80 px-1.5 py-0.5 font-mono text-[9.5px] uppercase text-faint shrink-0">
                               {item.badge}
                             </span>
                           )}
@@ -857,44 +878,42 @@ Output: "• (config) DATABASE_URL is in Render env  [blob 2iD9wF...]"`}
             </div>
           </main>
 
-          {/* ── RIGHT COLUMN: "ON THIS PAGE" TOC & ECOSYSTEM ── */}
-          <aside className="hidden lg:block space-y-6">
-            <div className="sticky top-20 space-y-6">
-              <div>
-                <p className="font-mono text-[10.5px] uppercase tracking-wider text-faint mb-3">
-                  On this page
-                </p>
-                <ul className="space-y-2 text-xs">
-                  {activeArticle.toc.map((t) => (
-                    <li key={t.id}>
-                      <a
-                        href={`#${t.id}`}
-                        className="text-mut hover:text-rose transition block leading-relaxed"
-                      >
-                        {t.label}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+          {/* ── RIGHT COLUMN: STATIONARY "ON THIS PAGE" TOC & ECOSYSTEM ── */}
+          <aside className="hidden lg:block sticky top-20 h-[calc(100vh-6rem)] overflow-y-auto pl-2 pb-10 space-y-6">
+            <div>
+              <p className="font-mono text-[10.5px] uppercase tracking-wider text-faint mb-3">
+                On this page
+              </p>
+              <ul className="space-y-2 text-xs">
+                {activeArticle.toc.map((t) => (
+                  <li key={t.id}>
+                    <a
+                      href={`#${t.id}`}
+                      className="text-mut hover:text-rose transition block leading-relaxed"
+                    >
+                      {t.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-              {/* Web3 Community Callout */}
-              <div className="rounded-2xl border border-line glass p-4 space-y-2.5">
-                <p className="font-mono text-[10.5px] uppercase tracking-wider text-rose font-bold">
-                  Ecosystem
-                </p>
-                <p className="text-[11.5px] text-mut leading-relaxed">
-                  Engram is built on Sui and Walrus for the autonomous agent ecosystem.
-                </p>
-                <a
-                  href="https://walruscan.com/mainnet"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs text-txt hover:text-rose transition"
-                >
-                  <span>Walrus Explorer</span> <ExternalLink size={11} />
-                </a>
-              </div>
+            {/* Web3 Community Callout */}
+            <div className="rounded-2xl border border-line glass p-4 space-y-2.5">
+              <p className="font-mono text-[10.5px] uppercase tracking-wider text-rose font-bold">
+                Ecosystem
+              </p>
+              <p className="text-[11.5px] text-mut leading-relaxed">
+                Engram is built on Sui and Walrus for the autonomous agent ecosystem.
+              </p>
+              <a
+                href="https://walruscan.com/mainnet"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-txt hover:text-rose transition"
+              >
+                <span>Walrus Explorer</span> <ExternalLink size={11} />
+              </a>
             </div>
           </aside>
         </div>

@@ -126,6 +126,18 @@ body::after {
   to { background-position: -200% 0; }
 }
 
+/* Stationary sidebar thin scrollbar */
+aside::-webkit-scrollbar {
+  width: 4px;
+}
+aside::-webkit-scrollbar-track {
+  background: transparent;
+}
+aside::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 4px;
+}
+
 @keyframes stepIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: none; }
