@@ -15,6 +15,13 @@ import teams from "../api/teams";
 import usage from "../api/usage";
 
 const app = express();
+app.disable('etag'); // Prevent 304 Not Modified empty responses that break browser fetch .json()
+app.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 

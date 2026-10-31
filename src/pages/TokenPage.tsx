@@ -5,6 +5,7 @@ import {
   Server, Rocket, Share2, AlertCircle, RefreshCw, Layers
 } from 'lucide-react'
 import { Nav, Footer } from '../components/Chrome'
+import { safeJson } from '../lib/api'
 
 const RENDER_DEPLOY = 'https://render.com/deploy?repo=https://github.com/Ipramking/engram'
 
@@ -56,7 +57,7 @@ export default function TokenPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ room: room.trim() || 'my-space' }),
       })
-      const data = await res.json()
+      const data = await safeJson(res)
       if (!res.ok) {
         throw new Error(data.error || 'Failed to provision space')
       }

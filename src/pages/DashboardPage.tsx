@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Wordmark } from '../components/Chrome'
+import { safeJson } from '../lib/api'
 
 interface ApiKey {
   id: string
@@ -113,8 +114,8 @@ export default function DashboardPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (keysRes.ok) {
-        const kData = await keysRes.json()
-        setKeys(kData.keys || [])
+        const kData = await safeJson(keysRes)
+        setKeys(kData?.keys || [])
       }
 
       // 2. Fetch Teams
@@ -122,9 +123,9 @@ export default function DashboardPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (teamsRes.ok) {
-        const tData = await teamsRes.json()
-        setTeams(tData.teams || [])
-        if (tData.teams?.length && !selectedTeam) {
+        const tData = await safeJson(teamsRes)
+        setTeams(tData?.teams || [])
+        if (tData?.teams?.length && !selectedTeam) {
           setSelectedTeam(tData.teams[0])
         }
       }
@@ -134,7 +135,7 @@ export default function DashboardPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (usageRes.ok) {
-        const uData = await usageRes.json()
+        const uData = await safeJson(usageRes)
         setUsage(uData)
       }
     } catch (err) {
@@ -154,9 +155,9 @@ export default function DashboardPage() {
       fetch(`/api/teams/members?teamId=${selectedTeam.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-        .then((r) => r.json())
+        .then((r) => safeJson(r))
         .then((d) => {
-          if (d.ok) setTeamMembers(d.members || [])
+          if (d?.ok) setTeamMembers(d.members || [])
         })
         .catch(console.error)
     }
@@ -179,13 +180,13 @@ export default function DashboardPage() {
           room: newKeyRoom.trim() || 'my-space',
         }),
       })
-      const data = await res.json()
-      if (res.ok && data.key) {
+      const data = await safeJson(res)
+      if (res.ok && data?.key) {
         setCreatedKeyRaw(data.key.rawKey)
         setCreatedKeyUrl(data.key.connectorUrl)
         fetchData()
       } else {
-        alert(data.error || 'Failed to create key')
+        alert(data?.error || 'Failed to create key')
       }
     } catch (err: any) {
       alert(err?.message || 'Error creating key')
@@ -225,8 +226,8 @@ export default function DashboardPage() {
         },
         body: JSON.stringify({ name: newTeamName.trim() }),
       })
-      const data = await res.json()
-      if (res.ok && data.team) {
+      const data = await safeJson(res)
+      if (res.ok && data?.team) {
         setShowTeamModal(false)
         setNewTeamName('')
         fetchData()
@@ -257,7 +258,7 @@ export default function DashboardPage() {
           role: inviteRole,
         }),
       })
-      const data = await res.json()
+      const data = await safeJson(res)
       if (res.ok) {
         setInviteSuccess(`Invited ${inviteEmail} successfully!`)
         setInviteEmail('')
@@ -265,7 +266,7 @@ export default function DashboardPage() {
         const memRes = await fetch(`/api/teams/members?teamId=${selectedTeam.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
-        const memData = await memRes.json()
+        const memData = await safeJson(memRes)
         if (memData.ok) setTeamMembers(memData.members || [])
       } else {
         setInviteError(data.error || 'Failed to invite member.')
@@ -289,7 +290,7 @@ export default function DashboardPage() {
           topK: 8,
         }),
       })
-      const data = await res.json()
+      const data = await safeJson(res)
       setMemories(data.results || [])
     } catch (err) {
       console.error('Failed to search memories:', err)

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { safeJson } from '../lib/api'
 
 export interface User {
   id: string
@@ -70,8 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           Authorization: `Bearer ${token}`,
         },
       })
-      const data = await res.json()
-      if (res.ok && data.user) {
+      const data = await safeJson(res)
+      if (res.ok && data?.user) {
         setUser(data.user)
         try {
           localStorage.setItem(USER_KEY, JSON.stringify(data.user))
@@ -99,15 +100,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password: pass }),
       })
-      const data = await res.json()
+      const data = await safeJson(res)
       if (!res.ok) {
-        const msg = data.error || 'Failed to sign in'
+        const msg = data?.error || 'Failed to sign in'
         setError(msg)
         return { ok: false, error: msg }
       }
 
-      const sessionToken = data.session?.access_token || 'session_' + data.user.id
-      saveSession(sessionToken, data.user)
+      const sessionToken = data?.session?.access_token || 'session_' + data?.user?.id
+      saveSession(sessionToken, data?.user)
       return { ok: true }
     } catch (err: any) {
       const msg = err?.message || 'Network error during login'
@@ -124,16 +125,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password: pass, name }),
       })
-      const data = await res.json()
+      const data = await safeJson(res)
       if (!res.ok) {
-        const msg = data.error || 'Failed to create account'
+        const msg = data?.error || 'Failed to create account'
         setError(msg)
         return { ok: false, error: msg }
       }
 
-      if (data.session?.access_token) {
+      if (data?.session?.access_token) {
         saveSession(data.session.access_token, data.user)
-      } else if (data.user) {
+      } else if (data?.user) {
         saveSession('session_' + data.user.id, data.user)
       }
       return { ok: true }

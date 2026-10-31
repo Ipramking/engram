@@ -1,7 +1,19 @@
 import type { ChatMsg, Memory, Scope } from '../types'
 
 const INSPECTOR_BASE =
-  import.meta.env.VITE_INSPECTOR_BASE ?? 'https://walruscan.com/testnet/blob/'
+  import.meta.env.VITE_INSPECTOR_BASE ?? 'https://walruscan.com/mainnet/blob/'
+
+export async function safeJson<T = any>(res: Response): Promise<T> {
+  const text = await res.text().catch(() => '')
+  if (!text || !text.trim()) {
+    return {} as T
+  }
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    return { error: text } as T
+  }
+}
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(path, {
@@ -9,11 +21,11 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
+  const data = await safeJson<any>(r)
   if (!r.ok) {
-    const msg = await r.json().catch(() => ({}))
-    throw new Error((msg as any).error || r.statusText)
+    throw new Error(data?.error || r.statusText)
   }
-  return r.json() as Promise<T>
+  return data as T
 }
 
 export function sendChat(
@@ -41,7 +53,7 @@ export function recallMemories(query: string, scope: Scope, teamCode: string) {
 export async function getHealth() {
   try {
     const r = await fetch('/api/health')
-    return (await r.json()) as { mock: boolean; llm: boolean; health: any }
+    return (await safeJson(r)) as { mock: boolean; llm: boolean; health: any }
   } catch {
     return { mock: true, llm: false, health: null }
   }
