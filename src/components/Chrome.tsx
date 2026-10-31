@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Brain } from 'lucide-react'
+import { Brain, LogOut, User as UserIcon, LayoutDashboard } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 
 const REPO = 'https://github.com/Ipramking/engram'
 
@@ -19,6 +20,7 @@ export function Nav() {
   const [scrolled, setScrolled] = useState(false)
   const location = useLocation()
   const isHome = location.pathname === '/'
+  const { user, logout } = useAuth()
 
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 12)
@@ -35,25 +37,57 @@ export function Nav() {
           {isHome ? (
             <>
               <a href="#how" className="transition hover:text-txt">How it works</a>
-              <a href="#team" className="transition hover:text-txt">Team</a>
-              <a href="#demo" className="transition hover:text-txt">Demo</a>
+              <a href="#taxonomy" className="transition hover:text-txt">Memory Types</a>
+              <a href="#platforms" className="transition hover:text-txt">Platforms & Mobile</a>
+              <a href="#pricing" className="transition hover:text-txt">Plans & Limits</a>
             </>
           ) : (
             <>
               <Link to="/#how" className="transition hover:text-txt">How it works</Link>
-              <Link to="/#team" className="transition hover:text-txt">Team</Link>
-              <Link to="/#demo" className="transition hover:text-txt">Demo</Link>
+              <Link to="/#taxonomy" className="transition hover:text-txt">Memory Types</Link>
+              <Link to="/#platforms" className="transition hover:text-txt">Platforms & Mobile</Link>
+              <Link to="/#pricing" className="transition hover:text-txt">Plans & Limits</Link>
             </>
           )}
-          <Link to="/setup" className="transition hover:text-txt">Set up</Link>
+          <Link to="/setup" className="transition hover:text-txt">Docs</Link>
           <a href={REPO} target="_blank" rel="noreferrer" className="transition hover:text-txt">GitHub ↗</a>
         </div>
-        <Link
-          to="/setup"
-          className="rounded-full bg-gradient-to-r from-rose to-violet px-4 py-2 text-sm font-medium text-bg transition hover:opacity-90"
-        >
-          Get started
-        </Link>
+
+        <div className="flex items-center gap-3">
+          {user ? (
+            <div className="flex items-center gap-2">
+              <Link
+                to="/dashboard"
+                className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-rose to-violet px-4 py-2 text-sm font-medium text-bg shadow hover:opacity-90 transition"
+              >
+                <LayoutDashboard size={14} />
+                <span>Dashboard</span>
+              </Link>
+              <button
+                onClick={() => logout()}
+                className="hidden sm:flex items-center justify-center rounded-full border border-line p-2 text-mut hover:text-txt hover:border-rose/40 transition"
+                title="Sign out"
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <Link
+                to="/login"
+                className="text-sm font-medium text-mut hover:text-txt transition px-2 py-1"
+              >
+                Sign in
+              </Link>
+              <Link
+                to="/register"
+                className="rounded-full bg-gradient-to-r from-rose to-violet px-4 py-2 text-sm font-medium text-bg transition hover:opacity-90 shadow-sm"
+              >
+                Get started
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
     </nav>
   )
@@ -64,21 +98,32 @@ export function Footer() {
   const isHome = location.pathname === '/'
 
   return (
-    <footer className="hairline-t mt-10">
+    <footer className="hairline-t mt-16">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-5 py-12 sm:flex-row sm:items-center">
         <Wordmark />
-        <p className="text-sm text-faint sm:ml-4">Portable, verifiable memory for AI agents — on Walrus.</p>
+        <p className="text-sm text-faint sm:ml-4">
+          Portable, verifiable persistent memory for AI agents — on Walrus.
+        </p>
         <div className="flex items-center gap-6 text-sm text-mut sm:ml-auto">
           {isHome ? (
-            <a href="#demo" className="hover:text-txt">Demo</a>
+            <>
+              <a href="#how" className="hover:text-txt">How it works</a>
+              <a href="#pricing" className="hover:text-txt">Pricing</a>
+            </>
           ) : (
-            <Link to="/#demo" className="hover:text-txt">Demo</Link>
+            <>
+              <Link to="/#how" className="hover:text-txt">How it works</Link>
+              <Link to="/#pricing" className="hover:text-txt">Pricing</Link>
+            </>
           )}
-          <Link to="/setup" className="hover:text-txt">Set up</Link>
+          <Link to="/setup" className="hover:text-txt">Docs</Link>
+          <Link to="/login" className="hover:text-txt">Sign In</Link>
           <a href={REPO} target="_blank" rel="noreferrer" className="hover:text-txt">GitHub ↗</a>
         </div>
       </div>
-      <p className="pb-8 text-center font-mono text-[11px] text-faint">Built for the Walrus Memory hackathon · SuiHub Lagos</p>
+      <p className="pb-8 text-center font-mono text-[11px] text-faint">
+        Seal-encrypted · Decentralized storage on Walrus · Sui Network
+      </p>
     </footer>
   )
 }

@@ -26,7 +26,54 @@ export function loggedIn() {
   return existsSync(join(homedir(), '.memwal', 'credentials.json'))
 }
 
-function pickBackend() {
+function cloudBackend({ apiKey, hostUrl = 'https://engram-mcp.onrender.com', room = 'my-space' }) {
+  const base = hostUrl.replace(/\/$/, '')
+  return {
+    kind: 'cloud',
+    async remember(ns, text) {
+      const scope = ns.startsWith('team:') ? 'team' : 'personal'
+      const teamCode = scope === 'team' ? ns.replace('team:', '') : undefined
+      const res = await fetch(`${base}/api/remember`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ text, scope, teamCode }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Engram cloud remember failed (${res.status})`)
+      }
+      const data = await res.json()
+      return data.blobId
+    },
+    async recall(ns, query) {
+      const scope = ns.startsWith('team:') ? 'team' : 'personal'
+      const teamCode = scope === 'team' ? ns.replace('team:', '') : undefined
+      const res = await fetch(`${base}/api/recall`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ query, scope, teamCode, topK: 10 }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Engram cloud recall failed (${res.status})`)
+      }
+      const data = await res.json()
+      return data.results || []
+    },
+  }
+}
+
+function pickBackend({ apiKey, hostUrl, room } = {}) {
+  const effectiveKey = apiKey || process.env.ENGRAM_API_KEY
+  if (effectiveKey) {
+    return cloudBackend({ apiKey: effectiveKey, hostUrl, room })
+  }
   const forced = (process.env.ENGRAM_MCP_BACKEND || '').toLowerCase()
   if (forced === 'mock') return mockBackend()
   if (forced === 'bridge') return bridgeBackend()
@@ -84,7 +131,8 @@ function bridgeBackend() {
   }
 }
 
-export function createEngram({ backend = pickBackend(), lockNamespace = null } = {}) {
+export function createEngram({ backend, lockNamespace = null, apiKey, hostUrl, room } = {}) {
+  const activeBackend = backend || pickBackend({ apiKey, hostUrl, room })
   const stored = new Map()
   const note = (ns, e) => { const a = stored.get(ns) ?? []; a.unshift(e); stored.set(ns, a) }
   const scoped = Boolean(lockNamespace)
@@ -132,12 +180,12 @@ export function createEngram({ backend = pickBackend(), lockNamespace = null } =
     const ns = lockNamespace ?? nsFor(args.scope, args.team_code)
     const scopeLabel = scoped ? 'team' : args.scope || 'personal'
     if (name === 'engram_remember') {
-      const blobId = await backend.remember(ns, enc(args.type, args.text))
+      const blobId = await activeBackend.remember(ns, enc(args.type, args.text))
       note(ns, { type: args.type, text: String(args.text).trim(), blobId })
       return `Remembered (${args.type}, scope=${scopeLabel}). Walrus blob: ${blobId ?? '(pending)'}`
     }
     if (name === 'engram_recall') {
-      const rows = await backend.recall(ns, args.query)
+      const rows = await activeBackend.recall(ns, args.query)
       if (!rows.length) return 'No relevant memories in this scope.'
       return rows.map((r) => { const { type, text } = dec(r.text); return `• (${type}) ${text}${r.blobId ? `  [blob ${r.blobId}]` : ''}` }).join('\n')
     }
@@ -155,5 +203,5 @@ export function createEngram({ backend = pickBackend(), lockNamespace = null } =
     throw new Error(`unknown tool ${name}`)
   }
 
-  return { TOOLS, handleTool, backend }
+  return { TOOLS, handleTool, backend: activeBackend }
 }

@@ -8,6 +8,22 @@ AI, recall it in another. Personal and team scope, with typed capture rules.
 
 ## Quick start (2 steps)
 
+### Option A: Connect with your Engram Account API Key (Recommended)
+Grab your API key from your Engram Dashboard:
+
+```jsonc
+// In claude_desktop_config.json or .cursor/mcp.json:
+{
+  "mcpServers": {
+    "engram": {
+      "command": "npx",
+      "args": ["-y", "engram-walrus", "--key=eng_usr_YOUR_KEY"]
+    }
+  }
+}
+```
+
+### Option B: Standalone Walrus Direct Login
 ```bash
 # 1. Sign in once (opens a browser — creates your own private Walrus account)
 npx engram-walrus login
