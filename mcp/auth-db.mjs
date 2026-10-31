@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'node:crypto'
+import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
@@ -153,7 +153,7 @@ export async function createProfile(id, email, name, planTier = 'free_personal')
 export async function createApiKey(opts) {
   const { rawKey, keyPrefix, keyHash } = generateApiKey(opts.scope)
   const room = opts.room || 'my-space'
-  const id = randomBytes(16).toString('hex')
+  const id = randomUUID()
 
   const supabase = getSupabaseAdmin()
   if (supabase) {
@@ -249,7 +249,7 @@ export async function revokeApiKey(keyId, userId) {
 }
 
 export async function createTeam(name, ownerId, ownerEmail) {
-  const teamId = randomBytes(16).toString('hex')
+  const teamId = randomUUID()
   const supabase = getSupabaseAdmin()
   if (supabase) {
     const { data: team, error } = await supabase
@@ -258,7 +258,12 @@ export async function createTeam(name, ownerId, ownerEmail) {
       .select().single()
     if (!error && team) {
       await supabase.from('team_members').insert({
-        team_id: teamId, user_id: ownerId, email: ownerEmail, role: 'owner', status: 'active',
+        id: randomUUID(),
+        team_id: teamId,
+        user_id: ownerId,
+        email: ownerEmail,
+        role: 'owner',
+        status: 'active',
       })
       return team
     }
@@ -268,7 +273,7 @@ export async function createTeam(name, ownerId, ownerEmail) {
     db.prepare('INSERT INTO teams (id, name, owner_id, plan_tier) VALUES (?, ?, ?, ?)').run(teamId, name, ownerId, 'free_team')
     db.prepare(`
       INSERT INTO team_members (id, team_id, user_id, email, role, status) VALUES (?, ?, ?, ?, 'owner', 'active')
-    `).run(randomBytes(16).toString('hex'), teamId, ownerId, ownerEmail)
+    `).run(randomUUID(), teamId, ownerId, ownerEmail)
     return { id: teamId, name, owner_id: ownerId, plan_tier: 'free_team' }
   }
   return { id: teamId, name, owner_id: ownerId, plan_tier: 'free_team' }
@@ -317,7 +322,7 @@ export async function addTeamMember(opts) {
     throw new Error('The Free Team Plan is limited to a maximum of 3 members. Please upgrade to Pro to add more members.')
   }
 
-  const memberId = randomBytes(16).toString('hex')
+  const memberId = randomUUID()
   const supabase = getSupabaseAdmin()
   if (supabase) {
     const { data, error } = await supabase.from('team_members').insert({
@@ -394,7 +399,7 @@ export async function checkAndIncrementUsage(opts) {
       ON CONFLICT(entity_type, entity_id, date) DO UPDATE SET
         saves_count = excluded.saves_count,
         recalls_count = excluded.recalls_count
-    `).run(randomBytes(16).toString('hex'), opts.entityType, opts.entityId, dateStr, newSaves, newRecalls)
+    `).run(randomUUID(), opts.entityType, opts.entityId, dateStr, newSaves, newRecalls)
   }
 
   return { saves: newSaves, recalls: newRecalls, limit: limits.dailySaves }
