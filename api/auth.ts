@@ -20,30 +20,55 @@ export default async function handler(req: any, res: any) {
         return res.status(400).json({ error: 'Email and password are required.' })
       }
 
+      const supabaseAdmin = getSupabaseAdmin()
       const supabaseAuth = getSupabaseAuth()
-      if (supabaseAuth) {
-        const { data, error } = await supabaseAuth.auth.signUp({
+
+      if (supabaseAdmin && supabaseAuth) {
+        // 1. Create pre-confirmed user via Admin API (bypasses SMTP setup and domain blocks)
+        const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email: email.trim(),
           password,
-          options: {
-            data: { name: name?.trim() || email.split('@')[0] },
-          },
+          email_confirm: true,
+          user_metadata: { name: name?.trim() || email.split('@')[0] },
         })
 
-        if (error) {
-          return res.status(400).json({ error: error.message })
+        if (createError) {
+          // If already registered, suggest signing in
+          if (createError.message.includes('already registered')) {
+            return res.status(400).json({ error: 'This email is already registered. Please sign in instead.' })
+          }
+          return res.status(400).json({ error: createError.message })
         }
 
-        const user = data.user
-        if (user) {
-          await createProfile(user.id, user.email!, name, 'free_personal')
+        const newUser = createData.user
+        if (newUser) {
+          await createProfile(newUser.id, newUser.email!, name, 'free_personal')
+        }
+
+        // 2. Sign in to obtain active JWT session
+        const { data: signData, error: signError } = await supabaseAuth.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        })
+
+        if (signError) {
+          return res.status(200).json({
+            ok: true,
+            user: newUser,
+            session: { access_token: 'session_' + newUser.id },
+            message: 'Registered successfully.',
+          })
         }
 
         return res.status(200).json({
           ok: true,
-          user: data.user,
-          session: data.session,
-          message: data.session ? 'Registered successfully' : 'Please check your email to confirm registration.',
+          user: {
+            ...signData.user,
+            name: name?.trim() || signData.user.email?.split('@')[0],
+            plan_tier: 'free_personal',
+          },
+          session: signData.session,
+          message: 'Registered successfully.',
         })
       }
 

@@ -744,9 +744,9 @@ Output: "• (config) DATABASE_URL is in Render env  [blob 2iD9wF...]"`}
           </select>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[260px_1fr_220px] items-start">
+        <div className="grid gap-8 lg:grid-cols-[300px_1fr_220px] items-start">
           {/* ── LEFT COLUMN: STATIONARY SIDEBAR NAVIGATION ── */}
-          <aside className="hidden lg:block sticky top-20 h-[calc(100vh-6rem)] overflow-y-auto pr-2 pb-10 space-y-5">
+          <aside className="hidden lg:block sticky top-[72px] max-h-[calc(100vh-5.5rem)] overflow-y-auto pr-3 pb-24 space-y-5">
             {/* Search Input pinned at top of stationary sidebar */}
             <div className="sticky top-0 z-10 bg-bg/95 backdrop-blur-md pb-2 pt-1">
               <div className="relative">
@@ -782,7 +782,7 @@ Output: "• (config) DATABASE_URL is in Render env  [blob 2iD9wF...]"`}
                               : 'border-transparent text-mut hover:text-txt hover:bg-surface/40 hover:border-line/40'
                           }`}
                         >
-                          <span className="truncate">{item.title}</span>
+                          <span className="truncate min-w-0 flex-1">{item.title}</span>
                           {item.badge && (
                             <span className="ml-2 rounded bg-surface/80 px-1.5 py-0.5 font-mono text-[9.5px] uppercase text-faint shrink-0">
                               {item.badge}
@@ -879,7 +879,7 @@ Output: "• (config) DATABASE_URL is in Render env  [blob 2iD9wF...]"`}
           </main>
 
           {/* ── RIGHT COLUMN: STATIONARY "ON THIS PAGE" TOC & ECOSYSTEM ── */}
-          <aside className="hidden lg:block sticky top-20 h-[calc(100vh-6rem)] overflow-y-auto pl-2 pb-10 space-y-6">
+          <aside className="hidden lg:block sticky top-[72px] max-h-[calc(100vh-5.5rem)] overflow-y-auto pl-2 pb-24 space-y-6">
             <div>
               <p className="font-mono text-[10.5px] uppercase tracking-wider text-faint mb-3">
                 On this page
