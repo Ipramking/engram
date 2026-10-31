@@ -20,6 +20,7 @@
     "@mysten-incubation/memwal": "^0.1.5",
     "@mysten-incubation/memwal-mcp": "^0.0.11",
     "@openrouter/ai-sdk-provider": "^3.0.0",
+    "@supabase/supabase-js": "^2.118.0",
     "ai": "^7.0.83",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

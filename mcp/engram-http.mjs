@@ -21,6 +21,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { createEngram, pickBackend } from './engram-core.mjs';
 import { verify } from './token.mjs';
+import { validateApiKey, checkAndIncrementUsage } from './auth-db.mjs';
 
 // On a host, provision the Walrus login from env (no browser). Provide the
 // contents of ~/.memwal/credentials.json as ENGRAM_CREDS_JSON.
@@ -47,12 +48,23 @@ const sharedBackend = pickBackend(); // one bridge for the whole process
 const slug = (r) => String(r || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'default';
 const roomNs = (room, tid) => (tid ? `team:${tid}:${slug(room)}` : `team:${slug(room)}`);
 
-function buildServer(lockNamespace) {
+function buildServer(lockNamespace, authContext = null) {
   const { TOOLS, handleTool } = createEngram({ backend: sharedBackend, lockNamespace });
   const server = new Server({ name: 'engram-team', version: '0.1.0' }, { capabilities: { tools: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
   server.setRequestHandler(CallToolRequestSchema, async (r) => {
     try {
+      if (authContext?.apiKey) {
+        const isSave = r.params.name === 'engram_remember';
+        const isRecall = r.params.name === 'engram_recall';
+        if (isSave || isRecall) {
+          await checkAndIncrementUsage({
+            entityType: authContext.apiKey.scope === 'personal' ? 'user' : 'team',
+            entityId: authContext.apiKey.scope === 'personal' ? authContext.apiKey.user_id : authContext.apiKey.team_id,
+            operation: isSave ? 'save' : 'recall',
+          });
+        }
+      }
       const text = await handleTool(r.params.name, r.params.arguments || {});
       return { content: [{ type: 'text', text }] };
     } catch (e) {
@@ -62,9 +74,21 @@ function buildServer(lockNamespace) {
   return server;
 }
 
-function authed(req, res) {
+async function authed(req, res) {
   const token = req.query.token || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (token) {
+    if (token.startsWith('eng_')) {
+      const apiKey = await validateApiKey(token);
+      if (apiKey) {
+        req.apiKey = apiKey;
+        const prefix = apiKey.scope === 'personal' ? 'usr' : 'team';
+        const rawId = apiKey.scope === 'personal' ? apiKey.user_id : (apiKey.team_id || apiKey.user_id);
+        req.tenantId = `${prefix}_${String(rawId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)}`;
+        return true;
+      }
+      res.status(401).json({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized: invalid or revoked Engram API key' }, id: null });
+      return false;
+    }
     const verified = verify(token);
     if (verified?.tid) {
       req.tenantId = verified.tid;
@@ -97,7 +121,7 @@ const isInit = (body) =>
   (Array.isArray(body) ? body : [body]).some((m) => m && m.method === 'initialize');
 
 app.post('/mcp', async (req, res) => {
-  if (!authed(req, res)) return;
+  if (!(await authed(req, res))) return;
   try {
     const sid = req.headers['mcp-session-id'];
     let transport = sid ? transports[sid] : undefined;
@@ -108,7 +132,7 @@ app.post('/mcp', async (req, res) => {
         onsessioninitialized: (id) => { transports[id] = transport; },
       });
       transport.onclose = () => { if (transport.sessionId) delete transports[transport.sessionId]; };
-      await buildServer(lockNamespace).connect(transport);
+      await buildServer(lockNamespace, { apiKey: req.apiKey, tenantId: req.tenantId }).connect(transport);
     } else if (!transport) {
       return res.status(400).json({ jsonrpc: '2.0', error: { code: -32000, message: 'No valid session; send initialize first' }, id: null });
     }
@@ -120,7 +144,7 @@ app.post('/mcp', async (req, res) => {
 
 // GET (server->client SSE) and DELETE (end session) reuse the session transport.
 async function bySession(req, res) {
-  if (!authed(req, res)) return;
+  if (!(await authed(req, res))) return;
   const sid = req.headers['mcp-session-id'];
   const transport = sid && transports[sid];
   if (!transport) return res.status(400).send('Invalid or missing session id');
