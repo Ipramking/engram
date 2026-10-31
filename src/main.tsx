@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
+import DocsPage from './pages/DocsPage.tsx'
 import SetupPage from './pages/SetupPage.tsx'
 import TokenPage from './pages/TokenPage.tsx'
 import LoginPage from './pages/LoginPage.tsx'
@@ -16,11 +17,13 @@ createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<App />} />
+          <Route path="/docs" element={<DocsPage />} />
+          <Route path="/setup" element={<DocsPage />} />
+          <Route path="/setup/wizard" element={<SetupPage />} />
+          <Route path="/setup/token" element={<TokenPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/setup" element={<SetupPage />} />
-          <Route path="/setup/token" element={<TokenPage />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

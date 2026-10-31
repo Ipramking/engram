@@ -622,7 +622,7 @@ function CTA() {
             Create free account
           </Link>
           <Link
-            to="/setup"
+            to="/docs"
             className="w-full sm:w-auto rounded-full border border-line px-6 py-3.5 text-sm font-medium text-txt hover:border-rose/50 transition"
           >
             Read the docs

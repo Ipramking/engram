@@ -49,7 +49,7 @@ export function Nav() {
               <Link to="/#pricing" className="transition hover:text-txt">Plans & Limits</Link>
             </>
           )}
-          <Link to="/setup" className="transition hover:text-txt">Docs</Link>
+          <Link to="/docs" className="transition hover:text-txt">Docs</Link>
           <a href={REPO} target="_blank" rel="noreferrer" className="transition hover:text-txt">GitHub ↗</a>
         </div>
 
@@ -116,7 +116,7 @@ export function Footer() {
               <Link to="/#pricing" className="hover:text-txt">Pricing</Link>
             </>
           )}
-          <Link to="/setup" className="hover:text-txt">Docs</Link>
+          <Link to="/docs" className="hover:text-txt">Docs</Link>
           <Link to="/login" className="hover:text-txt">Sign In</Link>
           <a href={REPO} target="_blank" rel="noreferrer" className="hover:text-txt">GitHub ↗</a>
         </div>
