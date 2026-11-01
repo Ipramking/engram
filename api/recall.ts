@@ -31,11 +31,21 @@ function scoreMemoryMatch(text: string, type: string, query: string): number {
 export default async function handler(req: any, res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  if (req.method !== "POST" && req.method !== "GET") {
+    return res.status(405).json({ error: "GET or POST only" });
+  }
 
-  const { query = "", scope = "personal", teamCode = "default", topK = 10, includeSuperseded = false } = req.body ?? {};
+  const rawUrl = req.url || "";
+  const searchParams = new URLSearchParams(rawUrl.split("?")[1] || "");
+  const source = req.method === "GET" ? { ...Object.fromEntries(searchParams.entries()), ...(req.query || {}) } : (req.body ?? {});
+
+  const query = String(source.query ?? "");
+  const scope = (source.scope === "team" ? "team" : "personal") as Scope;
+  const teamCode = String(source.teamCode ?? "default");
+  const topK = Number(source.topK ?? 10) || 10;
+  const includeSuperseded = source.includeSuperseded === true || source.includeSuperseded === "true";
 
   const user = await getUserFromRequest(req);
   if (!user) {
