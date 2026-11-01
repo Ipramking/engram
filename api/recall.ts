@@ -120,7 +120,10 @@ export default async function handler(req: any, res: any) {
   const ns = scope === "team" ? teamCode : `usr_${user.id}`;
   const mem = memwalFor(scope as Scope, ns);
   try {
-    const r = await mem.recall({ query: query || " ", topK, maxDistance: recallMaxDistance() });
+    const r = await Promise.race([
+      mem.recall({ query: query || " ", topK, maxDistance: recallMaxDistance() }),
+      new Promise((resolve) => setTimeout(() => resolve([]), 3500)),
+    ]);
     for (const m of normalizeRecall(r)) {
       const decoded = decodeMemory(m.text);
       const key = decoded.text.trim().toLowerCase();

@@ -78,10 +78,19 @@ export default async function handler(req: any, res: any) {
   const mem = memwalFor(scope as Scope, ns);
   let blobId: string | undefined;
   try {
-    const job = await mem.rememberAndWait(encodeMemory(t as any, cleanText), undefined, {
-      timeoutMs: 30_000,
-    });
+    const encoded = encodeMemory(t as any, cleanText);
+    const job = await Promise.race([
+      mem.rememberAndWait(encoded, undefined, { timeoutMs: 4500 }),
+      new Promise((resolve) => setTimeout(() => resolve(null), 4500)),
+    ]);
     blobId = blobIdOf(job);
+    if (!blobId && typeof mem.remember === 'function') {
+      const asyncJob = await Promise.race([
+        mem.remember(encoded),
+        new Promise((resolve) => setTimeout(() => resolve(null), 2000)),
+      ]);
+      blobId = blobIdOf(asyncJob) || (asyncJob as any)?.jobId || (asyncJob as any)?.job_id;
+    }
   } catch (walrusErr) {
     console.warn("Walrus relayer write warning (persisting to Supabase metadata):", walrusErr);
   }

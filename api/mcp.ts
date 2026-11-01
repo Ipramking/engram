@@ -236,10 +236,19 @@ export default async function handler(req: any, res: any) {
           const mem = memwalFor(scope, ns);
           let blobId: string | undefined;
           try {
-            const job = await mem.rememberAndWait(encodeMemory(type, cleanText), undefined, {
-              timeoutMs: 25_000,
-            });
+            const encoded = encodeMemory(type, cleanText);
+            const job = await Promise.race([
+              mem.rememberAndWait(encoded, undefined, { timeoutMs: 4500 }),
+              new Promise((resolve) => setTimeout(() => resolve(null), 4500)),
+            ]);
             blobId = blobIdOf(job);
+            if (!blobId && typeof mem.remember === "function") {
+              const asyncJob = await Promise.race([
+                mem.remember(encoded),
+                new Promise((resolve) => setTimeout(() => resolve(null), 2000)),
+              ]);
+              blobId = blobIdOf(asyncJob) || (asyncJob as any)?.jobId || (asyncJob as any)?.job_id;
+            }
           } catch (e) {
             console.warn("[api/mcp] Walrus relayer warning:", e);
           }
@@ -301,7 +310,10 @@ export default async function handler(req: any, res: any) {
 
           try {
             const mem = memwalFor(scope, ns);
-            const raw = await mem.recall({ query, topK: 8, maxDistance: recallMaxDistance() });
+            const raw = await Promise.race([
+              mem.recall({ query, topK: 8, maxDistance: recallMaxDistance() }),
+              new Promise((resolve) => setTimeout(() => resolve([]), 3500)),
+            ]);
             for (const item of normalizeRecall(raw)) {
               const dec = decodeMemory(sanitizeMemoryText(item.text));
               const k = dec.text.toLowerCase();
