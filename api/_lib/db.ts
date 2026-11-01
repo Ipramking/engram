@@ -146,20 +146,23 @@ export async function listApiKeys(userId: string) {
 
 export async function validateApiKey(rawKey: string) {
   const hash = hashKey(rawKey)
+  const fallbackHash = createHmac('sha256', 'engram-key-salt-default').update(rawKey).digest('hex')
+  const hashes = hash === fallbackHash ? [hash] : [hash, fallbackHash]
   const supabase = getSupabaseAdmin()
   if (supabase) {
-    const { data } = await supabase
+    const { data: rows } = await supabase
       .from('api_keys')
       .select('*')
-      .eq('key_hash', hash)
+      .in('key_hash', hashes)
       .eq('is_active', true)
-      .single()
+      .limit(1)
+    const data = rows?.[0]
     if (data) {
       supabase.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', data.id).then()
       return data
     }
   }
-  const row = memApiKeys.get(hash)
+  const row = memApiKeys.get(hash) || memApiKeys.get(fallbackHash)
   if (row && row.is_active) {
     row.last_used_at = new Date().toISOString()
     return row
