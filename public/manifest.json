@@ -1,0 +1,17 @@
+{
+  "name": "Engram — Decentralized Agent Memory",
+  "short_name": "Engram",
+  "description": "Portable, verifiable memory for AI agents, backed by Walrus.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#09070f",
+  "theme_color": "#09070f",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
