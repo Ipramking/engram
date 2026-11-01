@@ -1,13 +1,18 @@
 // Manual "pin this" — store a memory the user explicitly chose.
-import { memwalFor, encodeMemory, blobIdOf, MEMORY_TYPES, type Scope } from "./_lib/memwal";
+import { memwalFor, encodeMemory, decodeMemory, blobIdOf, MEMORY_TYPES, type Scope } from "./_lib/memwal";
 import { getUserFromRequest } from "./_lib/auth";
 import { checkAndIncrementUsage, getQuotaResetMetadata, PLAN_LIMITS } from "./_lib/db";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-  const { text, type = "decision", scope = "personal", teamCode = "default" } = req.body ?? {};
+  const { text, type, scope = "personal", teamCode = "default" } = req.body ?? {};
   if (!text || typeof text !== "string") return res.status(400).json({ error: "text required" });
-  const t = (MEMORY_TYPES as readonly string[]).includes(type) ? type : "decision";
+
+  const decoded = decodeMemory(text);
+  const t = type && (MEMORY_TYPES as readonly string[]).includes(type)
+    ? type
+    : (decoded.type !== 'note' ? decoded.type : 'decision');
+  const cleanText = decoded.text;
 
   const { resetAt, secondsUntilReset } = getQuotaResetMetadata();
   const user = await getUserFromRequest(req);
@@ -42,8 +47,8 @@ export default async function handler(req: any, res: any) {
 
   const ns = user ? (scope === 'team' ? teamCode : `usr_${user.id}`) : teamCode;
   const mem = memwalFor(scope as Scope, ns);
-  const job = await mem.rememberAndWait(encodeMemory(t as any, text), undefined, {
+  const job = await mem.rememberAndWait(encodeMemory(t as any, cleanText), undefined, {
     timeoutMs: 30_000,
   });
-  res.status(200).json({ ok: true, type: t, text, blobId: blobIdOf(job) });
+  res.status(200).json({ ok: true, type: t, text: cleanText, blobId: blobIdOf(job) });
 }
