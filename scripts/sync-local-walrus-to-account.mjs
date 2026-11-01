@@ -3,7 +3,7 @@ import 'dotenv/config'
 import { getSupabaseAdmin } from '../api/_lib/supabase.ts'
 import { pickBackend, dec, TYPES } from '../mcp/engram-core.mjs'
 
-const TARGET_USER_EMAIL = 'corewealthaffiliate@gmail.com'
+const TARGET_USER_EMAIL = process.argv[2] || process.env.TARGET_EMAIL || 'corewealthaffiliate@gmail.com'
 
 async function sync() {
   console.log(`Starting sync from local Walrus account to ${TARGET_USER_EMAIL}...`)
