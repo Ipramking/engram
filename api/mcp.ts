@@ -12,7 +12,7 @@ import {
   type Scope,
 } from "./_lib/memwal.js";
 import { validateApiKey, checkAndIncrementUsage } from "./_lib/db.js";
-import { verify } from "./_lib/token.js";
+import { verify, verifyLiveKey } from "./_lib/token.js";
 import { getUserFromRequest } from "./_lib/auth.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
 import { detectAndResolveConflicts } from "./_lib/conflicts.js";
@@ -121,7 +121,19 @@ export default async function handler(req: any, res: any) {
   let defaultScope: Scope = "personal";
   const room = (req.query?.room as string) || searchParams.get("room") || "my-space";
 
-  if (token && token.startsWith("eng_")) {
+  if (token && token.startsWith("eng_live_")) {
+    const live = verifyLiveKey(token);
+    if (!live?.uid) {
+      return res.status(401).json({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: "Unauthorized: invalid Engram live API key" },
+        id: null,
+      });
+    }
+    userId = live.uid;
+    teamId = live.tid || null;
+    defaultScope = live.scope || "personal";
+  } else if (token && token.startsWith("eng_")) {
     const apiKey = await validateApiKey(token);
     if (!apiKey) {
       return res.status(401).json({

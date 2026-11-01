@@ -67,3 +67,35 @@ export function verifySession(token: string, secretOverride?: string): SessionUs
     return null
   }
 }
+
+export interface LiveKeyPayload {
+  uid: string
+  kid?: string
+  scope: 'personal' | 'team'
+  tid?: string
+  room?: string
+}
+
+export function signLiveKey(payload: LiveKeyPayload, secretOverride?: string): string {
+  const secret = getSecret(secretOverride)
+  const encoded = b64u(JSON.stringify(payload))
+  const mac = b64u(createHmac('sha256', secret).update('eng_live.' + encoded).digest()).slice(0, 24)
+  return `eng_live_${encoded}.${mac}`
+}
+
+export function verifyLiveKey(token: string, secretOverride?: string): LiveKeyPayload | null {
+  const secret = getSecret(secretOverride)
+  if (!secret || typeof token !== 'string' || !token.startsWith('eng_live_')) return null
+  const raw = token.slice('eng_live_'.length)
+  const [encoded, mac] = raw.split('.')
+  if (!encoded || !mac) return null
+  const expected = b64u(createHmac('sha256', secret).update('eng_live.' + encoded).digest()).slice(0, 24)
+  const a = Buffer.from(mac)
+  const b = Buffer.from(expected)
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null
+  try {
+    return JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))
+  } catch {
+    return null
+  }
+}

@@ -1,5 +1,6 @@
 import { getUserFromRequest } from './_lib/auth.js'
 import { createApiKey, listApiKeys, revokeApiKey } from './_lib/db.js'
+import { signLiveKey } from './_lib/token.js'
 
 const HOST = process.env.ENGRAM_MCP_HOST || 'https://engram-pearl.vercel.app'
 
@@ -63,13 +64,35 @@ export default async function handler(req: any, res: any) {
 
     // ── List Keys ──
     if (method === 'GET' || path.endsWith('/list')) {
-      const keys = await listApiKeys(user.id)
+      let keys = await listApiKeys(user.id)
+      // Auto-provision a default personal key if the user has 0 keys so mobile/desktop setup is 1-tap ready
+      if (!keys || keys.length === 0) {
+        try {
+          await createApiKey({
+            userId: user.id,
+            name: 'Default Mobile & Desktop Key',
+            scope: 'personal',
+            room: 'my-space',
+          })
+          keys = await listApiKeys(user.id)
+        } catch {}
+      }
       return res.status(200).json({
         ok: true,
-        keys: keys.map((k: any) => ({
-          ...k,
-          connectorUrl: `${HOST}/mcp?token=${encodeURIComponent(k.key_prefix)}...&room=${encodeURIComponent(k.room)}`,
-        })),
+        keys: keys.map((k: any) => {
+          const liveKey = signLiveKey({
+            uid: user.id,
+            kid: k.id,
+            scope: k.scope || 'personal',
+            tid: k.team_id || undefined,
+            room: k.room || 'my-space',
+          })
+          return {
+            ...k,
+            liveKey,
+            connectorUrl: `${HOST}/mcp?token=${encodeURIComponent(liveKey)}&room=${encodeURIComponent(k.room || 'my-space')}`,
+          }
+        }),
       })
     }
 

@@ -1,7 +1,7 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto'
 import { getSupabaseAdmin } from './supabase.js'
 import { getProfile } from './db.js'
-import { verify, verifySession } from './token.js'
+import { verify, verifySession, verifyLiveKey } from './token.js'
 
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex')
@@ -40,7 +40,21 @@ export async function getUserFromRequest(req: any) {
     }
   }
 
-  // 2. Try Engram API Key (eng_usr_... or eng_team_...)
+  // 2. Try Engram API Key (eng_live_..., eng_usr_... or eng_team_...)
+  if (token.startsWith('eng_live_')) {
+    const live = verifyLiveKey(token)
+    if (live?.uid) {
+      const profile = await getProfile(live.uid)
+      return {
+        id: live.uid,
+        email: profile?.email || `${live.scope}-${live.uid.slice(0, 8)}@engram.memory`,
+        name: profile?.name || 'API Client',
+        plan_tier: profile?.plan_tier || 'free_personal',
+        apiKey: { id: live.kid || 'live', user_id: live.uid, scope: live.scope, team_id: live.tid, room: live.room || 'my-space' },
+      }
+    }
+  }
+
   if (token.startsWith('eng_')) {
     try {
       const { validateApiKey } = await import('./db.js')

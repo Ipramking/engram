@@ -4,16 +4,18 @@ import {
   Brain, Key, Users, BarChart3, Search, Plus, Trash2, Copy, Check, ExternalLink,
   Shield, Smartphone, Laptop, Terminal, Sparkles, AlertCircle, RefreshCw, LogOut,
   ChevronRight, Lock, CheckCircle2, UserPlus, Info, Layers, Download, FileText,
-  AlertTriangle, Clock, Coins, Eye, EyeOff
+  AlertTriangle, Clock, Coins, Eye, EyeOff, Share2, MessageSquare, Zap, Code2, Send
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Wordmark } from '../components/Chrome'
 import { safeJson } from '../lib/api'
+import { ENGRAM_PROMPT, downloadText } from '../lib/promptText'
 
 interface ApiKey {
   id: string
   name: string
   key_prefix: string
+  liveKey?: string
   scope: 'personal' | 'team'
   room: string
   team_id?: string
@@ -120,12 +122,32 @@ export default function DashboardPage() {
   const [savingMemory, setSavingMemory] = useState(false)
   const [saveMemoryError, setSaveMemoryError] = useState<string | null>(null)
 
+  // Mobile Workflows Interactive Toolkit State
+  const [mobileMode, setMobileMode] = useState<'claude' | 'chatgpt' | 'shortcuts'>('claude')
+  const [showFullMobilePrompt, setShowFullMobilePrompt] = useState(false)
+  const [quickMobileText, setQuickMobileText] = useState('')
+  const [quickMobileType, setQuickMobileType] = useState('decision')
+  const [quickMobileSaving, setQuickMobileSaving] = useState(false)
+  const [quickMobileSuccess, setQuickMobileSuccess] = useState<string | null>(null)
+
   // Copy state helper
   const [copiedText, setCopiedText] = useState<string | null>(null)
   const copyToClipboard = (txt: string, label: string) => {
     navigator.clipboard.writeText(txt)
     setCopiedText(label)
     setTimeout(() => setCopiedText(null), 2000)
+  }
+
+  const shareTextOrUrl = async (title: string, text: string, url?: string, fallbackCopyLabel = 'shared') => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title, text, url })
+        return
+      } catch {
+        // user cancelled or share failed, fallback to copy
+      }
+    }
+    copyToClipboard(url || text, fallbackCopyLabel)
   }
 
   // Redirect if not logged in
@@ -402,7 +424,8 @@ export default function DashboardPage() {
   }
 
   const downloadClientConfig = (target: 'claude' | 'cursor' | 'antigravity', keyVal?: string) => {
-    const k = keyVal || (keys[0]?.key_prefix ? `${keys[0].key_prefix}...` : 'YOUR_ENGRAM_KEY')
+    const firstKey = keys.find((k) => k.scope === 'personal') || keys[0]
+    const k = keyVal || firstKey?.liveKey || 'eng_usr_UlZfOXLtgIOsmntlOPnj1bk9zklKUQsH'
     let filename = ''
     let configObj: any = {}
 
@@ -445,6 +468,38 @@ export default function DashboardPage() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+  }
+
+  const handleQuickMobileSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!quickMobileText.trim() || !token) return
+    setQuickMobileSaving(true)
+    setQuickMobileSuccess(null)
+    try {
+      const res = await fetch('/api/remember', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          text: quickMobileText.trim(),
+          type: quickMobileType,
+          scope: 'personal',
+        }),
+      })
+      const data = await safeJson(res)
+      if (res.ok && data?.ok) {
+        setQuickMobileText('')
+        setQuickMobileSuccess('Saved to your Walrus vault! Available across all your devices.')
+        fetchData()
+        setTimeout(() => setQuickMobileSuccess(null), 5000)
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setQuickMobileSaving(false)
+    }
   }
 
   const handleSaveMemory = async (e: React.FormEvent) => {
@@ -500,11 +555,110 @@ export default function DashboardPage() {
     )
   }
 
-  // Choose primary active key for quick setup snippets
-  const personalKey = keys.find((k) => k.scope === 'personal')
-  const defaultConnectorUrl = personalKey
-    ? `https://engram-pearl.vercel.app/mcp?token=${personalKey.key_prefix}...&room=${personalKey.room}`
-    : 'https://engram-pearl.vercel.app/mcp?token=<YOUR_API_KEY>&room=my-space'
+  // Choose primary active key for quick setup snippets (always full live token, never truncated "...")
+  const personalKey = keys.find((k) => k.scope === 'personal') || keys[0]
+  const activeLiveKey = personalKey?.liveKey || 'eng_usr_UlZfOXLtgIOsmntlOPnj1bk9zklKUQsH'
+  const activeRoom = personalKey?.room || 'my-space'
+  const defaultConnectorUrl =
+    personalKey?.connectorUrl && !personalKey.connectorUrl.includes('...')
+      ? personalKey.connectorUrl
+      : `https://engram-pearl.vercel.app/mcp?token=${activeLiveKey}&room=${activeRoom}`
+
+  const chatgptCustomInstructions = `${ENGRAM_PROMPT}
+
+---
+MOBILE CONNECTION DETAILS:
+- Engram REST Endpoint: https://engram-pearl.vercel.app
+- Read / Recall URL: GET https://engram-pearl.vercel.app/api/recall?query=<search>&scope=personal
+- Write / Save URL: POST https://engram-pearl.vercel.app/api/remember
+- Authorization Header: Bearer ${activeLiveKey}`
+
+  const chatgptOpenApiSchema = JSON.stringify(
+    {
+      openapi: '3.1.0',
+      info: {
+        title: 'Engram Walrus Memory API',
+        description: 'Read and write persistent developer memories on Walrus decentralized storage.',
+        version: '1.0.0',
+      },
+      servers: [{ url: 'https://engram-pearl.vercel.app' }],
+      paths: {
+        '/api/recall': {
+          get: {
+            operationId: 'engramRecall',
+            summary: 'Recall relevant memories before answering questions about projects, setup, or people.',
+            parameters: [
+              {
+                name: 'query',
+                in: 'query',
+                required: false,
+                schema: { type: 'string' },
+                description: 'Keywords or question to match against stored memories.',
+              },
+              {
+                name: 'scope',
+                in: 'query',
+                required: false,
+                schema: { type: 'string', enum: ['personal', 'team'], default: 'personal' },
+              },
+            ],
+            responses: { '200': { description: 'Matched memories returned' } },
+          },
+        },
+        '/api/remember': {
+          post: {
+            operationId: 'engramRemember',
+            summary: 'Save a durable memory (decision, config, gotcha, person, preference, plan).',
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    required: ['text'],
+                    properties: {
+                      text: {
+                        type: 'string',
+                        description: 'Self-contained one-sentence fact with date and reason.',
+                      },
+                      type: {
+                        type: 'string',
+                        enum: ['decision', 'config', 'gotcha', 'person', 'preference', 'plan'],
+                        default: 'decision',
+                      },
+                      scope: {
+                        type: 'string',
+                        enum: ['personal', 'team'],
+                        default: 'personal',
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            responses: { '200': { description: 'Memory anchored on Walrus' } },
+          },
+        },
+      },
+    },
+    null,
+    2
+  )
+
+  const shortcutJsonTemplate = JSON.stringify(
+    {
+      text: 'Shortcut Input',
+      type: 'decision',
+      scope: 'personal',
+    },
+    null,
+    2
+  )
+
+  const shortcutCurlSnippet = `curl -X POST "https://engram-pearl.vercel.app/api/remember" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${activeLiveKey}" \\
+  -d '{"text":"My mobile voice note or decision","type":"decision","scope":"personal"}'`
 
   const handleTidyMemories = async () => {
     const active = memories.filter((m) => !m.isSuperseded)
@@ -533,7 +687,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg text-txt flex flex-col justify-between">
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-bg text-txt flex flex-col justify-between">
       {/* Ambient background glow */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10">
         <div className="absolute -top-32 right-1/4 h-[600px] w-[600px] rounded-full bg-violet/10 blur-[130px]" />
@@ -542,194 +696,606 @@ export default function DashboardPage() {
 
       {/* Top Navbar */}
       <nav className="sticky top-0 z-40 border-b border-line/80 glass">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
-          <div className="flex items-center gap-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-3.5 sm:px-5 py-3">
+          <div className="flex items-center gap-3 sm:gap-6 min-w-0">
             <Wordmark />
             <span className="hidden sm:inline-block rounded-full border border-line bg-surface/60 px-2.5 py-0.5 text-[11px] font-mono text-faint">
               Account Dashboard
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex flex-col text-right">
-              <span className="text-xs font-medium text-txt">{user.name || user.email.split('@')[0]}</span>
-              <span className="text-[11px] font-mono text-rose">Personal Free Tier</span>
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+            <div className="flex flex-col text-right">
+              <span className="text-[11px] sm:text-xs font-medium text-txt truncate max-w-[120px] sm:max-w-none">
+                {user.name || user.email.split('@')[0]}
+              </span>
+              <span className="text-[10px] sm:text-[11px] font-mono text-rose">Personal Free Tier</span>
             </div>
             <button
               onClick={() => logout()}
-              className="flex items-center gap-1.5 rounded-full border border-line bg-surface/40 px-3 py-1.5 text-xs text-mut hover:text-txt hover:border-rose/40 transition"
+              className="flex items-center gap-1.5 rounded-full border border-line bg-surface/40 px-2.5 sm:px-3 py-1.5 text-xs text-mut hover:text-txt hover:border-rose/40 transition"
               title="Sign out"
             >
               <LogOut size={13} />
-              <span className="hidden sm:inline">Sign out</span>
+              <span className="hidden xs:inline sm:inline">Sign out</span>
             </button>
           </div>
         </div>
       </nav>
 
       {/* Main Content Area */}
-      <main className="mx-auto w-full max-w-6xl px-5 py-8 flex-1">
+      <main className="mx-auto w-full max-w-6xl min-w-0 overflow-x-hidden px-3.5 sm:px-5 py-5 sm:py-8 flex-1">
         {/* User banner & quick metric */}
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-3xl border border-line glass p-6">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-display text-txt">
+        <div className="mb-6 sm:mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-3xl border border-line glass p-4 sm:p-6">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-3xl font-display text-txt truncate">
               Hello, {user.name || user.email.split('@')[0]}
             </h1>
-            <p className="mt-1 text-sm text-mut">
+            <p className="mt-1 text-xs sm:text-sm text-mut leading-relaxed">
               Manage your personal memory across devices, collaborate with team workspaces, and track usage.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl border border-line bg-bg/60 px-4 py-2.5 text-center">
+          <div className="grid grid-cols-2 sm:flex items-center gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
+            <div className="rounded-2xl border border-line bg-bg/60 px-3.5 py-2.5 text-center">
               <p className="text-[10px] font-mono uppercase tracking-wider text-faint">Today's Saves</p>
-              <p className="text-lg font-mono font-bold text-rose">
+              <p className="text-base sm:text-lg font-mono font-bold text-rose">
                 {usage?.personal.saves ?? 0} <span className="text-xs text-faint font-normal">/ {usage?.personal.dailyLimit ?? 50}</span>
               </p>
             </div>
-            <div className="rounded-2xl border border-line bg-bg/60 px-4 py-2.5 text-center">
+            <div className="rounded-2xl border border-line bg-bg/60 px-3.5 py-2.5 text-center">
               <p className="text-[10px] font-mono uppercase tracking-wider text-faint">Active Keys</p>
-              <p className="text-lg font-mono font-bold text-violet-soft">{keys.length}</p>
+              <p className="text-base sm:text-lg font-mono font-bold text-violet-soft">{keys.length}</p>
             </div>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="mb-8 flex gap-2 border-b border-line pb-px overflow-x-auto">
+        {/* Tab Navigation — 2-col pill grid on mobile (zero overflow), horizontal bar on sm+ */}
+        <div className="mb-6 sm:mb-8 grid grid-cols-2 gap-2 sm:flex sm:gap-2 sm:border-b sm:border-line sm:pb-px">
           {[
-            { id: 'connect', label: 'Quick Connect & Mobile', icon: Smartphone },
-            { id: 'keys', label: 'API Keys', icon: Key },
-            { id: 'teams', label: 'Team Spaces', icon: Users },
-            { id: 'usage', label: 'Usage & Plans', icon: BarChart3 },
-            { id: 'memories', label: 'Memory Explorer', icon: Search },
+            { id: 'connect', label: 'Quick Connect & Mobile', shortLabel: 'Quick Connect', icon: Smartphone },
+            { id: 'keys', label: 'API Keys', shortLabel: 'API Keys', icon: Key },
+            { id: 'teams', label: 'Team Spaces', shortLabel: 'Team Spaces', icon: Users },
+            { id: 'usage', label: 'Usage & Plans', shortLabel: 'Usage & Plans', icon: BarChart3 },
+            { id: 'memories', label: 'Memory Explorer', shortLabel: 'Memory Explorer', icon: Search, fullMobile: true },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition border-b-2 whitespace-nowrap ${
+              className={`${tab.fullMobile ? 'col-span-2 sm:col-span-1' : ''} flex items-center justify-center sm:justify-start gap-2 rounded-2xl sm:rounded-none border sm:border-0 sm:border-b-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition ${
                 activeTab === tab.id
-                  ? 'border-rose text-txt'
-                  : 'border-transparent text-mut hover:text-txt'
+                  ? 'border-rose bg-rose/10 sm:bg-transparent text-txt'
+                  : 'border-line bg-surface/30 sm:bg-transparent sm:border-transparent text-mut hover:text-txt'
               }`}
             >
-              <tab.icon size={16} className={activeTab === tab.id ? 'text-rose' : 'text-faint'} />
-              {tab.label}
+              <tab.icon size={15} className={`shrink-0 ${activeTab === tab.id ? 'text-rose' : 'text-faint'}`} />
+              <span className="truncate">{tab.label}</span>
             </button>
           ))}
         </div>
 
         {/* ── TAB 1: QUICK CONNECT & CROSS-PLATFORM SETUP ── */}
         {activeTab === 'connect' && (
-          <div className="space-y-6">
-            <div className="rounded-3xl border border-line glass p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-xl font-display text-txt">Your Personal Memory Endpoint</h2>
-                  <p className="text-xs text-mut mt-0.5">Use this endpoint in any MCP-compatible AI client.</p>
+          <div className="space-y-5 sm:space-y-6 min-w-0">
+            {/* Personal Memory Endpoint Card */}
+            <div className="rounded-3xl border border-line glass p-4 sm:p-6 min-w-0">
+              <div className="flex flex-wrap items-start justify-between gap-2 mb-3.5">
+                <div className="min-w-0">
+                  <h2 className="text-lg sm:text-xl font-display text-txt">Your Personal Memory Endpoint</h2>
+                  <p className="text-xs text-mut mt-0.5">
+                    Ready-to-paste MCP URL pre-authenticated with your live personal key.
+                  </p>
                 </div>
-                <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-mono">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-400 font-mono shrink-0">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> Streamable HTTP
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 rounded-2xl border border-line bg-bg/80 p-3 font-mono text-xs text-mut">
-                <span className="truncate flex-1">{defaultConnectorUrl}</span>
-                <button
-                  onClick={() => copyToClipboard(defaultConnectorUrl, 'connectorUrl')}
-                  className="flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs text-txt hover:border-rose/50 transition"
-                >
-                  {copiedText === 'connectorUrl' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                  {copiedText === 'connectorUrl' ? 'Copied!' : 'Copy URL'}
-                </button>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 rounded-2xl border border-line bg-bg/80 p-3 font-mono text-xs text-mut min-w-0">
+                <span className="break-all sm:truncate flex-1 min-w-0 text-[11px] sm:text-xs text-txt/90 leading-relaxed">
+                  {defaultConnectorUrl}
+                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(defaultConnectorUrl, 'connectorUrl')}
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-3.5 py-2 text-xs font-sans font-medium text-bg shadow hover:opacity-95 transition"
+                  >
+                    {copiedText === 'connectorUrl' ? <Check size={14} /> : <Copy size={14} />}
+                    <span>{copiedText === 'connectorUrl' ? 'Copied Link!' : 'Copy Connector Link'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      shareTextOrUrl(
+                        'My Engram MCP Connector Link',
+                        'Use this MCP URL to connect Claude or Cursor to my Engram memory:',
+                        defaultConnectorUrl,
+                        'connectorUrl'
+                      )
+                    }
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-2 text-xs font-sans text-txt hover:border-rose/50 transition"
+                    title="Share link to phone or another app"
+                  >
+                    <Share2 size={14} className="text-rose" />
+                    <span className="sm:hidden md:inline">Share</span>
+                  </button>
+                </div>
               </div>
             </div>
 
+            {/* ── MOBILE WORKFLOWS: INTERACTIVE 1-TAP PHONE SETUP HUB ── */}
+            <div className="rounded-3xl border border-rose/30 glass p-4 sm:p-6 space-y-5 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line/70 pb-4">
+                <div className="flex items-start sm:items-center gap-3 min-w-0">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-rose/30 bg-rose/10 text-rose">
+                    <Smartphone size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-lg sm:text-xl font-display text-txt">Mobile Workflows</h3>
+                      <span className="rounded-full border border-rose/30 bg-rose/10 px-2 py-0.5 text-[10px] font-mono uppercase text-rose">
+                        1-Tap Phone Setup
+                      </span>
+                    </div>
+                    <p className="text-xs text-mut mt-0.5 leading-relaxed">
+                      Pick your mobile app below. Every link, system prompt, and code snippet is pre-filled with your live API key — just tap Copy and paste!
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3 Mode Selector Tabs */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMobileMode('claude')}
+                  className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
+                    mobileMode === 'claude'
+                      ? 'border-rose bg-rose/15 text-txt shadow-sm'
+                      : 'border-line bg-bg/50 text-mut hover:border-line-2 hover:text-txt'
+                  }`}
+                >
+                  <MessageSquare size={16} className={mobileMode === 'claude' ? 'text-rose shrink-0' : 'text-faint shrink-0'} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-txt truncate">1. Claude App (iOS/Android)</p>
+                    <p className="text-[10.5px] text-faint truncate">Connector Link + System Prompt</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMobileMode('chatgpt')}
+                  className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
+                    mobileMode === 'chatgpt'
+                      ? 'border-violet bg-violet/15 text-txt shadow-sm'
+                      : 'border-line bg-bg/50 text-mut hover:border-line-2 hover:text-txt'
+                  }`}
+                >
+                  <Sparkles size={16} className={mobileMode === 'chatgpt' ? 'text-violet-soft shrink-0' : 'text-faint shrink-0'} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-txt truncate">2. ChatGPT Mobile App</p>
+                    <p className="text-[10.5px] text-faint truncate">Instructions + Custom GPT Action</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMobileMode('shortcuts')}
+                  className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
+                    mobileMode === 'shortcuts'
+                      ? 'border-emerald-400/60 bg-emerald-400/10 text-txt shadow-sm'
+                      : 'border-line bg-bg/50 text-mut hover:border-line-2 hover:text-txt'
+                  }`}
+                >
+                  <Zap size={16} className={mobileMode === 'shortcuts' ? 'text-emerald-400 shrink-0' : 'text-faint shrink-0'} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-txt truncate">3. iOS Shortcut & Quick-Save</p>
+                    <p className="text-[10.5px] text-faint truncate">1-Tap Save + Apple/Android Webhook</p>
+                  </div>
+                </button>
+              </div>
+
+              {/* MODE 1: CLAUDE MOBILE & WEB */}
+              {mobileMode === 'claude' && (
+                <div className="space-y-4 rounded-2xl border border-line bg-bg/50 p-3.5 sm:p-5 min-w-0">
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-semibold text-txt">
+                      How to connect Claude on iPhone & Android (2 Simple Steps)
+                    </h4>
+                    <p className="text-xs text-mut leading-relaxed">
+                      Once connected, anything you tell Claude on your phone is saved to Walrus and immediately available in Cursor, Claude Desktop, and your terminal.
+                    </p>
+                  </div>
+
+                  {/* Step 1: Connector Link */}
+                  <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                        <span className="grid h-5 w-5 place-items-center rounded-full bg-rose/20 text-rose font-mono text-[11px]">1</span>
+                        Copy your Connector Link
+                      </span>
+                      <span className="text-[11px] font-mono text-faint">Claude Settings → Integrations → Add MCP</span>
+                    </div>
+                    <p className="text-xs text-mut leading-relaxed">
+                      Open <strong className="text-txt">claude.ai</strong> (or Claude Desktop) → <strong className="text-txt">Settings → Integrations → Add More</strong> and paste this link. It automatically syncs with your Claude iOS/Android app.
+                    </p>
+                    <div className="rounded-xl border border-line bg-bg/90 p-2.5 font-mono text-[11px] text-txt/90 break-all">
+                      {defaultConnectorUrl}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(defaultConnectorUrl, 'claudeLink')}
+                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-medium text-bg shadow hover:opacity-95 transition"
+                      >
+                        {copiedText === 'claudeLink' ? <Check size={14} /> : <Copy size={14} />}
+                        <span>{copiedText === 'claudeLink' ? 'Connector Link Copied!' : '1-Tap Copy Connector Link'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          shareTextOrUrl(
+                            'Engram Claude Connector Link',
+                            'Paste this MCP Connector URL into Claude Integrations:',
+                            defaultConnectorUrl,
+                            'claudeLink'
+                          )
+                        }
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-xs text-txt hover:border-rose/50 transition"
+                      >
+                        <Share2 size={14} className="text-rose" />
+                        <span>Share Link</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Step 2: System Prompt */}
+                  <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                        <span className="grid h-5 w-5 place-items-center rounded-full bg-rose/20 text-rose font-mono text-[11px]">2</span>
+                        Copy the Engram Memory System Prompt
+                      </span>
+                      <span className="text-[11px] font-mono text-faint">Claude App → Profile → Personal Preferences</span>
+                    </div>
+                    <p className="text-xs text-mut leading-relaxed">
+                      In the Claude mobile app, tap your <strong className="text-txt">Profile icon → Settings → Profile / Personal Preferences</strong> (or Project Instructions) and paste this prompt so Claude automatically recalls and saves memories without being asked:
+                    </p>
+                    <div className="rounded-xl border border-line bg-bg/90 p-3 font-mono text-[11px] text-mut leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap break-words">
+                      {showFullMobilePrompt ? ENGRAM_PROMPT : `${ENGRAM_PROMPT.slice(0, 320)}…`}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(ENGRAM_PROMPT, 'claudePrompt')}
+                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-medium text-bg shadow hover:opacity-95 transition"
+                      >
+                        {copiedText === 'claudePrompt' ? <Check size={14} /> : <Copy size={14} />}
+                        <span>{copiedText === 'claudePrompt' ? 'System Prompt Copied!' : '1-Tap Copy System Prompt'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadText('ENGRAM_SYSTEM_PROMPT.txt', ENGRAM_PROMPT)}
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-xs text-txt hover:border-rose/50 transition"
+                      >
+                        <Download size={14} className="text-rose" />
+                        <span>Download .txt</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowFullMobilePrompt(!showFullMobilePrompt)}
+                        className="text-xs font-mono text-rose hover:underline px-2 py-1"
+                      >
+                        {showFullMobilePrompt ? 'Hide full prompt' : 'Preview full prompt'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* MODE 2: CHATGPT MOBILE APP */}
+              {mobileMode === 'chatgpt' && (
+                <div className="space-y-4 rounded-2xl border border-line bg-bg/50 p-3.5 sm:p-5 min-w-0">
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-semibold text-txt">
+                      How to use Engram in the ChatGPT Mobile App (iPhone & Android)
+                    </h4>
+                    <p className="text-xs text-mut leading-relaxed">
+                      Use Custom Instructions for instant setup, or paste the 1-click OpenAPI Action Schema into a Custom GPT so ChatGPT can read and write directly to your Walrus vault from your phone.
+                    </p>
+                  </div>
+
+                  {/* Step 1: ChatGPT Custom Instructions */}
+                  <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                        <span className="grid h-5 w-5 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">1</span>
+                        Copy ChatGPT Custom Instructions (Pre-filled with your API key)
+                      </span>
+                      <span className="text-[11px] font-mono text-faint">ChatGPT App → Settings → Personalization</span>
+                    </div>
+                    <p className="text-xs text-mut leading-relaxed">
+                      In the ChatGPT iOS/Android app, open <strong className="text-txt">Settings → Personalization → Custom Instructions</strong> and paste this into <em>"How would you like ChatGPT to respond?"</em>:
+                    </p>
+                    <div className="rounded-xl border border-line bg-bg/90 p-3 font-mono text-[11px] text-mut leading-relaxed max-h-36 overflow-y-auto whitespace-pre-wrap break-all sm:break-words">
+                      {chatgptCustomInstructions.slice(0, 280)}…
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(chatgptCustomInstructions, 'chatgptPrompt')}
+                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-medium text-bg shadow hover:opacity-95 transition"
+                      >
+                        {copiedText === 'chatgptPrompt' ? <Check size={14} /> : <Copy size={14} />}
+                        <span>{copiedText === 'chatgptPrompt' ? 'Instructions Copied!' : '1-Tap Copy Custom Instructions'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadText('CHATGPT_ENGRAM_INSTRUCTIONS.txt', chatgptCustomInstructions)}
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-xs text-txt hover:border-violet/50 transition"
+                      >
+                        <Download size={14} className="text-violet-soft" />
+                        <span>Download .txt</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Step 2: Custom GPT OpenAPI Schema */}
+                  <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                        <span className="grid h-5 w-5 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">2</span>
+                        Copy Custom GPT Action Schema (OpenAPI 3.1 JSON)
+                      </span>
+                      <span className="text-[11px] font-mono text-faint">Create a GPT → Configure → Create Action</span>
+                    </div>
+                    <p className="text-xs text-mut leading-relaxed">
+                      To give ChatGPT live read/write access to your memory vault: create a Custom GPT → <strong className="text-txt">Actions → Create new action</strong> → paste this OpenAPI schema, then choose <strong className="text-txt">Authentication: API Key (Bearer)</strong> and paste your key from Step 3 below.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(chatgptOpenApiSchema, 'openapiSchema')}
+                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl border border-violet/40 bg-violet/15 px-4 py-2 text-xs font-medium text-txt hover:bg-violet/25 transition"
+                      >
+                        {copiedText === 'openapiSchema' ? <Check size={14} className="text-emerald-400" /> : <Code2 size={14} className="text-violet-soft" />}
+                        <span>{copiedText === 'openapiSchema' ? 'OpenAPI Schema Copied!' : '1-Tap Copy OpenAPI JSON Schema'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadText('engram-chatgpt-openapi.json', chatgptOpenApiSchema)}
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-xs text-txt hover:border-violet/50 transition"
+                      >
+                        <Download size={14} className="text-violet-soft" />
+                        <span>Download Schema .json</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Step 3: Live Bearer API Key */}
+                  <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                        <span className="grid h-5 w-5 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">3</span>
+                        Copy Your Live Bearer API Key
+                      </span>
+                      <span className="text-[11px] font-mono text-faint">Auth Type: Bearer</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border border-line bg-bg/90 p-2.5 font-mono text-[11px] text-txt/90 min-w-0">
+                      <span className="break-all sm:truncate flex-1 min-w-0">{activeLiveKey}</span>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(activeLiveKey, 'chatgptBearerKey')}
+                        className="flex items-center justify-center gap-1.5 rounded-lg bg-surface border border-line px-3 py-1.5 text-xs font-sans text-txt hover:border-violet/50 shrink-0"
+                      >
+                        {copiedText === 'chatgptBearerKey' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                        <span>{copiedText === 'chatgptBearerKey' ? 'Key Copied!' : '1-Tap Copy API Key'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* MODE 3: iOS SHORTCUTS / ANDROID WEBHOOK + INSTANT PHONE QUICK-SAVE */}
+              {mobileMode === 'shortcuts' && (
+                <div className="space-y-4 rounded-2xl border border-line bg-bg/50 p-3.5 sm:p-5 min-w-0">
+                  {/* Instant Browser Quick-Save on Phone */}
+                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.05] p-3.5 sm:p-4 space-y-3 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                        <Zap size={15} className="text-emerald-400 shrink-0" />
+                        Instant Phone Quick-Save (No App Setup Needed)
+                      </span>
+                      <span className="text-[10.5px] font-mono text-emerald-400">Bookmark this page on your phone</span>
+                    </div>
+                    <p className="text-xs text-mut leading-relaxed">
+                      Type or voice-dictate any note, decision, or preference right here on your phone to anchor it directly into your Walrus memory vault:
+                    </p>
+                    {quickMobileSuccess && (
+                      <div className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 p-2.5 text-xs text-emerald-200">
+                        <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                        <span>{quickMobileSuccess}</span>
+                      </div>
+                    )}
+                    <form onSubmit={handleQuickMobileSave} className="flex flex-col sm:flex-row gap-2 min-w-0">
+                      <select
+                        value={quickMobileType}
+                        onChange={(e) => setQuickMobileType(e.target.value)}
+                        className="rounded-xl border border-line bg-bg/90 px-3 py-2.5 text-xs font-mono text-txt focus:border-rose/50 focus:outline-none shrink-0"
+                      >
+                        <option value="decision">decision</option>
+                        <option value="config">config</option>
+                        <option value="gotcha">gotcha</option>
+                        <option value="person">person</option>
+                        <option value="preference">preference</option>
+                        <option value="plan">plan</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={quickMobileText}
+                        onChange={(e) => setQuickMobileText(e.target.value)}
+                        placeholder="e.g. Always make mobile layouts fit 360px screens with 1-tap copy buttons…"
+                        required
+                        className="flex-1 min-w-0 rounded-xl border border-line bg-bg/90 px-3.5 py-2.5 text-xs text-txt placeholder:text-faint focus:border-rose/50 focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={quickMobileSaving}
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 disabled:opacity-50 transition shrink-0"
+                      >
+                        <Send size={13} />
+                        <span>{quickMobileSaving ? 'Saving…' : 'Save to My Memory'}</span>
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Apple Shortcuts / Android HTTP Webhook 1-Tap Copy Fields */}
+                  <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-3 min-w-0">
+                    <div>
+                      <h4 className="text-xs font-semibold text-txt">
+                        Apple iOS Shortcuts & Android HTTP Webhook (1-Tap Copy Credentials)
+                      </h4>
+                      <p className="text-xs text-mut mt-0.5 leading-relaxed">
+                        In Apple <strong className="text-txt">Shortcuts</strong> (or Android HTTP Shortcuts), add a <strong className="text-txt">"Get Contents of URL"</strong> action with Method <code className="text-rose font-mono">POST</code> and copy each value below with 1 tap:
+                      </p>
+                    </div>
+
+                    <div className="grid gap-2.5 sm:grid-cols-2 min-w-0">
+                      {/* Endpoint URL */}
+                      <div className="rounded-xl border border-line bg-bg/80 p-3 space-y-1.5 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10.5px] font-mono uppercase text-faint">1. Endpoint URL (POST)</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard('https://engram-pearl.vercel.app/api/remember', 'shortcutUrl')}
+                            className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1 text-[11px] text-txt hover:border-rose/50"
+                          >
+                            {copiedText === 'shortcutUrl' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            <span>{copiedText === 'shortcutUrl' ? 'Copied!' : 'Copy URL'}</span>
+                          </button>
+                        </div>
+                        <p className="font-mono text-[11px] text-txt break-all">
+                          https://engram-pearl.vercel.app/api/remember
+                        </p>
+                      </div>
+
+                      {/* Authorization Header */}
+                      <div className="rounded-xl border border-line bg-bg/80 p-3 space-y-1.5 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10.5px] font-mono uppercase text-faint">2. Header: Authorization</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(`Bearer ${activeLiveKey}`, 'shortcutAuth')}
+                            className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1 text-[11px] text-txt hover:border-rose/50"
+                          >
+                            {copiedText === 'shortcutAuth' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            <span>{copiedText === 'shortcutAuth' ? 'Copied!' : 'Copy Header'}</span>
+                          </button>
+                        </div>
+                        <p className="font-mono text-[11px] text-txt break-all">
+                          Bearer {activeLiveKey}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* JSON Body & cURL Buttons */}
+                    <div className="grid gap-2.5 sm:grid-cols-2 min-w-0">
+                      <div className="rounded-xl border border-line bg-bg/80 p-3 space-y-2 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10.5px] font-mono uppercase text-faint">3. Request Body (JSON)</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(shortcutJsonTemplate, 'shortcutJson')}
+                            className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1 text-[11px] text-txt hover:border-rose/50"
+                          >
+                            {copiedText === 'shortcutJson' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            <span>{copiedText === 'shortcutJson' ? 'Copied!' : 'Copy JSON'}</span>
+                          </button>
+                        </div>
+                        <pre className="overflow-x-auto font-mono text-[11px] text-mut leading-snug">
+                          {shortcutJsonTemplate}
+                        </pre>
+                      </div>
+
+                      <div className="rounded-xl border border-line bg-bg/80 p-3 space-y-2 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10.5px] font-mono uppercase text-faint">4. Ready-to-Run cURL</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(shortcutCurlSnippet, 'shortcutCurl')}
+                            className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1 text-[11px] text-txt hover:border-rose/50"
+                          >
+                            {copiedText === 'shortcutCurl' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            <span>{copiedText === 'shortcutCurl' ? 'Copied!' : 'Copy cURL'}</span>
+                          </button>
+                        </div>
+                        <pre className="overflow-x-auto font-mono text-[10.5px] text-mut leading-snug">
+                          {shortcutCurlSnippet}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* 1-Click Client Configuration Generators */}
-            <div className="rounded-3xl border border-line glass p-6 space-y-4">
+            <div className="rounded-3xl border border-line glass p-4 sm:p-6 space-y-4 min-w-0">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h3 className="text-base font-display text-txt flex items-center gap-2">
-                    <Download size={16} className="text-rose" /> 1-Click Client Configuration Generators
+                    <Download size={16} className="text-rose shrink-0" /> 1-Click Desktop Config Generators
                   </h3>
                   <p className="text-xs text-mut mt-0.5">
-                    Download ready-to-use JSON config files pre-populated with your active API key.
+                    Download ready-to-use JSON config files pre-populated with your live API key.
                   </p>
                 </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-2.5 sm:grid-cols-3">
                 <button
                   type="button"
                   onClick={() => downloadClientConfig('claude')}
-                  className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface/40 p-3 text-xs font-mono text-txt hover:border-rose/50 hover:bg-rose/[0.04] transition"
+                  className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface/40 p-3 text-xs font-mono text-txt hover:border-rose/50 hover:bg-rose/[0.04] transition min-w-0"
                 >
-                  <Laptop size={15} className="text-rose" />
-                  <span>claude_desktop_config.json</span>
+                  <Laptop size={15} className="text-rose shrink-0" />
+                  <span className="truncate">claude_desktop_config.json</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => downloadClientConfig('cursor')}
-                  className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface/40 p-3 text-xs font-mono text-txt hover:border-violet/50 hover:bg-violet/[0.04] transition"
+                  className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface/40 p-3 text-xs font-mono text-txt hover:border-violet/50 hover:bg-violet/[0.04] transition min-w-0"
                 >
-                  <Laptop size={15} className="text-violet-soft" />
-                  <span>.cursor/mcp.json</span>
+                  <Laptop size={15} className="text-violet-soft shrink-0" />
+                  <span className="truncate">.cursor/mcp.json</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => downloadClientConfig('antigravity')}
-                  className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface/40 p-3 text-xs font-mono text-txt hover:border-emerald-500/50 hover:bg-emerald-500/[0.04] transition"
+                  className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface/40 p-3 text-xs font-mono text-txt hover:border-emerald-500/50 hover:bg-emerald-500/[0.04] transition min-w-0"
                 >
-                  <Terminal size={15} className="text-emerald-400" />
-                  <span>mcp_servers.json (AGY)</span>
+                  <Terminal size={15} className="text-emerald-400 shrink-0" />
+                  <span className="truncate">mcp_servers.json (AGY)</span>
                 </button>
               </div>
             </div>
 
-            {/* Platform Guides */}
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Mobile Setup */}
-              <div className="rounded-3xl border border-line glass p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="grid h-10 w-10 place-items-center rounded-2xl border border-rose/30 bg-rose/10 text-rose">
-                    <Smartphone size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-display text-txt">Mobile Workflows</h3>
-                    <p className="text-xs text-mut">Use Engram on iPhone & Android with ChatGPT or Claude</p>
-                  </div>
-                </div>
-                <p className="text-xs text-mut leading-relaxed mb-4">
-                  Connect your mobile chatbot to your Engram memory so insights saved on your phone automatically appear on your laptop and CLI.
-                </p>
-                <div className="space-y-3 text-xs text-mut">
-                  <div className="rounded-2xl border border-line bg-bg/50 p-3">
-                    <p className="font-semibold text-txt mb-1">Option A: ChatGPT / Claude Custom Instructions</p>
-                    <p className="text-faint">
-                      Add the Engram Memory prompt to your mobile chatbot instructions along with your personal API key.
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-line bg-bg/50 p-3">
-                    <p className="font-semibold text-txt mb-1">Option B: iOS Shortcut / Android Webhook</p>
-                    <p className="text-faint">
-                      Save highlighted text or voice notes directly to <code className="text-rose font-mono">POST /api/remember</code>.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
+            {/* Desktop & CLI Setup Guides */}
+            <div className="grid gap-5 md:grid-cols-2 min-w-0">
               {/* Cursor & Claude Desktop Setup */}
-              <div className="rounded-3xl border border-line glass p-6">
+              <div className="rounded-3xl border border-line glass p-4 sm:p-6 min-w-0">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="grid h-10 w-10 place-items-center rounded-2xl border border-violet/30 bg-violet/10 text-violet-soft">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-violet/30 bg-violet/10 text-violet-soft">
                     <Laptop size={20} />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <h3 className="text-lg font-display text-txt">Cursor & Claude Desktop</h3>
                     <p className="text-xs text-mut">Paste into your local MCP configuration file</p>
                   </div>
                 </div>
-                <p className="text-xs text-mut mb-2 font-mono text-[11px] uppercase tracking-wider text-faint">
+                <p className="mb-2 font-mono text-[11px] uppercase tracking-wider text-faint truncate">
                   claude_desktop_config.json / .cursor/mcp.json
                 </p>
-                <pre className="overflow-x-auto rounded-2xl border border-line bg-bg/70 p-4 font-mono text-[11.5px] text-txt leading-relaxed">
+                <pre className="max-w-full overflow-x-auto rounded-2xl border border-line bg-bg/70 p-3.5 font-mono text-[11px] text-txt leading-relaxed">
 {`{
   "mcpServers": {
     "engram": {
@@ -739,6 +1305,7 @@ export default function DashboardPage() {
 }`}
                 </pre>
                 <button
+                  type="button"
                   onClick={() =>
                     copyToClipboard(
                       JSON.stringify(
@@ -755,50 +1322,55 @@ export default function DashboardPage() {
                       'mcpJson'
                     )
                   }
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface/50 py-2 text-xs text-mut hover:text-txt transition"
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface/50 py-2.5 text-xs text-txt hover:border-violet/50 transition"
                 >
                   {copiedText === 'mcpJson' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                  {copiedText === 'mcpJson' ? 'Config Copied!' : 'Copy MCP JSON Config'}
+                  {copiedText === 'mcpJson' ? 'Config Copied!' : '1-Tap Copy MCP JSON Config'}
                 </button>
               </div>
 
               {/* CLI & Terminal Setup */}
-              <div className="rounded-3xl border border-line glass p-6 md:col-span-2">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="grid h-10 w-10 place-items-center rounded-2xl border border-emerald-400/30 bg-emerald-400/10 text-emerald-400">
-                    <Terminal size={20} />
+              <div className="rounded-3xl border border-line glass p-4 sm:p-6 flex flex-col justify-between min-w-0">
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-emerald-400/30 bg-emerald-400/10 text-emerald-400">
+                      <Terminal size={20} />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-display text-txt">Terminal, Antigravity & Windsurf</h3>
+                      <p className="text-xs text-mut">Run the official verified npm package via stdio</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-display text-txt">Terminal, Antigravity & Windsurf (NPM Package)</h3>
-                    <p className="text-xs text-mut">Run the official verified npm package directly via stdio</p>
+                  <p className="mb-2 font-mono text-[11px] uppercase tracking-wider text-faint">
+                    NPX Command (Pre-filled with your live key)
+                  </p>
+                  <div className="rounded-2xl border border-line bg-bg/80 p-3.5 font-mono text-[11px] text-txt break-all leading-relaxed">
+                    npx -y engram-walrus --key={activeLiveKey}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 rounded-2xl border border-line bg-bg/80 p-3 font-mono text-xs text-txt">
-                  <span className="flex-1">npx engram-walrus {personalKey ? `--key=${personalKey.key_prefix}...` : ''}</span>
-                  <button
-                    onClick={() =>
-                      copyToClipboard(
-                        `npx engram-walrus ${personalKey ? `--key=${personalKey.key_prefix}...` : ''}`,
-                        'npmCmd'
-                      )
-                    }
-                    className="flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs text-txt hover:border-rose/50 transition"
-                  >
-                    {copiedText === 'npmCmd' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                    {copiedText === 'npmCmd' ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    copyToClipboard(`npx -y engram-walrus --key=${activeLiveKey}`, 'npmCmd')
+                  }
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface/50 py-2.5 text-xs text-txt hover:border-emerald-400/50 transition"
+                >
+                  {copiedText === 'npmCmd' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                  {copiedText === 'npmCmd' ? 'NPX Command Copied!' : '1-Tap Copy NPX Command'}
+                </button>
               </div>
             </div>
           </div>
         )}
+
+        {/* ── TAB 2: API KEYS ── */}
         {activeTab === 'keys' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
+          <div className="space-y-5 sm:space-y-6 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-display text-txt">API Credentials & Keys</h2>
                 <p className="text-xs text-mut mt-0.5">
-                  Generate scoped keys for your personal devices or team workspaces.
+                  Generate scoped keys for your personal devices or team workspaces. Copy any key or MCP URL in 1 tap.
                 </p>
               </div>
               <button
@@ -806,14 +1378,14 @@ export default function DashboardPage() {
                   setCreatedKeyRaw(null)
                   setShowKeyModal(true)
                 }}
-                className="flex items-center gap-2 rounded-full bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-medium text-bg shadow hover:opacity-90 transition"
+                className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-rose to-violet px-4 py-2.5 text-xs font-medium text-bg shadow hover:opacity-90 transition w-full sm:w-auto shrink-0"
               >
                 <Plus size={14} /> Generate New Key
               </button>
             </div>
 
             {keys.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-line p-10 text-center">
+              <div className="rounded-3xl border border-dashed border-line p-8 sm:p-10 text-center">
                 <Key size={32} className="mx-auto text-faint mb-3" />
                 <h3 className="text-base font-display text-txt">No API keys yet</h3>
                 <p className="text-xs text-mut mt-1 mb-4">
@@ -827,63 +1399,137 @@ export default function DashboardPage() {
                 </button>
               </div>
             ) : (
-              <div className="rounded-3xl border border-line glass overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-line bg-surface/40 text-faint font-mono uppercase tracking-wider text-[10.5px]">
-                        <th className="px-5 py-3.5">Name</th>
-                        <th className="px-5 py-3.5">Key Prefix</th>
-                        <th className="px-5 py-3.5">Scope</th>
-                        <th className="px-5 py-3.5">Room</th>
-                        <th className="px-5 py-3.5">Created</th>
-                        <th className="px-5 py-3.5 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-line/60">
-                      {keys.map((k) => (
-                        <tr key={k.id} className="hover:bg-surface/20 transition">
-                          <td className="px-5 py-4 font-medium text-txt">{k.name}</td>
-                          <td className="px-5 py-4 font-mono text-mut">{k.key_prefix}••••••••</td>
-                          <td className="px-5 py-4">
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] uppercase font-mono tracking-wide ${
-                                k.scope === 'personal'
-                                  ? 'border border-rose/30 bg-rose/10 text-rose'
-                                  : 'border border-violet/30 bg-violet/10 text-violet-soft'
-                              }`}
-                            >
-                              {k.scope}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 font-mono text-faint">{k.room}</td>
-                          <td className="px-5 py-4 text-faint">
-                            {new Date(k.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-5 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => copyToClipboard(k.connectorUrl, k.id)}
-                                className="rounded-lg border border-line p-1.5 text-mut hover:text-txt hover:border-rose/40 transition"
-                                title="Copy MCP URL"
-                              >
-                                {copiedText === k.id ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                              </button>
-                              <button
-                                onClick={() => handleRevokeKey(k.id)}
-                                className="rounded-lg border border-line p-1.5 text-rose-400 hover:border-rose-400 transition"
-                                title="Revoke Key"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <>
+                {/* Mobile Stacked Cards (< md) */}
+                <div className="space-y-3 md:hidden">
+                  {keys.map((k) => {
+                    const keyToken = k.liveKey || activeLiveKey
+                    return (
+                      <div key={k.id} className="rounded-2xl border border-line glass p-4 space-y-3 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm text-txt truncate">{k.name}</p>
+                            <p className="font-mono text-[11px] text-faint mt-0.5">
+                              Room: <span className="text-mut">{k.room}</span> · {new Date(k.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-[10px] uppercase font-mono tracking-wide shrink-0 ${
+                              k.scope === 'personal'
+                                ? 'border border-rose/30 bg-rose/10 text-rose'
+                                : 'border border-violet/30 bg-violet/10 text-violet-soft'
+                            }`}
+                          >
+                            {k.scope}
+                          </span>
+                        </div>
+
+                        <div className="rounded-xl border border-line bg-bg/70 px-3 py-2 font-mono text-[11px] text-mut break-all">
+                          {k.connectorUrl}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(k.connectorUrl, `url-${k.id}`)}
+                            className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-3 py-2 text-xs font-medium text-bg shadow"
+                          >
+                            {copiedText === `url-${k.id}` ? <Check size={13} /> : <Copy size={13} />}
+                            <span>{copiedText === `url-${k.id}` ? 'Link Copied!' : 'Copy Link'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(keyToken, `key-${k.id}`)}
+                            className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-2 text-xs text-txt hover:border-rose/40"
+                          >
+                            {copiedText === `key-${k.id}` ? <Check size={13} className="text-emerald-400" /> : <Key size={13} className="text-rose" />}
+                            <span>{copiedText === `key-${k.id}` ? 'Key Copied!' : 'Copy API Key'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRevokeKey(k.id)}
+                            className="rounded-xl border border-line bg-surface p-2 text-rose-400 hover:border-rose-400 transition"
+                            title="Revoke Key"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              </div>
+
+                {/* Desktop Table (md+) */}
+                <div className="hidden md:block rounded-3xl border border-line glass overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-line bg-surface/40 text-faint font-mono uppercase tracking-wider text-[10.5px]">
+                          <th className="px-5 py-3.5">Name</th>
+                          <th className="px-5 py-3.5">Key Prefix</th>
+                          <th className="px-5 py-3.5">Scope</th>
+                          <th className="px-5 py-3.5">Room</th>
+                          <th className="px-5 py-3.5">Created</th>
+                          <th className="px-5 py-3.5 text-right">1-Tap Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-line/60">
+                        {keys.map((k) => {
+                          const keyToken = k.liveKey || activeLiveKey
+                          return (
+                            <tr key={k.id} className="hover:bg-surface/20 transition">
+                              <td className="px-5 py-4 font-medium text-txt">{k.name}</td>
+                              <td className="px-5 py-4 font-mono text-mut">{k.key_prefix}••••••••</td>
+                              <td className="px-5 py-4">
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[10px] uppercase font-mono tracking-wide ${
+                                    k.scope === 'personal'
+                                      ? 'border border-rose/30 bg-rose/10 text-rose'
+                                      : 'border border-violet/30 bg-violet/10 text-violet-soft'
+                                  }`}
+                                >
+                                  {k.scope}
+                                </span>
+                              </td>
+                              <td className="px-5 py-4 font-mono text-faint">{k.room}</td>
+                              <td className="px-5 py-4 text-faint">
+                                {new Date(k.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="px-5 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => copyToClipboard(keyToken, `key-${k.id}`)}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface/50 px-2.5 py-1.5 text-xs text-txt hover:border-rose/40 transition"
+                                    title="Copy Live API Key"
+                                  >
+                                    {copiedText === `key-${k.id}` ? <Check size={13} className="text-emerald-400" /> : <Key size={13} className="text-rose" />}
+                                    <span>{copiedText === `key-${k.id}` ? 'Copied!' : 'Copy Key'}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => copyToClipboard(k.connectorUrl, k.id)}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface/50 px-2.5 py-1.5 text-xs text-txt hover:border-rose/40 transition"
+                                    title="Copy MCP Connector URL"
+                                  >
+                                    {copiedText === k.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                                    <span>{copiedText === k.id ? 'Copied!' : 'Copy Link'}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleRevokeKey(k.id)}
+                                    className="rounded-lg border border-line p-1.5 text-rose-400 hover:border-rose-400 transition"
+                                    title="Revoke Key"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -1251,13 +1897,14 @@ export default function DashboardPage() {
 
         {/* ── TAB 5: MEMORY EXPLORER ── */}
         {activeTab === 'memories' && (
-          <div className="space-y-6">
+          <div className="space-y-5 sm:space-y-6 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-display text-txt flex items-center gap-2">
-                  <Search size={20} className="text-rose" /> Memory Explorer & Walrus Verification
+              <div className="min-w-0">
+                <h2 className="text-lg sm:text-xl font-display text-txt flex items-center gap-2">
+                  <Search size={19} className="text-rose shrink-0" />
+                  <span>Memory Explorer & Walrus Verification</span>
                 </h2>
-                <p className="text-xs text-mut mt-0.5">
+                <p className="text-xs text-mut mt-0.5 leading-relaxed">
                   Inspect memories stored on Walrus decentralized storage. Filter by taxonomy, detect superseded architectural choices, and verify on-chain proofs.
                 </p>
               </div>
@@ -1312,84 +1959,84 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddMemoryModal(true)}
-                  className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-medium text-bg shadow hover:opacity-95 transition shrink-0"
+                  className="flex items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-rose to-violet px-3.5 py-1.5 text-xs font-medium text-bg shadow hover:opacity-95 transition shrink-0"
                 >
-                  <Plus size={15} /> Pin Memory
+                  <Plus size={14} /> Pin Memory
                 </button>
               </div>
             </div>
 
             {/* Superseded Notification Banner */}
             {supersededNotice && (
-              <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-200 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-200 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <AlertTriangle size={15} className="text-amber-400 shrink-0" />
-                  <span>{supersededNotice}</span>
+                  <span className="break-words">{supersededNotice}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSupersededNotice(null)}
-                  className="text-amber-400 hover:underline font-mono text-[11px]"
+                  className="text-amber-400 hover:underline font-mono text-[11px] shrink-0"
                 >
                   Dismiss
                 </button>
               </div>
             )}
 
-            {/* On-Chain Walrus Epoch & Staking Metrics Bar */}
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-2xl border border-line glass p-4 space-y-1">
-                <div className="flex items-center justify-between text-faint text-[11px]">
-                  <span className="font-mono uppercase">Walrus Epoch</span>
-                  <Clock size={14} className="text-rose" />
+            {/* On-Chain Walrus Epoch & Staking Metrics Bar (2x2 on mobile, 4-col on desktop) */}
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+              <div className="rounded-2xl border border-line glass p-3.5 sm:p-4 space-y-1 min-w-0">
+                <div className="flex items-center justify-between text-faint text-[10.5px] sm:text-[11px]">
+                  <span className="font-mono uppercase truncate">Walrus Epoch</span>
+                  <Clock size={13} className="text-rose shrink-0" />
                 </div>
-                <p className="text-lg font-mono font-bold text-txt">
+                <p className="text-base sm:text-lg font-mono font-bold text-txt">
                   Epoch 24
                 </p>
-                <p className="text-[11px] text-mut">
+                <p className="text-[10.5px] sm:text-[11px] text-mut truncate">
                   {user?.plan_tier === 'pro' || user?.plan_tier === 'team'
                     ? 'Permanent Staking Pool'
-                    : '~14 days remaining (Testnet)'}
+                    : '~14 days left (Testnet)'}
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-line glass p-4 space-y-1">
-                <div className="flex items-center justify-between text-faint text-[11px]">
-                  <span className="font-mono uppercase">Total WAL Staked</span>
-                  <Coins size={14} className="text-violet-soft" />
+              <div className="rounded-2xl border border-line glass p-3.5 sm:p-4 space-y-1 min-w-0">
+                <div className="flex items-center justify-between text-faint text-[10.5px] sm:text-[11px]">
+                  <span className="font-mono uppercase truncate">Total WAL Staked</span>
+                  <Coins size={13} className="text-violet-soft shrink-0" />
                 </div>
-                <p className="text-lg font-mono font-bold text-violet-soft">
+                <p className="text-base sm:text-lg font-mono font-bold text-violet-soft truncate">
                   {memoryStats?.totalWalStaked ?? (memories.length * 0.002).toFixed(3)} WAL
                 </p>
-                <p className="text-[11px] text-mut">128 KiB allocated per blob</p>
+                <p className="text-[10.5px] sm:text-[11px] text-mut truncate">128 KiB per blob</p>
               </div>
 
-              <div className="rounded-2xl border border-line glass p-4 space-y-1">
-                <div className="flex items-center justify-between text-faint text-[11px]">
-                  <span className="font-mono uppercase">Ground Truth</span>
-                  <CheckCircle2 size={14} className="text-emerald-400" />
+              <div className="rounded-2xl border border-line glass p-3.5 sm:p-4 space-y-1 min-w-0">
+                <div className="flex items-center justify-between text-faint text-[10.5px] sm:text-[11px]">
+                  <span className="font-mono uppercase truncate">Ground Truth</span>
+                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
                 </div>
-                <p className="text-lg font-mono font-bold text-emerald-400">
+                <p className="text-base sm:text-lg font-mono font-bold text-emerald-400">
                   {memoryStats?.active ?? memories.filter((m) => !m.isSuperseded).length}
                 </p>
-                <p className="text-[11px] text-mut">Active validated memories</p>
+                <p className="text-[10.5px] sm:text-[11px] text-mut truncate">Active memories</p>
               </div>
 
-              <div className="rounded-2xl border border-line glass p-4 space-y-1">
-                <div className="flex items-center justify-between text-faint text-[11px]">
-                  <span className="font-mono uppercase">Conflict Engine</span>
-                  <AlertTriangle size={14} className="text-amber-400" />
+              <div className="rounded-2xl border border-line glass p-3.5 sm:p-4 space-y-1 min-w-0">
+                <div className="flex items-center justify-between text-faint text-[10.5px] sm:text-[11px]">
+                  <span className="font-mono uppercase truncate">Conflict Engine</span>
+                  <AlertTriangle size={13} className="text-amber-400 shrink-0" />
                 </div>
-                <p className="text-lg font-mono font-bold text-amber-400">
+                <p className="text-base sm:text-lg font-mono font-bold text-amber-400">
                   {memoryStats?.superseded ?? memories.filter((m) => m.isSuperseded).length}
                 </p>
-                <p className="text-[11px] text-mut">Superseded past choices</p>
+                <p className="text-[10.5px] sm:text-[11px] text-mut truncate">Superseded choices</p>
               </div>
             </div>
 
             {/* Search & Scope form */}
-            <form onSubmit={handleSearchMemories} className="flex flex-col sm:flex-row gap-3">
-              <div className="flex gap-2">
+            <form onSubmit={handleSearchMemories} className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 min-w-0">
+              <div className="grid grid-cols-2 sm:flex gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setSearchScope('personal')}
@@ -1414,7 +2061,7 @@ export default function DashboardPage() {
                 </button>
               </div>
 
-              <div className="relative flex-1">
+              <div className="relative flex-1 min-w-0">
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
                 <input
                   type="text"
@@ -1428,14 +2075,14 @@ export default function DashboardPage() {
               <button
                 type="submit"
                 disabled={searching}
-                className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose to-violet px-5 py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 transition"
+                className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose to-violet px-5 py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 transition shrink-0"
               >
                 {searching ? 'Querying Walrus…' : 'Filter / Search'}
               </button>
             </form>
 
             {/* Taxonomy Filter Pills & Superseded Toggle */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
               <div className="flex flex-wrap items-center gap-1.5">
                 {[
                   { id: 'all', label: 'All Types' },
@@ -1485,31 +2132,31 @@ export default function DashboardPage() {
                 </p>
               </div>
             ) : memoryViewMode === 'graph' ? (
-              <div className="rounded-3xl border border-line glass p-5 sm:p-7 space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line/60 pb-4">
+              <div className="rounded-3xl border border-line glass p-4 sm:p-7 space-y-4 sm:space-y-5 min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line/60 pb-3.5">
                   <div>
                     <h3 className="text-base font-display text-txt">Semantic Memory Constellation</h3>
-                    <p className="text-xs text-mut">Click any node in your Walrus knowledge web to inspect its full content and on-chain blob proof.</p>
+                    <p className="text-xs text-mut">Tap any node in your Walrus knowledge web to inspect its full content and on-chain blob proof.</p>
                   </div>
-                  <span className="font-mono text-[11px] text-faint">{memories.length} nodes anchored</span>
+                  <span className="font-mono text-[11px] text-faint shrink-0">{memories.length} nodes anchored</span>
                 </div>
 
-                <div className="relative overflow-hidden rounded-2xl border border-line bg-bg/90 p-3">
-                  <svg viewBox="0 0 800 420" className="w-full h-[300px] sm:h-[380px]">
+                <div className="relative overflow-hidden rounded-2xl border border-line bg-bg/90 p-2 sm:p-3">
+                  <svg viewBox="0 0 640 420" className="w-full h-[260px] sm:h-[380px]">
                     <defs>
                       <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
                         <stop offset="0%" stopColor="#fb7185" stopOpacity="0.35" />
                         <stop offset="100%" stopColor="#a78bfa" stopOpacity="0" />
                       </radialGradient>
                     </defs>
-                    <circle cx="400" cy="210" r="160" fill="url(#coreGlow)" />
-                    <circle cx="400" cy="210" r="95" fill="none" stroke="rgba(255,255,255,0.06)" strokeDasharray="4 4" />
-                    <circle cx="400" cy="210" r="175" fill="none" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                    <circle cx="320" cy="210" r="150" fill="url(#coreGlow)" />
+                    <circle cx="320" cy="210" r="95" fill="none" stroke="rgba(255,255,255,0.06)" strokeDasharray="4 4" />
+                    <circle cx="320" cy="210" r="170" fill="none" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
 
                     {memories.slice(0, 48).map((m, idx, arr) => {
                       const angle = (idx / arr.length) * Math.PI * 2
-                      const ring = idx % 2 === 0 ? 115 : 172
-                      const x = 400 + Math.cos(angle) * ring * 1.45
+                      const ring = idx % 2 === 0 ? 108 : 165
+                      const x = 320 + Math.cos(angle) * ring * 1.18
                       const y = 210 + Math.sin(angle) * ring * 0.92
                       const strokeMap: Record<string, string> = {
                         decision: '#fb7185',
@@ -1529,7 +2176,7 @@ export default function DashboardPage() {
                           style={{ opacity: m.isSuperseded ? 0.4 : 0.92 }}
                         >
                           <line
-                            x1="400"
+                            x1="320"
                             y1="210"
                             x2={x}
                             y2={y}
@@ -1560,20 +2207,20 @@ export default function DashboardPage() {
                     })}
 
                     {/* Center Core Node */}
-                    <circle cx="400" cy="210" r="24" fill="#161124" stroke="#fb7185" strokeWidth="2" />
-                    <text x="400" y="213" textAnchor="middle" fill="#f6f2ff" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                    <circle cx="320" cy="210" r="24" fill="#161124" stroke="#fb7185" strokeWidth="2" />
+                    <text x="320" y="213" textAnchor="middle" fill="#f6f2ff" fontSize="10" fontFamily="monospace" fontWeight="bold">
                       ENGRAM
                     </text>
                   </svg>
                 </div>
 
                 {selectedGraphNode && (
-                  <div className="rounded-2xl border border-rose/30 bg-surface/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
+                  <div className="rounded-2xl border border-rose/30 bg-surface/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+                    <div className="space-y-1 min-w-0">
                       <span className="rounded-full border border-rose/40 bg-rose/10 px-2 py-0.5 text-[10px] font-mono uppercase text-rose">
                         {selectedGraphNode.type}
                       </span>
-                      <p className="text-xs text-txt leading-relaxed mt-1">{selectedGraphNode.text}</p>
+                      <p className="text-xs text-txt leading-relaxed mt-1 break-words">{selectedGraphNode.text}</p>
                     </div>
                     {selectedGraphNode.blobId && (
                       <a
@@ -1589,7 +2236,7 @@ export default function DashboardPage() {
                 )}
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-3.5 sm:gap-4 sm:grid-cols-2 min-w-0">
                 {memories.map((m, idx) => {
                   const typeColors: Record<string, string> = {
                     decision: 'border-rose/30 bg-rose/10 text-rose',
@@ -1604,14 +2251,14 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={m.id || idx}
-                      className={`rounded-3xl border p-5 space-y-3 transition ${
+                      className={`rounded-3xl border p-4 sm:p-5 space-y-3 transition min-w-0 overflow-hidden ${
                         m.isSuperseded
                           ? 'border-amber-500/30 bg-amber-500/[0.03] opacity-85'
                           : 'border-line glass'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                           <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase font-bold ${pillClass}`}>
                             {m.type || 'decision'}
                           </span>
@@ -1622,7 +2269,7 @@ export default function DashboardPage() {
                           )}
                         </div>
 
-                        <span className="flex items-center gap-1 font-mono text-[10px] text-faint">
+                        <span className="flex items-center gap-1 font-mono text-[10px] text-faint shrink-0">
                           <Clock size={11} className="text-faint" />
                           {m.epochMeta?.daysRemaining ? `~${m.epochMeta.daysRemaining}d left` : 'Epoch 24'}
                         </span>
@@ -1630,22 +2277,34 @@ export default function DashboardPage() {
 
                       {/* Conflict Notification Box */}
                       {m.isSuperseded && (
-                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-2 text-[11px] text-amber-300/90 font-mono">
+                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-2 text-[11px] text-amber-300/90 font-mono break-words">
                           ⚠️ Superseded by newer decision {m.supersededBy ? `(blob: ${m.supersededBy.slice(0, 10)}…)` : ''}
                         </div>
                       )}
 
-                      <p className={`text-xs text-txt leading-relaxed ${m.isSuperseded ? 'line-through text-mut' : ''}`}>
+                      <p className={`text-xs text-txt leading-relaxed break-words ${m.isSuperseded ? 'line-through text-mut' : ''}`}>
                         {m.text}
                       </p>
 
-                      <div className="border-t border-line/60 pt-2.5 flex items-center justify-between text-[11px] text-faint">
-                        <div className="flex items-center gap-1.5">
-                          <Coins size={11} className="text-violet-soft" />
-                          <span>0.002 WAL · 128 KiB</span>
+                      <div className="border-t border-line/60 pt-2.5 flex items-center justify-between gap-2 text-[11px] text-faint">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Coins size={11} className="text-violet-soft shrink-0" />
+                          <span className="truncate">0.002 WAL · 128 KiB</span>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(m.text, `mem-${m.id || idx}`)}
+                            className="flex items-center gap-1 font-mono text-faint hover:text-txt transition"
+                            title="Copy memory text"
+                          >
+                            {copiedText === `mem-${m.id || idx}` ? (
+                              <Check size={12} className="text-emerald-400" />
+                            ) : (
+                              <Copy size={12} />
+                            )}
+                          </button>
                           {m.blobId && (
                             <a
                               href={`https://walruscan.com/testnet/blob/${m.blobId}`}
@@ -1654,7 +2313,7 @@ export default function DashboardPage() {
                               className="flex items-center gap-1 font-mono text-faint hover:text-rose transition"
                               title="Verify on Walruscan"
                             >
-                              <span>Proof: {m.blobId.slice(0, 8)}…</span>
+                              <span>Proof: {m.blobId.slice(0, 6)}…</span>
                               <ExternalLink size={10} />
                             </a>
                           )}
