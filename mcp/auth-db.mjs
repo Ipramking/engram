@@ -366,16 +366,31 @@ export async function getUsage(entityType, entityId, dateStr = getTodayStr()) {
   return { entity_type: entityType, entity_id: entityId, date: dateStr, saves_count: 0, recalls_count: 0 }
 }
 
+export function getQuotaResetMetadata() {
+  const now = new Date()
+  const midnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0))
+  const resetAt = Math.floor(midnight.getTime() / 1000)
+  const secondsUntilReset = Math.max(0, Math.floor((midnight.getTime() - now.getTime()) / 1000))
+  return { resetAt, secondsUntilReset }
+}
+
 export async function checkAndIncrementUsage(opts) {
   const tier = opts.planTier || (opts.entityType === 'user' ? 'free_personal' : 'free_team')
   const limits = PLAN_LIMITS[tier] || PLAN_LIMITS.free_personal
   const dateStr = getTodayStr()
   const current = await getUsage(opts.entityType, opts.entityId, dateStr)
+  const { resetAt, secondsUntilReset } = getQuotaResetMetadata()
 
   if (opts.operation === 'save' && current.saves_count >= limits.dailySaves) {
-    throw new Error(
+    const err = new Error(
       `Daily memory save limit (${limits.dailySaves} saves/day) reached for this ${opts.entityType}. Quota resets at midnight UTC.`
     )
+    err.code = 'DAILY_QUOTA_EXCEEDED'
+    err.limit = limits.dailySaves
+    err.current = current.saves_count
+    err.resetAt = resetAt
+    err.secondsUntilReset = secondsUntilReset
+    throw err
   }
 
   const newSaves = current.saves_count + (opts.operation === 'save' ? 1 : 0)
@@ -389,7 +404,7 @@ export async function checkAndIncrementUsage(opts) {
       date: dateStr,
       saves_count: newSaves,
       recalls_count: newRecalls,
-    })
+    }, { onConflict: 'entity_type,entity_id,date' })
   }
   const db = getFallbackDb()
   if (db) {
@@ -402,5 +417,12 @@ export async function checkAndIncrementUsage(opts) {
     `).run(randomUUID(), opts.entityType, opts.entityId, dateStr, newSaves, newRecalls)
   }
 
-  return { saves: newSaves, recalls: newRecalls, limit: limits.dailySaves }
+  return {
+    saves: newSaves,
+    recalls: newRecalls,
+    limit: limits.dailySaves,
+    remaining: Math.max(0, limits.dailySaves - newSaves),
+    resetAt,
+    secondsUntilReset,
+  }
 }

@@ -40,8 +40,12 @@ interface UsageData {
   personal: {
     saves: number
     dailyLimit: number
+    remaining?: number
+    percentUsed?: number
     recalls: number
     maxMemories: number
+    resetAt?: number
+    secondsUntilReset?: number
   }
   teams: Array<{
     teamId: string
@@ -49,9 +53,20 @@ interface UsageData {
     plan: string
     saves: number
     dailyLimit: number
+    remaining?: number
+    percentUsed?: number
     recalls: number
     maxMembers: number
+    resetAt?: number
+    secondsUntilReset?: number
   }>
+}
+
+function formatCountdown(sec?: number) {
+  if (!sec || sec <= 0) return 'midnight UTC'
+  const h = Math.floor(sec / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  return `${h}h ${m}m`
 }
 
 export default function DashboardPage() {
@@ -585,8 +600,6 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-
-        {/* ── TAB 2: API KEYS ── */}
         {activeTab === 'keys' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -837,69 +850,146 @@ export default function DashboardPage() {
         )}
 
         {/* ── TAB 4: USAGE & PLANS ── */}
-        {activeTab === 'usage' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-display text-txt">Usage Limits & Quotas</h2>
-              <p className="text-xs text-mut mt-0.5">
-                Track your daily upload and memory save limits. Daily counters reset at 00:00 UTC.
-              </p>
-            </div>
+        {activeTab === 'usage' && (() => {
+          const personalSaves = usage?.personal.saves ?? 0
+          const personalLimit = usage?.personal.dailyLimit ?? 50
+          const personalPercent = usage?.personal.percentUsed ?? Math.min(100, Math.round((personalSaves / personalLimit) * 100))
+          const personalRemaining = usage?.personal.remaining ?? Math.max(0, personalLimit - personalSaves)
+          const personalReset = formatCountdown(usage?.personal.secondsUntilReset)
 
-            {/* Daily Save Progress Bars */}
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="rounded-3xl border border-line glass p-6">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Lock size={16} className="text-rose" />
-                    <h3 className="font-medium text-sm text-txt">Personal Daily Saves</h3>
-                  </div>
-                  <span className="font-mono text-xs text-rose font-bold">
-                    {usage?.personal.saves ?? 0} / {usage?.personal.dailyLimit ?? 50}
-                  </span>
+          const activeTeamUsage = usage?.teams?.find(t => t.teamId === selectedTeam?.id) || usage?.teams?.[0]
+          const teamSaves = activeTeamUsage?.saves ?? 0
+          const teamLimit = activeTeamUsage?.dailyLimit ?? 150
+          const teamPercent = activeTeamUsage?.percentUsed ?? Math.min(100, Math.round((teamSaves / teamLimit) * 100))
+          const teamRemaining = activeTeamUsage?.remaining ?? Math.max(0, teamLimit - teamSaves)
+
+          return (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-display text-txt">Usage Limits & Quotas</h2>
+                  <p className="text-xs text-mut mt-0.5">
+                    Real-time daily write counters and quota enforcement. Daily quotas reset at 00:00 UTC.
+                  </p>
                 </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-surface">
-                  <div
-                    className="h-full bg-gradient-to-r from-rose to-violet transition-all"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        (((usage?.personal.saves ?? 0) / (usage?.personal.dailyLimit ?? 50)) * 100)
-                      )}%`,
-                    }}
-                  />
+                <div className="inline-flex items-center gap-2 rounded-2xl border border-line bg-surface/70 px-3.5 py-1.5 font-mono text-[11px] text-mut">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Resets in: <strong className="text-txt">{personalReset}</strong></span>
                 </div>
-                <p className="mt-3 text-[11px] text-faint">
-                  50 memory saves per day on Personal Free. Re-calculated daily.
-                </p>
               </div>
 
-              <div className="rounded-3xl border border-line glass p-6">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Users size={16} className="text-violet-soft" />
-                    <h3 className="font-medium text-sm text-txt">Team Daily Saves</h3>
+              {/* Quota Threshold Warnings */}
+              {personalSaves >= personalLimit ? (
+                <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 text-xs text-rose-200 flex items-start gap-3">
+                  <AlertCircle size={18} className="text-rose-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-rose-300">Personal Daily Quota Exhausted ({personalSaves}/{personalLimit} saves)</p>
+                    <p className="text-[11.5px] mt-0.5 text-rose-200/90">
+                      Your connected agents have reached today's 50 memory save limit. Read/recall operations remain active.
+                      Save quota will automatically unlock in {personalReset} (midnight UTC).
+                    </p>
                   </div>
-                  <span className="font-mono text-xs text-violet-soft font-bold">
-                    {usage?.teams?.[0]?.saves ?? 0} / {usage?.teams?.[0]?.dailyLimit ?? 150}
-                  </span>
                 </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-surface">
-                  <div
-                    className="h-full bg-gradient-to-r from-violet to-sky-400 transition-all"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        (((usage?.teams?.[0]?.saves ?? 0) / (usage?.teams?.[0]?.dailyLimit ?? 150)) * 100)
-                      )}%`,
-                    }}
-                  />
+              ) : personalPercent >= 80 ? (
+                <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-200 flex items-start gap-3">
+                  <AlertCircle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-amber-300">Approaching Daily Quota ({personalSaves}/{personalLimit} saves - {personalPercent}%)</p>
+                    <p className="text-[11.5px] mt-0.5 text-amber-200/90">
+                      You have {personalRemaining} memory saves remaining today. Quota resets at midnight UTC.
+                    </p>
+                  </div>
                 </div>
-                <p className="mt-3 text-[11px] text-faint">
-                  150 shared memory saves per day across team members on Free Team Plan.
-                </p>
+              ) : null}
+
+              {/* Daily Save Progress Bars */}
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="rounded-3xl border border-line glass p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Lock size={16} className="text-rose" />
+                      <h3 className="font-medium text-sm text-txt">Personal Daily Saves</h3>
+                    </div>
+                    <span className="font-mono text-xs text-rose font-bold">
+                      {personalSaves} / {personalLimit}
+                    </span>
+                  </div>
+                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface">
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        personalPercent >= 100
+                          ? 'bg-rose-500'
+                          : personalPercent >= 80
+                          ? 'bg-amber-400'
+                          : 'bg-gradient-to-r from-rose to-violet'
+                      }`}
+                      style={{ width: `${personalPercent}%` }}
+                    />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-[11px] text-faint font-mono">
+                    <span>{personalRemaining} saves remaining</span>
+                    <span>{personalPercent}% used</span>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-line glass p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Users size={16} className="text-violet-soft" />
+                      <h3 className="font-medium text-sm text-txt">
+                        Team Daily Saves {selectedTeam ? `(${selectedTeam.name})` : ''}
+                      </h3>
+                    </div>
+                    <span className="font-mono text-xs text-violet-soft font-bold">
+                      {teamSaves} / {teamLimit}
+                    </span>
+                  </div>
+                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface">
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        teamPercent >= 100
+                          ? 'bg-rose-500'
+                          : teamPercent >= 80
+                          ? 'bg-amber-400'
+                          : 'bg-gradient-to-r from-violet to-sky-400'
+                      }`}
+                      style={{ width: `${teamPercent}%` }}
+                    />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-[11px] text-faint font-mono">
+                    <span>{teamRemaining} saves remaining</span>
+                    <span>{teamPercent}% used</span>
+                  </div>
+                </div>
               </div>
-            </div>
+
+              {/* Team Member Limit Card */}
+              {selectedTeam && (
+                <div className="rounded-3xl border border-line glass p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Users size={16} className="text-rose" />
+                      <h3 className="font-medium text-sm text-txt">Free Team Seat Ceiling</h3>
+                    </div>
+                    <span className="font-mono text-xs text-rose font-bold">
+                      {teamMembers.length} / 3 Members
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-surface">
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        teamMembers.length >= 3 ? 'bg-amber-400' : 'bg-emerald-400'
+                      }`}
+                      style={{ width: `${Math.min(100, (teamMembers.length / 3) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="mt-3 text-[11px] text-faint font-mono">
+                    {teamMembers.length >= 3
+                      ? 'Maximum capacity reached (3/3 members). Upgrade to Pro to invite additional developers.'
+                      : `${3 - teamMembers.length} invite slot(s) remaining on Free Team Plan.`}
+                  </p>
+                </div>
+              )}
 
             {/* Plans Comparison */}
             <div className="mt-8">
@@ -964,7 +1054,8 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-        )}
+        )
+      })()}
 
         {/* ── TAB 5: MEMORY EXPLORER ── */}
         {activeTab === 'memories' && (
