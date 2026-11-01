@@ -9,11 +9,11 @@ import {
   blobIdOf,
   recallMaxDistance,
   type Scope,
-} from "./_lib/memwal";
-import { buildSystemPrompt } from "./_lib/prompt";
-import { generateReply, extractFacts, type ChatMsg } from "./_lib/llm";
-import { getUserFromRequest } from "./_lib/auth";
-import { isTeamMember } from "./_lib/db";
+} from "./_lib/memwal.js";
+import { buildSystemPrompt } from "./_lib/prompt.js";
+import { generateReply, extractFacts, type ChatMsg } from "./_lib/llm.js";
+import { getUserFromRequest } from "./_lib/auth.js";
+import { isTeamMember } from "./_lib/db.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });

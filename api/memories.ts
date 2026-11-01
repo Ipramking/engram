@@ -1,8 +1,8 @@
-import { getUserFromRequest } from './_lib/auth'
-import { getSupabaseAdmin } from './_lib/supabase'
-import { isTeamMember } from './_lib/db'
-import { memwalFor, normalizeRecall, decodeMemory, recallMaxDistance, type Scope } from './_lib/memwal'
-import { calculateWalrusEpochMetadata } from './_lib/epochs'
+import { getUserFromRequest } from './_lib/auth.js'
+import { getSupabaseAdmin } from './_lib/supabase.js'
+import { isTeamMember } from './_lib/db.js'
+import { memwalFor, normalizeRecall, decodeMemory, recallMaxDistance, type Scope } from './_lib/memwal.js'
+import { calculateWalrusEpochMetadata } from './_lib/epochs.js'
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*')

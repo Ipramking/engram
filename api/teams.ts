@@ -1,5 +1,5 @@
-import { getUserFromRequest } from './_lib/auth'
-import { createTeam, listTeams, listTeamMembers, isTeamMember, addTeamMember } from './_lib/db'
+import { getUserFromRequest } from './_lib/auth.js'
+import { createTeam, listTeams, listTeamMembers, isTeamMember, addTeamMember } from './_lib/db.js'
 
 export default async function handler(req: any, res: any) {
   const method = req.method

@@ -1,5 +1,5 @@
-import { getUserFromRequest } from './_lib/auth'
-import { getUsage, PLAN_LIMITS, listTeams, getQuotaResetMetadata } from './_lib/db'
+import { getUserFromRequest } from './_lib/auth.js'
+import { getUsage, PLAN_LIMITS, listTeams, getQuotaResetMetadata } from './_lib/db.js'
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*')

@@ -1,7 +1,7 @@
 // Smart Conflict Resolution & Superseding Memories Engine for Engram
 // Detects when a new memory contradicts or supersedes an older architectural decision,
 // configuration, or workflow preference, and marks the older memory as superseded.
-import { getSupabaseAdmin } from './supabase'
+import { getSupabaseAdmin } from './supabase.js'
 
 export interface MemoryRecord {
   id: string

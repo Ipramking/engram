@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto'
-import { getSupabaseAdmin } from './supabase'
+import { getSupabaseAdmin } from './supabase.js'
 
 export interface PlanLimits {
   dailySaves: number

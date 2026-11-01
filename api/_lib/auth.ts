@@ -1,6 +1,6 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto'
-import { getSupabaseAdmin, getSupabaseAuth } from './supabase'
-import { getProfile, createProfile } from './db'
+import { getSupabaseAdmin, getSupabaseAuth } from './supabase.js'
+import { getProfile, createProfile } from './db.js'
 
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex')
@@ -47,7 +47,7 @@ export async function getUserFromRequest(req: any) {
   // 2. Try Engram API Key (eng_usr_... or eng_team_...)
   if (token.startsWith('eng_')) {
     try {
-      const { validateApiKey } = await import('./db')
+      const { validateApiKey } = await import('./db.js')
       const apiKey = await validateApiKey(token)
       if (apiKey) {
         const profile = await getProfile(apiKey.user_id)
@@ -66,7 +66,7 @@ export async function getUserFromRequest(req: any) {
 
   // 3. Fallback session / token check
   try {
-    const { verify } = await import('./token')
+    const { verify } = await import('./token.js')
     const verified = verify(token)
     if (verified?.tid) {
       return {

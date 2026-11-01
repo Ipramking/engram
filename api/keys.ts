@@ -1,5 +1,5 @@
-import { getUserFromRequest } from './_lib/auth'
-import { createApiKey, listApiKeys, revokeApiKey } from './_lib/db'
+import { getUserFromRequest } from './_lib/auth.js'
+import { createApiKey, listApiKeys, revokeApiKey } from './_lib/db.js'
 
 const HOST = process.env.ENGRAM_MCP_HOST || 'https://engram-mcp.onrender.com'
 

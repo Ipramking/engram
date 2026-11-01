@@ -1,6 +1,6 @@
-import { getSupabaseAuth, getSupabaseAdmin } from './_lib/supabase'
-import { createProfile, getProfile } from './_lib/db'
-import { getUserFromRequest } from './_lib/auth'
+import { getSupabaseAuth, getSupabaseAdmin } from './_lib/supabase.js'
+import { createProfile, getProfile } from './_lib/db.js'
+import { getUserFromRequest } from './_lib/auth.js'
 
 export default async function handler(req: any, res: any) {
   const rawUrl = req.url || ''

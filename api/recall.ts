@@ -5,9 +5,9 @@ import {
   decodeMemory,
   recallMaxDistance,
   type Scope,
-} from "./_lib/memwal";
-import { getUserFromRequest } from "./_lib/auth";
-import { checkAndIncrementUsage, isTeamMember } from "./_lib/db";
+} from "./_lib/memwal.js";
+import { getUserFromRequest } from "./_lib/auth.js";
+import { checkAndIncrementUsage, isTeamMember } from "./_lib/db.js";
 import { getSupabaseAdmin } from "./_lib/supabase";
 
 export default async function handler(req: any, res: any) {

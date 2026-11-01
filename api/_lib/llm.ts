@@ -4,8 +4,8 @@
 import { generateText, generateObject } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { z } from "zod";
-import { EXTRACTION_INSTRUCTIONS } from "./prompt";
-import { MEMORY_TYPES, type MemoryType } from "./types";
+import { EXTRACTION_INSTRUCTIONS } from "./prompt.js";
+import { MEMORY_TYPES, type MemoryType } from "./types.js";
 
 export type ChatMsg = { role: "user" | "assistant"; content: string };
 
