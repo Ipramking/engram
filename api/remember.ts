@@ -4,11 +4,26 @@ import { getUserFromRequest } from "./_lib/auth.js";
 import { checkAndIncrementUsage, getQuotaResetMetadata, PLAN_LIMITS, isTeamMember } from "./_lib/db.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
 import { detectAndResolveConflicts } from "./_lib/conflicts.js";
+import { scanForSecrets, sanitizeMemoryText } from "./_lib/security.js";
 
 export default async function handler(req: any, res: any) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+
   const { text, type, scope = "personal", teamCode = "default" } = req.body ?? {};
   if (!text || typeof text !== "string") return res.status(400).json({ error: "text required" });
+
+  // Deterministic server-side secret scanner (Security Audit Finding 4)
+  const secretCheck = scanForSecrets(text);
+  if (secretCheck.hasSecret) {
+    return res.status(400).json({
+      error: secretCheck.reason,
+      code: "SECRET_DETECTED",
+    });
+  }
 
   const user = await getUserFromRequest(req);
   if (!user) {
@@ -25,7 +40,7 @@ export default async function handler(req: any, res: any) {
     }
   }
 
-  const decoded = decodeMemory(text);
+  const decoded = decodeMemory(sanitizeMemoryText(text));
   const t = type && (MEMORY_TYPES as readonly string[]).includes(type)
     ? type
     : (decoded.type !== 'note' ? decoded.type : 'decision');
@@ -61,10 +76,15 @@ export default async function handler(req: any, res: any) {
 
   const ns = scope === 'team' ? teamCode : `usr_${user.id}`;
   const mem = memwalFor(scope as Scope, ns);
-  const job = await mem.rememberAndWait(encodeMemory(t as any, cleanText), undefined, {
-    timeoutMs: 30_000,
-  });
-  const blobId = blobIdOf(job);
+  let blobId: string | undefined;
+  try {
+    const job = await mem.rememberAndWait(encodeMemory(t as any, cleanText), undefined, {
+      timeoutMs: 30_000,
+    });
+    blobId = blobIdOf(job);
+  } catch (walrusErr) {
+    console.warn("Walrus relayer write warning (persisting to Supabase metadata):", walrusErr);
+  }
 
   // Persist to memories_meta and run smart conflict resolution
   let superseded: any[] = [];
@@ -77,7 +97,7 @@ export default async function handler(req: any, res: any) {
         room: 'my-space',
         type: t,
         text: cleanText,
-        blob_id: blobId,
+        blob_id: blobId ?? null,
       });
 
       const conflictRes = await detectAndResolveConflicts({

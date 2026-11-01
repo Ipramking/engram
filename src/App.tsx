@@ -532,7 +532,7 @@ function QuickConnectPreview() {
     cursor: `{
   "mcpServers": {
     "engram": {
-      "url": "https://engram-mcp.onrender.com/mcp?token=YOUR_API_KEY&room=my-space"
+      "url": "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"
     }
   }
 }`,
@@ -547,7 +547,7 @@ function QuickConnectPreview() {
     antigravity: `# Antigravity / Gemini CLI Configuration
 mcp_servers:
   engram:
-    url: "https://engram-mcp.onrender.com/mcp?token=YOUR_API_KEY&room=my-space"`,
+    url: "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"`,
     cli: `# Direct terminal execution (or CI/CD pipelines)
 npx engram-walrus --key=YOUR_API_KEY --room=my-space`,
   }
@@ -559,7 +559,7 @@ npx engram-walrus --key=YOUR_API_KEY --room=my-space`,
   }
 
   return (
-    <section className="mx-auto max-w-6xl px-5 py-16">
+    <section id="platforms" className="mx-auto max-w-6xl px-5 py-16">
       <div data-reveal className="rounded-3xl border border-line glass p-7 sm:p-10 shadow-2xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>

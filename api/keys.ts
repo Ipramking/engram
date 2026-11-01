@@ -1,7 +1,7 @@
 import { getUserFromRequest } from './_lib/auth.js'
 import { createApiKey, listApiKeys, revokeApiKey } from './_lib/db.js'
 
-const HOST = process.env.ENGRAM_MCP_HOST || 'https://engram-mcp.onrender.com'
+const HOST = process.env.ENGRAM_MCP_HOST || 'https://engram-pearl.vercel.app'
 
 export default async function handler(req: any, res: any) {
   const method = req.method

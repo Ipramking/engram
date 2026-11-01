@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Brain, LogOut, User as UserIcon, LayoutDashboard } from 'lucide-react'
+import { Brain, LogOut, LayoutDashboard, Menu, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 const REPO = 'https://github.com/Ipramking/engram'
@@ -18,6 +18,7 @@ export function Wordmark({ size = 'text-lg' }: { size?: string }) {
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
   const isHome = location.pathname === '/'
   const { user, logout } = useAuth()
@@ -29,9 +30,13 @@ export function Nav() {
     return () => window.removeEventListener('scroll', on)
   }, [])
 
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [location.pathname, location.hash])
+
   return (
-    <nav className={`sticky top-0 z-50 transition-colors ${scrolled ? 'border-b border-line glass' : 'border-b border-transparent'}`}>
-      <div className="mx-auto flex max-w-6xl items-center gap-6 px-5 py-3.5">
+    <nav className={`sticky top-0 z-50 transition-colors ${scrolled || mobileOpen ? 'border-b border-line glass' : 'border-b border-transparent'}`}>
+      <div className="mx-auto flex max-w-6xl items-center gap-4 px-5 py-3.5">
         <Wordmark />
         <div className="ml-auto hidden items-center gap-7 text-sm text-mut md:flex">
           {isHome ? (
@@ -53,12 +58,12 @@ export function Nav() {
           <a href={REPO} target="_blank" rel="noreferrer" className="transition hover:text-txt">GitHub ↗</a>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="ml-auto md:ml-0 flex items-center gap-2.5">
           {user ? (
             <div className="flex items-center gap-2">
               <Link
                 to="/dashboard"
-                className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-rose to-violet px-4 py-2 text-sm font-medium text-bg shadow hover:opacity-90 transition"
+                className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-rose to-violet px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-medium text-bg shadow hover:opacity-90 transition"
               >
                 <LayoutDashboard size={14} />
                 <span>Dashboard</span>
@@ -72,23 +77,69 @@ export function Nav() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <Link
                 to="/login"
-                className="text-sm font-medium text-mut hover:text-txt transition px-2 py-1"
+                className="text-xs sm:text-sm font-medium text-mut hover:text-txt transition px-2 py-1"
               >
                 Sign in
               </Link>
               <Link
                 to="/register"
-                className="rounded-full bg-gradient-to-r from-rose to-violet px-4 py-2 text-sm font-medium text-bg transition hover:opacity-90 shadow-sm"
+                className="rounded-full bg-gradient-to-r from-rose to-violet px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-medium text-bg transition hover:opacity-90 shadow-sm"
               >
                 Get started
               </Link>
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label="Toggle navigation menu"
+            className="flex md:hidden items-center justify-center rounded-xl border border-line bg-surface/70 p-2 text-mut hover:text-txt transition"
+          >
+            {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile Dropdown Drawer */}
+      {mobileOpen && (
+        <div className="border-t border-line bg-bg/95 px-5 py-4 backdrop-blur-xl md:hidden">
+          <div className="flex flex-col gap-3 text-sm text-mut">
+            {isHome ? (
+              <>
+                <a href="#how" onClick={() => setMobileOpen(false)} className="py-1.5 hover:text-txt">How it works</a>
+                <a href="#taxonomy" onClick={() => setMobileOpen(false)} className="py-1.5 hover:text-txt">Memory Types</a>
+                <a href="#platforms" onClick={() => setMobileOpen(false)} className="py-1.5 hover:text-txt">Platforms & Mobile</a>
+                <a href="#pricing" onClick={() => setMobileOpen(false)} className="py-1.5 hover:text-txt">Plans & Limits</a>
+              </>
+            ) : (
+              <>
+                <Link to="/#how" onClick={() => setMobileOpen(false)} className="py-1.5 hover:text-txt">How it works</Link>
+                <Link to="/#taxonomy" onClick={() => setMobileOpen(false)} className="py-1.5 hover:text-txt">Memory Types</Link>
+                <Link to="/#platforms" onClick={() => setMobileOpen(false)} className="py-1.5 hover:text-txt">Platforms & Mobile</Link>
+                <Link to="/#pricing" onClick={() => setMobileOpen(false)} className="py-1.5 hover:text-txt">Plans & Limits</Link>
+              </>
+            )}
+            <Link to="/docs" onClick={() => setMobileOpen(false)} className="py-1.5 hover:text-txt">Documentation</Link>
+            <a href={REPO} target="_blank" rel="noreferrer" className="py-1.5 hover:text-txt">GitHub Repository ↗</a>
+            {user && (
+              <button
+                onClick={() => {
+                  setMobileOpen(false)
+                  logout()
+                }}
+                className="mt-2 flex items-center gap-2 rounded-xl border border-rose/30 bg-rose/10 px-3.5 py-2.5 text-left text-xs font-medium text-rose"
+              >
+                <LogOut size={14} />
+                Sign out ({user.email})
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </nav>
   )
 }
@@ -104,7 +155,7 @@ export function Footer() {
         <p className="text-sm text-faint sm:ml-4">
           Portable, verifiable persistent memory for AI agents — on Walrus.
         </p>
-        <div className="flex items-center gap-6 text-sm text-mut sm:ml-auto">
+        <div className="flex flex-wrap items-center gap-5 text-sm text-mut sm:ml-auto">
           {isHome ? (
             <>
               <a href="#how" className="hover:text-txt">How it works</a>

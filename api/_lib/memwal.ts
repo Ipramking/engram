@@ -61,7 +61,7 @@ export function memwalFor(scope: Scope, teamCode = "default"): MemwalClient {
   return client;
 }
 
-import { MEMORY_TYPES, type MemoryType } from "./types";
+import { MEMORY_TYPES, type MemoryType } from "./types.js";
 export { MEMORY_TYPES, type MemoryType };
 
 // We encode the tag as a compact prefix so it survives store -> recall even

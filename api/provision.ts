@@ -70,7 +70,7 @@ export default async function handler(req: any, res: any) {
     const room = slugify(req.body?.room)
     const tid = newTid()
     const token = sign(tid, secret)
-    const host = env.ENGRAM_MCP_HOST || 'https://engram-mcp.onrender.com'
+    const host = env.ENGRAM_MCP_HOST || 'https://engram-pearl.vercel.app'
     const url = `${host}/mcp?token=${encodeURIComponent(token)}&room=${encodeURIComponent(room)}`
 
     return res.status(200).json({

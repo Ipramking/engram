@@ -39,11 +39,6 @@ export default function LoginPage() {
     }
   }
 
-  const fillQuickDemo = (demoEmail: string) => {
-    setEmail(demoEmail)
-    setPassword('EngramDemo2026!')
-  }
-
   return (
     <div className="relative flex min-h-screen flex-col justify-between bg-bg text-txt">
       {/* Background ambient glow */}
@@ -143,29 +138,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Login helper */}
-          <div className="mt-6 border-t border-line/80 pt-5">
-            <p className="text-[11px] font-mono tracking-wide text-faint text-center mb-2.5 uppercase">
-              Quick test accounts
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => fillQuickDemo('developer@engram.memory')}
-                className="flex-1 rounded-xl border border-line/60 bg-surface/40 py-2 px-2 text-[11px] text-mut hover:text-txt hover:border-line transition"
-              >
-                Developer Demo
-              </button>
-              <button
-                type="button"
-                onClick={() => fillQuickDemo('teamlead@engram.memory')}
-                className="flex-1 rounded-xl border border-line/60 bg-surface/40 py-2 px-2 text-[11px] text-mut hover:text-txt hover:border-line transition"
-              >
-                Team Lead Demo
-              </button>
-            </div>
-          </div>
 
           <div className="mt-6 text-center text-xs text-mut">
             Don't have an account yet?{' '}

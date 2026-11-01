@@ -4,7 +4,7 @@ import { Terminal, Monitor, Code2, Globe, Smartphone, Copy, Check, Download, Arr
 import { ENGRAM_PROMPT, downloadText } from '../lib/promptText'
 
 const REPO = 'https://github.com/Ipramking/engram'
-const ENDPOINT = 'https://engram-mcp.onrender.com'
+const ENDPOINT = 'https://engram-pearl.vercel.app'
 const URL = `${ENDPOINT}/mcp?token=<TOKEN>&room=<team>`
 const NPX = `{ "mcpServers": { "engram": { "command": "npx", "args": ["-y", "engram-walrus"] } } }`
 const LOGIN = `npx engram-walrus login   # one-time browser sign-in — your own private Walrus account`
@@ -385,7 +385,7 @@ export function TeamIntro() {
   const genToken = `node -e "console.log(require('crypto').randomBytes(18).toString('base64url'))"`
   const url = `${ENDPOINT}/mcp?token=<YOUR_TOKEN>&room=acme-eng`
   const steps = [
-    { icon: Rocket, t: 'Deploy the endpoint (free)', d: 'Fork the repo, then Render → New → Blueprint → pick your fork. It reads render.yaml and builds in ~2 min. (Or use a shared demo endpoint for quick tests.)' },
+    { icon: Rocket, t: 'Deploy the endpoint (free)', d: 'Fork the repo and deploy to Vercel or Render in ~2 min, or use our hosted endpoint directly.' },
     { icon: KeyRound, t: 'Generate a team token', d: 'A shared secret that gates your endpoint. Run this, then set it as ENGRAM_TEAM_TOKEN in Render:', code: genToken },
     { icon: User, t: 'Point it at a Walrus account', d: 'Set ENGRAM_CREDS_JSON in Render to the contents of ~/.memwal/credentials.json (run pnpm login:memwal first). This is the account the team’s memories live on.' },
     { icon: Users, t: 'Pick a room name', d: 'Any string — one team can have many rooms (frontend, hackathon…). That’s your team URL:', code: url },

@@ -184,7 +184,7 @@ export default function DocsPage() {
                         {
                           mcpServers: {
                             engram: {
-                              url: 'https://engram-mcp.onrender.com/mcp?token=YOUR_API_KEY&room=my-space',
+                              url: 'https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space',
                             },
                           },
                         },
@@ -204,7 +204,7 @@ export default function DocsPage() {
 {`{
   "mcpServers": {
     "engram": {
-      "url": "https://engram-mcp.onrender.com/mcp?token=YOUR_API_KEY&room=my-space"
+      "url": "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"
     }
   }
 }`}
@@ -427,7 +427,7 @@ export default function DocsPage() {
 {`{
   "mcpServers": {
     "engram": {
-      "url": "https://engram-mcp.onrender.com/mcp?token=YOUR_API_KEY&room=my-space"
+      "url": "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"
     }
   }
 }`}
@@ -470,7 +470,7 @@ export default function DocsPage() {
               <div className="rounded-2xl border border-line bg-surface/30 p-4">
                 <p className="font-bold text-txt mb-1">Method 2: iOS Shortcuts</p>
                 <p>
-                  Create an iOS Shortcut that sends highlighted text as JSON to <code className="font-mono text-rose">https://engram-mcp.onrender.com/api/remember</code> using header <code className="font-mono">Authorization: Bearer YOUR_KEY</code>.
+                  Create an iOS Shortcut that sends highlighted text as JSON to <code className="font-mono text-rose">https://engram-pearl.vercel.app/api/remember</code> using header <code className="font-mono">Authorization: Bearer YOUR_KEY</code>.
                 </p>
               </div>
             </div>

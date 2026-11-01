@@ -1,6 +1,7 @@
 import { getSupabaseAuth, getSupabaseAdmin } from './_lib/supabase.js'
 import { createProfile, getProfile } from './_lib/db.js'
 import { getUserFromRequest } from './_lib/auth.js'
+import { signSession } from './_lib/token.js'
 
 export default async function handler(req: any, res: any) {
   const rawUrl = req.url || ''
@@ -29,7 +30,6 @@ export default async function handler(req: any, res: any) {
       const supabaseAuth = getSupabaseAuth()
 
       if (supabaseAdmin && supabaseAuth) {
-        // 1. Create pre-confirmed user via Admin API (bypasses SMTP setup and domain blocks)
         const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email: email.trim(),
           password,
@@ -38,7 +38,6 @@ export default async function handler(req: any, res: any) {
         })
 
         if (createError) {
-          // If already registered, suggest signing in
           if (/already.*registered/i.test(createError.message)) {
             return res.status(400).json({ error: 'This email is already registered. Please sign in instead.' })
           }
@@ -46,21 +45,27 @@ export default async function handler(req: any, res: any) {
         }
 
         const newUser = createData.user
+        let profile: any = null
         if (newUser) {
-          await createProfile(newUser.id, newUser.email!, name, 'free_personal')
+          profile = await createProfile(newUser.id, newUser.email!, name, 'free_personal')
         }
 
-        // 2. Sign in to obtain active JWT session
         const { data: signData, error: signError } = await supabaseAuth.auth.signInWithPassword({
           email: email.trim(),
           password,
         })
 
-        if (signError) {
+        if (signError && newUser) {
+          const fallbackToken = signSession({
+            id: newUser.id,
+            email: newUser.email!,
+            name: profile?.name || name?.trim() || newUser.email!.split('@')[0],
+            plan_tier: 'free_personal',
+          })
           return res.status(200).json({
             ok: true,
-            user: newUser,
-            session: { access_token: 'session_' + newUser.id },
+            user: profile || newUser,
+            session: { access_token: fallbackToken },
             message: 'Registered successfully.',
           })
         }
@@ -77,10 +82,11 @@ export default async function handler(req: any, res: any) {
         })
       }
 
-      // Fallback local registration
-      const mockId = 'usr_' + Buffer.from(email).toString('hex').slice(0, 16)
-      const profile = await createProfile(mockId, email, name, 'free_personal')
-      return res.status(200).json({ ok: true, user: profile, session: { access_token: 'mock_token_' + mockId } })
+      // Fallback registration when Supabase is offline
+      const mockId = 'usr_' + Buffer.from(email.trim().toLowerCase()).toString('hex').slice(0, 16)
+      const profile = await createProfile(mockId, email.trim(), name, 'free_personal')
+      const sessionToken = signSession(profile)
+      return res.status(200).json({ ok: true, user: profile, session: { access_token: sessionToken } })
     }
 
     // ── Login ──
@@ -113,13 +119,14 @@ export default async function handler(req: any, res: any) {
         })
       }
 
-      // Fallback local login
-      const mockId = 'usr_' + Buffer.from(email).toString('hex').slice(0, 16)
-      const profile = await getProfile(mockId) || await createProfile(mockId, email, '', 'free_personal')
+      // Fallback login
+      const mockId = 'usr_' + Buffer.from(email.trim().toLowerCase()).toString('hex').slice(0, 16)
+      const profile = await getProfile(mockId) || await createProfile(mockId, email.trim(), '', 'free_personal')
+      const sessionToken = signSession(profile)
       return res.status(200).json({
         ok: true,
         user: profile,
-        session: { access_token: 'mock_token_' + mockId },
+        session: { access_token: sessionToken },
       })
     }
 

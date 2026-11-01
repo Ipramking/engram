@@ -109,6 +109,8 @@ export default function DashboardPage() {
   const [memoryStats, setMemoryStats] = useState<any>(null)
   const [searching, setSearching] = useState(false)
   const [supersededNotice, setSupersededNotice] = useState<string | null>(null)
+  const [memoryViewMode, setMemoryViewMode] = useState<'cards' | 'graph'>('cards')
+  const [selectedGraphNode, setSelectedGraphNode] = useState<any | null>(null)
 
   // Manual Memory Pin state
   const [showAddMemoryModal, setShowAddMemoryModal] = useState(false)
@@ -465,7 +467,7 @@ export default function DashboardPage() {
         }),
       })
       const data = await safeJson(res)
-      if (res.ok && data?.blobId) {
+      if (res.ok && data?.ok) {
         setShowAddMemoryModal(false)
         setNewMemoryText('')
         if (data.superseded && data.superseded.length > 0) {
@@ -501,8 +503,34 @@ export default function DashboardPage() {
   // Choose primary active key for quick setup snippets
   const personalKey = keys.find((k) => k.scope === 'personal')
   const defaultConnectorUrl = personalKey
-    ? `https://engram-mcp.onrender.com/mcp?token=${personalKey.key_prefix}...&room=${personalKey.room}`
-    : 'https://engram-mcp.onrender.com/mcp?token=<YOUR_API_KEY>&room=my-space'
+    ? `https://engram-pearl.vercel.app/mcp?token=${personalKey.key_prefix}...&room=${personalKey.room}`
+    : 'https://engram-pearl.vercel.app/mcp?token=<YOUR_API_KEY>&room=my-space'
+
+  const handleTidyMemories = async () => {
+    const active = memories.filter((m) => !m.isSuperseded)
+    const toRemoveIds: string[] = []
+    const seen = new Set<string>()
+    for (const m of active) {
+      const norm = String(m.text || '').trim().toLowerCase()
+      if (seen.has(norm) && m.id) {
+        toRemoveIds.push(m.id)
+      } else {
+        seen.add(norm)
+      }
+    }
+    if (toRemoveIds.length === 0) {
+      setSupersededNotice(`Tidy check complete: All ${active.length} active memories are unique with 0 exact duplicates.`)
+      return
+    }
+    for (const id of toRemoveIds) {
+      await fetch(`/api/memories?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    }
+    setSupersededNotice(`Consolidated and removed ${toRemoveIds.length} duplicate memory record(s).`)
+    await loadMemories()
+  }
 
   return (
     <div className="min-h-screen bg-bg text-txt flex flex-col justify-between">
@@ -1234,6 +1262,35 @@ export default function DashboardPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex rounded-2xl border border-line bg-surface/40 p-0.5 text-xs font-mono">
+                  <button
+                    type="button"
+                    onClick={() => setMemoryViewMode('cards')}
+                    className={`rounded-xl px-2.5 py-1 transition ${
+                      memoryViewMode === 'cards' ? 'bg-rose/15 text-rose font-semibold' : 'text-mut hover:text-txt'
+                    }`}
+                  >
+                    Cards
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMemoryViewMode('graph')}
+                    className={`rounded-xl px-2.5 py-1 transition ${
+                      memoryViewMode === 'graph' ? 'bg-violet/20 text-violet-soft font-semibold' : 'text-mut hover:text-txt'
+                    }`}
+                  >
+                    Graph Web
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTidyMemories}
+                  disabled={!memories.length}
+                  className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface/50 px-3 py-1.5 text-xs text-txt hover:border-emerald-400/50 transition disabled:opacity-40"
+                  title="Scan and deduplicate memories"
+                >
+                  <Sparkles size={13} className="text-emerald-400" /> Tidy
+                </button>
                 <button
                   type="button"
                   onClick={() => exportMemories('json')}
@@ -1257,7 +1314,7 @@ export default function DashboardPage() {
                   onClick={() => setShowAddMemoryModal(true)}
                   className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-medium text-bg shadow hover:opacity-95 transition shrink-0"
                 >
-                  <Plus size={15} /> Save Test Memory
+                  <Plus size={15} /> Pin Memory
                 </button>
               </div>
             </div>
@@ -1424,8 +1481,112 @@ export default function DashboardPage() {
                 <Layers size={28} className="mx-auto text-faint mb-2.5" />
                 <p>No memories found matching this query or filter.</p>
                 <p className="text-[11px] text-faint mt-1">
-                  Connect your AI client via MCP or click "Save Test Memory" to anchor your first decision.
+                  Connect your AI client via MCP or click "Pin Memory" to anchor your first decision.
                 </p>
+              </div>
+            ) : memoryViewMode === 'graph' ? (
+              <div className="rounded-3xl border border-line glass p-5 sm:p-7 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line/60 pb-4">
+                  <div>
+                    <h3 className="text-base font-display text-txt">Semantic Memory Constellation</h3>
+                    <p className="text-xs text-mut">Click any node in your Walrus knowledge web to inspect its full content and on-chain blob proof.</p>
+                  </div>
+                  <span className="font-mono text-[11px] text-faint">{memories.length} nodes anchored</span>
+                </div>
+
+                <div className="relative overflow-hidden rounded-2xl border border-line bg-bg/90 p-3">
+                  <svg viewBox="0 0 800 420" className="w-full h-[300px] sm:h-[380px]">
+                    <defs>
+                      <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stopColor="#fb7185" stopOpacity="0.35" />
+                        <stop offset="100%" stopColor="#a78bfa" stopOpacity="0" />
+                      </radialGradient>
+                    </defs>
+                    <circle cx="400" cy="210" r="160" fill="url(#coreGlow)" />
+                    <circle cx="400" cy="210" r="95" fill="none" stroke="rgba(255,255,255,0.06)" strokeDasharray="4 4" />
+                    <circle cx="400" cy="210" r="175" fill="none" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+
+                    {memories.slice(0, 48).map((m, idx, arr) => {
+                      const angle = (idx / arr.length) * Math.PI * 2
+                      const ring = idx % 2 === 0 ? 115 : 172
+                      const x = 400 + Math.cos(angle) * ring * 1.45
+                      const y = 210 + Math.sin(angle) * ring * 0.92
+                      const strokeMap: Record<string, string> = {
+                        decision: '#fb7185',
+                        config: '#38bdf8',
+                        gotcha: '#fbbf24',
+                        person: '#f472b6',
+                        preference: '#c084fc',
+                        plan: '#34d399',
+                      }
+                      const col = strokeMap[m.type] || '#fb7185'
+                      const isSel = selectedGraphNode?.id === m.id && selectedGraphNode?.text === m.text
+                      return (
+                        <g
+                          key={m.id || idx}
+                          onClick={() => setSelectedGraphNode(m)}
+                          className="cursor-pointer transition-opacity hover:opacity-100"
+                          style={{ opacity: m.isSuperseded ? 0.4 : 0.92 }}
+                        >
+                          <line
+                            x1="400"
+                            y1="210"
+                            x2={x}
+                            y2={y}
+                            stroke={col}
+                            strokeOpacity={isSel ? 0.75 : 0.22}
+                            strokeWidth={isSel ? 2 : 1}
+                          />
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r={isSel ? 9 : 6}
+                            fill={col}
+                            stroke="#09070f"
+                            strokeWidth="2"
+                          />
+                          <text
+                            x={x}
+                            y={y - 10}
+                            textAnchor="middle"
+                            fill="rgba(246,242,255,0.78)"
+                            fontSize="9"
+                            fontFamily="monospace"
+                          >
+                            {m.type}
+                          </text>
+                        </g>
+                      )
+                    })}
+
+                    {/* Center Core Node */}
+                    <circle cx="400" cy="210" r="24" fill="#161124" stroke="#fb7185" strokeWidth="2" />
+                    <text x="400" y="213" textAnchor="middle" fill="#f6f2ff" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                      ENGRAM
+                    </text>
+                  </svg>
+                </div>
+
+                {selectedGraphNode && (
+                  <div className="rounded-2xl border border-rose/30 bg-surface/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <span className="rounded-full border border-rose/40 bg-rose/10 px-2 py-0.5 text-[10px] font-mono uppercase text-rose">
+                        {selectedGraphNode.type}
+                      </span>
+                      <p className="text-xs text-txt leading-relaxed mt-1">{selectedGraphNode.text}</p>
+                    </div>
+                    {selectedGraphNode.blobId && (
+                      <a
+                        href={`https://walruscan.com/testnet/blob/${selectedGraphNode.blobId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-line bg-bg px-3 py-1.5 font-mono text-[11px] text-rose hover:border-rose/50"
+                      >
+                        Blob: {selectedGraphNode.blobId.slice(0, 8)}… <ExternalLink size={11} />
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1748,6 +1909,7 @@ export default function DashboardPage() {
                     <option value="gotcha">gotcha</option>
                     <option value="person">person</option>
                     <option value="preference">preference</option>
+                    <option value="plan">plan</option>
                   </select>
                 </div>
 

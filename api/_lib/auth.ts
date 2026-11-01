@@ -1,6 +1,7 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto'
-import { getSupabaseAdmin, getSupabaseAuth } from './supabase.js'
-import { getProfile, createProfile } from './db.js'
+import { getSupabaseAdmin } from './supabase.js'
+import { getProfile } from './db.js'
+import { verify, verifySession } from './token.js'
 
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex')
@@ -25,22 +26,17 @@ export async function getUserFromRequest(req: any) {
 
   if (!token) return null
 
-  // 1. Try Supabase Auth
-  const supabaseAdmin = getSupabaseAdmin()
-  if (supabaseAdmin) {
-    try {
-      const { data: { user }, error } = await supabaseAdmin.auth.getUser(token)
-      if (!error && user) {
-        const profile = await getProfile(user.id)
-        return {
-          id: user.id,
-          email: user.email!,
-          name: profile?.name || user.user_metadata?.name || user.email?.split('@')[0],
-          plan_tier: profile?.plan_tier || 'free_personal',
-        }
+  // 1. Try HMAC-signed Engram Session Token (ses1....)
+  if (token.startsWith('ses1.')) {
+    const ses = verifySession(token)
+    if (ses?.id) {
+      const profile = await getProfile(ses.id)
+      return {
+        id: ses.id,
+        email: profile?.email || ses.email,
+        name: profile?.name || ses.name || ses.email.split('@')[0],
+        plan_tier: profile?.plan_tier || ses.plan_tier || 'free_personal',
       }
-    } catch (e) {
-      // not a supabase jwt, fallback
     }
   }
 
@@ -64,9 +60,41 @@ export async function getUserFromRequest(req: any) {
     }
   }
 
-  // 3. Fallback session / token check
+  // 3. Try Supabase Auth JWT
+  const supabaseAdmin = getSupabaseAdmin()
+  if (supabaseAdmin) {
+    try {
+      const { data: { user }, error } = await supabaseAdmin.auth.getUser(token)
+      if (!error && user) {
+        const profile = await getProfile(user.id)
+        return {
+          id: user.id,
+          email: user.email!,
+          name: profile?.name || user.user_metadata?.name || user.email?.split('@')[0],
+          plan_tier: profile?.plan_tier || 'free_personal',
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Legacy session_<id> or mock_token_<id> support
+  if (token.startsWith('session_') || token.startsWith('mock_token_')) {
+    const rawId = token.replace(/^(session_|mock_token_)/, '')
+    if (rawId) {
+      const profile = await getProfile(rawId)
+      if (profile) {
+        return {
+          id: profile.id,
+          email: profile.email,
+          name: profile.name || profile.email?.split('@')[0],
+          plan_tier: profile.plan_tier || 'free_personal',
+        }
+      }
+    }
+  }
+
+  // 5. Provisioned space token (v1....)
   try {
-    const { verify } = await import('./token.js')
     const verified = verify(token)
     if (verified?.tid) {
       return {
