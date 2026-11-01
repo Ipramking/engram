@@ -155,8 +155,16 @@ export default async function handler(req: any, res: any) {
   let results = combined
     .filter((m) => includeSuperseded || !m.isSuperseded)
     .sort((a, b) => b.score - a.score)
-    .slice(0, Number(topK) || 10)
+    .slice(0, Number(topK) || 50)
     .map(({ score: _score, ...rest }) => rest);
 
-  res.status(200).json({ ok: true, results });
+  if (source.format === "text" || source.format === "md") {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    const lines = results.map((m, i) => `${i + 1}. [${m.type.toUpperCase()}] ${m.text}`);
+    return res.status(200).send(
+      `# Engram Active Memories (${results.length} records)\n\n${lines.join("\n")}\n`
+    );
+  }
+
+  res.status(200).json({ ok: true, count: results.length, results });
 }

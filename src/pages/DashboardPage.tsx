@@ -190,6 +190,18 @@ export default function DashboardPage() {
         const uData = await safeJson(usageRes)
         setUsage(uData)
       }
+
+      // 4. Preload active personal memories so Mobile Workflows has live memory pack ready
+      const memRes = await fetch('/api/memories?scope=personal&includeSuperseded=true', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (memRes.ok) {
+        const mData = await safeJson(memRes)
+        if (mData?.ok) {
+          setMemories(mData.memories || [])
+          if (mData.stats) setMemoryStats(mData.stats)
+        }
+      }
     } catch (err) {
       console.error('Error loading dashboard data:', err)
     }
@@ -564,14 +576,30 @@ export default function DashboardPage() {
       ? personalKey.connectorUrl
       : `https://engram-pearl.vercel.app/mcp?token=${activeLiveKey}&room=${activeRoom}`
 
-  const chatgptCustomInstructions = `${ENGRAM_PROMPT}
+  const activeMemoriesList = memories.filter((m) => !m.isSuperseded)
+  const topMemoriesPreview = activeMemoriesList
+    .slice(0, 6)
+    .map((m) => `- [${m.type}] ${m.text}`)
+    .join('\n')
 
----
-MOBILE CONNECTION DETAILS:
-- Engram REST Endpoint: https://engram-pearl.vercel.app
-- Read / Recall URL: GET https://engram-pearl.vercel.app/api/recall?query=<search>&scope=personal
-- Write / Save URL: POST https://engram-pearl.vercel.app/api/remember
-- Authorization Header: Bearer ${activeLiveKey}`
+  const chatgptCustomInstructions = `You have access to my Engram Memory Vault.
+1. RECALL: Before answering questions about my projects, setup, preferences, or people, check my memories below (or browse: https://engram-pearl.vercel.app/api/recall?token=${activeLiveKey}&format=text ).
+2. SAVE (IMPORTANT): Whenever I state a new decision, config, gotcha, person, preference, or plan (or ask you to remember something), ALWAYS include a clickable link at the end of your reply:
+[💾 Tap to Save to Engram](https://engram-pearl.vercel.app/api/remember?token=${activeLiveKey}&type=decision&text=URL_ENCODED_ONE_SENTENCE_FACT)
+Replace "decision" with (decision|config|gotcha|person|preference|plan) and URL-encode the text with %20.
+
+KEY MEMORIES:
+${topMemoriesPreview || '- User prefers every UI to work on both phone and desktop.'}`.slice(0, 1480)
+
+  const fullMemoryPackForChat = `Here is my complete Engram Memory Vault (${activeMemoriesList.length} active memories) + rules for this chat:
+
+RULES:
+1. Use the memories below as ground truth about my projects, setup, people, and preferences.
+2. Whenever I state a new decision, config, gotcha, person, preference, or plan worth keeping, include a clickable link at the end of your reply so I can save it in 1 tap:
+[💾 Tap to Save to Engram](https://engram-pearl.vercel.app/api/remember?token=${activeLiveKey}&type=decision&text=URL_ENCODED_ONE_SENTENCE_FACT)
+
+MY ACTIVE MEMORIES:
+${activeMemoriesList.map((m, i) => `${i + 1}. [${(m.type || 'decision').toUpperCase()}] ${m.text}`).join('\n')}`
 
   const chatgptOpenApiSchema = JSON.stringify(
     {
@@ -1033,37 +1061,36 @@ MOBILE CONNECTION DETAILS:
                 </div>
               )}
 
-              {/* MODE 2: CHATGPT MOBILE APP */}
+              {/* MODE 2: CHATGPT MOBILE APP (WORKS ON FREE & REGULAR CHATS!) */}
               {mobileMode === 'chatgpt' && (
                 <div className="space-y-4 rounded-2xl border border-line bg-bg/50 p-3.5 sm:p-5 min-w-0">
                   <div className="space-y-1.5">
-                    <h4 className="text-sm font-semibold text-txt">
-                      How ChatGPT Connects to Your Memory (Plain-English Guide)
-                    </h4>
-                    <p className="text-xs text-mut leading-relaxed">
-                      In ChatGPT, you can create your own private <strong className="text-txt">"My Memory" assistant (Custom GPT)</strong> at <a href="https://chatgpt.com/gpts/editor" target="_blank" rel="noreferrer" className="text-violet-soft underline">chatgpt.com/gpts/editor</a>. Once created, it shows up in your ChatGPT iPhone & Android app sidebar so you can chat with your memory anytime!
-                    </p>
-                    <div className="pt-1">
-                      <a
-                        href="https://chatgpt.com/gpts/editor"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-violet/40 bg-violet/15 px-3.5 py-2 text-xs font-medium text-txt hover:bg-violet/25 transition"
-                      >
-                        <span>Open ChatGPT GPT Builder (chatgpt.com/gpts/editor)</span>
-                        <ExternalLink size={13} className="text-violet-soft" />
-                      </a>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-sm font-semibold text-txt">
+                        Use Engram in Regular ChatGPT Conversations (Works on Free & Mobile App!)
+                      </h4>
+                      <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-mono text-emerald-400">
+                        No Paid Plan Needed
+                      </span>
                     </div>
+                    <p className="text-xs text-mut leading-relaxed">
+                      You do <strong className="text-txt">not</strong> need GPT Builder or a paid ChatGPT Plus account! This works in your normal ChatGPT Android/iPhone app using <strong className="text-txt">Custom Instructions</strong> + clickable <strong className="text-txt">1-Tap Save Links</strong>.
+                    </p>
                   </div>
 
-                  {/* Step 1: Instructions */}
+                  {/* Step 1: Free Custom Instructions */}
                   <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
                     <span className="text-xs font-semibold text-txt flex items-center gap-2">
                       <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">1</span>
-                      Paste into the "Instructions" box
+                      One-Time Setup: Paste into ChatGPT Custom Instructions
                     </span>
-                    <p className="text-xs text-mut leading-relaxed">
-                      In the ChatGPT editor (under the <strong className="text-txt">Configure</strong> tab), tap the <strong className="text-txt">Instructions</strong> box and paste this prompt. (You can also paste this into <strong className="text-txt">ChatGPT Settings → Custom Instructions</strong>):
+                    <ol className="list-decimal list-inside space-y-1 text-xs text-mut leading-relaxed">
+                      <li>Tap <strong className="text-txt">"1-Tap Copy Custom Instructions"</strong> below (sized under 1,500 chars to fit ChatGPT's limit).</li>
+                      <li>Open your <strong className="text-txt">ChatGPT Android/iPhone App → Settings → Personalization → Custom Instructions</strong>.</li>
+                      <li>Paste into <strong className="text-txt">"How would you like ChatGPT to respond?"</strong> and tap Save.</li>
+                    </ol>
+                    <p className="text-[11px] text-emerald-400/90 font-mono">
+                      ✨ How it works: Whenever you tell ChatGPT something worth keeping, ChatGPT will reply with a clickable "💾 Tap to Save to Engram" link right in the chat!
                     </p>
                     <button
                       type="button"
@@ -1071,49 +1098,31 @@ MOBILE CONNECTION DETAILS:
                       className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 transition"
                     >
                       {copiedText === 'chatgptPrompt' ? <Check size={14} /> : <Copy size={14} />}
-                      <span>{copiedText === 'chatgptPrompt' ? 'Instructions Copied!' : '1-Tap Copy Instructions'}</span>
+                      <span>{copiedText === 'chatgptPrompt' ? 'Instructions Copied!' : '1-Tap Copy Custom Instructions'}</span>
                     </button>
                   </div>
 
-                  {/* Step 2: Action Schema */}
+                  {/* Step 2: 1-Tap Copy Full Memory Vault into Any Chat */}
                   <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
                     <span className="text-xs font-semibold text-txt flex items-center gap-2">
                       <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">2</span>
-                      Paste into the "Schema" box (under Create new action)
+                      Instant Memory Pack: Paste All {activeMemoriesList.length} Memories into Any Chat
                     </span>
                     <p className="text-xs text-mut leading-relaxed">
-                      Scroll to the bottom of the ChatGPT editor and tap <strong className="text-txt">Create new action</strong>. Tap the button below to copy the connection code, and paste it into the big <strong className="text-txt">Schema</strong> box (this tells ChatGPT how to read & save your memories):
+                      Starting a deep coding or planning chat in ChatGPT, Gemini, or DeepSeek on your phone? Tap below to copy all <strong className="text-txt">{activeMemoriesList.length} of your active memories</strong> + the 1-tap save rule, and paste it as your first message!
                     </p>
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(chatgptOpenApiSchema, 'openapiSchema')}
+                      onClick={() => copyToClipboard(fullMemoryPackForChat, 'memoryPack')}
                       className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl border border-violet/40 bg-violet/15 px-4 py-2.5 text-xs font-medium text-txt hover:bg-violet/25 transition"
                     >
-                      {copiedText === 'openapiSchema' ? <Check size={14} className="text-emerald-400" /> : <Code2 size={14} className="text-violet-soft" />}
-                      <span>{copiedText === 'openapiSchema' ? 'Schema Copied!' : '1-Tap Copy Schema Code'}</span>
+                      {copiedText === 'memoryPack' ? <Check size={14} className="text-emerald-400" /> : <Sparkles size={14} className="text-violet-soft" />}
+                      <span>
+                        {copiedText === 'memoryPack'
+                          ? `All ${activeMemoriesList.length} Memories Copied!`
+                          : `1-Tap Copy All ${activeMemoriesList.length} Memories for Chat`}
+                      </span>
                     </button>
-                  </div>
-
-                  {/* Step 3: Live Bearer API Key */}
-                  <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
-                    <span className="text-xs font-semibold text-txt flex items-center gap-2">
-                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">3</span>
-                      Paste your Private Key into "Authentication"
-                    </span>
-                    <p className="text-xs text-mut leading-relaxed">
-                      Right above the Schema box in ChatGPT, tap <strong className="text-txt">Authentication (None)</strong> → select <strong className="text-txt">API Key</strong> → select <strong className="text-txt">Bearer</strong> → and paste your private key so ChatGPT connects to your account:
-                    </p>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-line bg-bg/90 p-2.5 font-mono text-xs text-txt/90 min-w-0">
-                      <span className="truncate text-mut">{activeLiveKey.slice(0, 16)}••••••••••••••••</span>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(activeLiveKey, 'chatgptBearerKey')}
-                        className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-sans font-medium text-bg shadow hover:opacity-95 shrink-0"
-                      >
-                        {copiedText === 'chatgptBearerKey' ? <Check size={14} /> : <Copy size={14} />}
-                        <span>{copiedText === 'chatgptBearerKey' ? 'Private Key Copied!' : '1-Tap Copy Private Key'}</span>
-                      </button>
-                    </div>
                   </div>
                 </div>
               )}

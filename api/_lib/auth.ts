@@ -22,7 +22,13 @@ export function verifyPassword(password: string, combinedHash: string): boolean 
 
 export async function getUserFromRequest(req: any) {
   const authHeader = req.headers?.authorization || ''
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim() || req.query?.token
+  const rawUrl = req.url || ''
+  const urlParams = new URLSearchParams(rawUrl.split('?')[1] || '')
+  const token =
+    authHeader.replace(/^Bearer\s+/i, '').trim() ||
+    req.query?.token ||
+    urlParams.get('token') ||
+    ''
 
   if (!token) return null
 
