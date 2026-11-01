@@ -2,6 +2,7 @@
 import 'dotenv/config'
 import { getSupabaseAdmin } from '../api/_lib/supabase.ts'
 import { pickBackend, dec, TYPES } from '../mcp/engram-core.mjs'
+import { createApiKey, listApiKeys } from '../mcp/auth-db.mjs'
 
 const TARGET_USER_EMAIL = process.argv[2] || process.env.TARGET_EMAIL || 'corewealthaffiliate@gmail.com'
 
@@ -15,15 +16,54 @@ async function sync() {
   }
 
   // 1. Resolve Target User Profile
-  const { data: profile, error: profErr } = await supabase
+  let { data: profile, error: profErr } = await supabase
     .from('profiles')
     .select('id, email, name')
     .eq('email', TARGET_USER_EMAIL)
     .single()
 
   if (profErr || !profile) {
-    console.error('Target user profile not found:', profErr?.message)
-    process.exit(1)
+    console.log(`Profile for ${TARGET_USER_EMAIL} not found in database. Provisioning account...`)
+    const { data: createData, error: createError } = await supabase.auth.admin.createUser({
+      email: TARGET_USER_EMAIL,
+      password: process.env.TARGET_PASSWORD || 'Samuel.13',
+      email_confirm: true,
+      user_metadata: { name: 'Ifrenzy' },
+    })
+
+    if (createError && !/already.*registered/i.test(createError.message)) {
+      console.error('Failed to provision user:', createError.message)
+      process.exit(1)
+    }
+
+    let uid = createData?.user?.id
+    if (!uid) {
+      // If already registered in auth, look up user by email
+      const { data: userList } = await supabase.auth.admin.listUsers()
+      const found = userList?.users?.find(u => u.email === TARGET_USER_EMAIL)
+      if (found) uid = found.id
+    }
+
+    if (!uid) {
+      console.error('Could not obtain or create user ID in Supabase Auth.')
+      process.exit(1)
+    }
+
+    // Insert into profiles
+    const { data: newProfile, error: insProfErr } = await supabase.from('profiles').upsert({
+      id: uid,
+      email: TARGET_USER_EMAIL,
+      name: 'Ifrenzy',
+      plan_tier: 'free_personal',
+    }).select().single()
+
+    if (insProfErr) {
+      console.error('Failed to create profile row:', insProfErr.message)
+      process.exit(1)
+    }
+
+    profile = newProfile
+    console.log(`✓ Successfully provisioned account for ${profile.name} (${profile.email}, id: ${profile.id})`)
   }
 
   const userId = profile.id
@@ -105,12 +145,32 @@ async function sync() {
     }
   }
 
+  // 4. Check or Create API key for user
+  const existingKeys = await listApiKeys(userId)
+  let activeKey = existingKeys.find(k => k.is_active)
+  let rawKeyString = null
+  if (!activeKey) {
+    const createdKey = await createApiKey({
+      userId,
+      scope: 'personal',
+      name: 'Default Personal Key',
+      room: 'my-space',
+    })
+    activeKey = createdKey
+    rawKeyString = createdKey.rawKey
+  }
+
   console.log(`\n======================================================`)
   console.log(`🎉 SYNC COMPLETE!`)
   console.log(`   Total Memories Processed: ${uniqueMemories.size}`)
   console.log(`   Newly Inserted: ${inserted}`)
   console.log(`   Already Existing: ${skipped}`)
-  console.log(`   User: ${profile.email} (${userId})`)
+  console.log(`   User: ${profile.name} (${profile.email}, id: ${userId})`)
+  if (rawKeyString) {
+    console.log(`   🔑 NEW API KEY GENERATED: ${rawKeyString}`)
+  } else if (activeKey) {
+    console.log(`   🔑 ACTIVE API KEY PREFIX: ${activeKey.key_prefix}...`)
+  }
   console.log(`======================================================\n`)
 
   process.exit(0)

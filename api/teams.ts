@@ -1,9 +1,12 @@
 import { getUserFromRequest } from './_lib/auth'
-import { createTeam, listTeams, listTeamMembers, addTeamMember } from './_lib/db'
+import { createTeam, listTeams, listTeamMembers, isTeamMember, addTeamMember } from './_lib/db'
 
 export default async function handler(req: any, res: any) {
   const method = req.method
-  const path = req.url?.split('?')[0] || ''
+  const rawUrl = req.url || ''
+  const urlPath = rawUrl.split('?')[0] || ''
+  const querySubpath = req.query?.subpath || new URLSearchParams(rawUrl.split('?')[1] || '').get('subpath') || ''
+  const path = querySubpath && !urlPath.endsWith('/' + querySubpath) ? `${urlPath}/${querySubpath}` : urlPath
 
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
@@ -17,7 +20,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     // ── Create Team ──
-    if (method === 'POST' && (path.endsWith('/create') || !path.includes('/invite'))) {
+    if (method === 'POST' && req.body?.action !== 'invite' && (path.endsWith('/create') || !path.includes('/invite'))) {
       const { name } = req.body || {}
       if (!name) {
         return res.status(400).json({ error: 'Team name is required.' })
@@ -37,6 +40,10 @@ export default async function handler(req: any, res: any) {
     if (method === 'GET' && path.includes('/members')) {
       const teamId = req.query?.teamId
       if (!teamId) return res.status(400).json({ error: 'teamId is required.' })
+      const isMember = await isTeamMember(user.id, teamId)
+      if (!isMember) {
+        return res.status(403).json({ error: 'Forbidden: you are not an active member of this team.' })
+      }
       const members = await listTeamMembers(teamId)
       return res.status(200).json({ ok: true, members })
     }

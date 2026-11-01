@@ -5,7 +5,10 @@ const HOST = process.env.ENGRAM_MCP_HOST || 'https://engram-mcp.onrender.com'
 
 export default async function handler(req: any, res: any) {
   const method = req.method
-  const path = req.url?.split('?')[0] || ''
+  const rawUrl = req.url || ''
+  const urlPath = rawUrl.split('?')[0] || ''
+  const querySubpath = req.query?.subpath || new URLSearchParams(rawUrl.split('?')[1] || '').get('subpath') || ''
+  const path = querySubpath && !urlPath.endsWith('/' + querySubpath) ? `${urlPath}/${querySubpath}` : urlPath
 
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
@@ -19,7 +22,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     // ── Create Key ──
-    if (method === 'POST' && (path.endsWith('/create') || !path.includes('/revoke'))) {
+    if (method === 'POST' && req.body?.action !== 'revoke' && (path.endsWith('/create') || !path.includes('/revoke'))) {
       const { name, scope = 'personal', teamId, room = 'my-space' } = req.body || {}
       if (!name) {
         return res.status(400).json({ error: 'Key name is required (e.g. "Work Laptop Cursor", "iPhone Claude").' })

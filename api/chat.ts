@@ -12,11 +12,30 @@ import {
 } from "./_lib/memwal";
 import { buildSystemPrompt } from "./_lib/prompt";
 import { generateReply, extractFacts, type ChatMsg } from "./_lib/llm";
+import { getUserFromRequest } from "./_lib/auth";
+import { isTeamMember } from "./_lib/db";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   const { messages = [], scope = "personal", teamCode = "default", model } = req.body ?? {};
-  const mem = memwalFor(scope as Scope, teamCode);
+
+  const user = await getUserFromRequest(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized: authentication required to access chat agent." });
+  }
+
+  if (scope === "team") {
+    if (!teamCode || teamCode === "default") {
+      return res.status(400).json({ error: "teamCode (team ID) is required for team scope." });
+    }
+    const isMember = await isTeamMember(user.id, teamCode);
+    if (!isMember) {
+      return res.status(403).json({ error: "Forbidden: you are not an active member of this team." });
+    }
+  }
+
+  const ns = scope === "team" ? teamCode : `usr_${user.id}`;
+  const mem = memwalFor(scope as Scope, ns);
   const lastUser =
     [...messages].reverse().find((m: ChatMsg) => m.role === "user")?.content ?? "";
 

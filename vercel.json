@@ -7,6 +7,11 @@
     }
   },
   "rewrites": [
+    { "source": "/api/auth/:path*", "destination": "/api/auth?subpath=:path*" },
+    { "source": "/api/keys/:path*", "destination": "/api/keys?subpath=:path*" },
+    { "source": "/api/teams/:path*", "destination": "/api/teams?subpath=:path*" },
+    { "source": "/api/usage/:path*", "destination": "/api/usage?subpath=:path*" },
+    { "source": "/api/memories/:path*", "destination": "/api/memories?subpath=:path*" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

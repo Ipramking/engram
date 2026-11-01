@@ -7,7 +7,7 @@ import {
   type Scope,
 } from "./_lib/memwal";
 import { getUserFromRequest } from "./_lib/auth";
-import { checkAndIncrementUsage } from "./_lib/db";
+import { checkAndIncrementUsage, isTeamMember } from "./_lib/db";
 import { getSupabaseAdmin } from "./_lib/supabase";
 
 export default async function handler(req: any, res: any) {
@@ -15,16 +15,28 @@ export default async function handler(req: any, res: any) {
   const { query = "", scope = "personal", teamCode = "default", topK = 10, includeSuperseded = false } = req.body ?? {};
 
   const user = await getUserFromRequest(req);
-  if (user) {
-    await checkAndIncrementUsage({
-      entityType: scope === 'team' ? 'team' : 'user',
-      entityId: scope === 'team' ? (teamCode !== 'default' ? teamCode : user.id) : user.id,
-      operation: 'recall',
-      planTier: user.plan_tier,
-    }).catch(() => {});
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized: authentication required to access memory." });
   }
 
-  const ns = user ? (scope === 'team' ? teamCode : `usr_${user.id}`) : teamCode;
+  if (scope === "team") {
+    if (!teamCode || teamCode === "default") {
+      return res.status(400).json({ error: "teamCode (team ID) is required for team scope." });
+    }
+    const isMember = await isTeamMember(user.id, teamCode);
+    if (!isMember) {
+      return res.status(403).json({ error: "Forbidden: you are not an active member of this team." });
+    }
+  }
+
+  await checkAndIncrementUsage({
+    entityType: scope === 'team' ? 'team' : 'user',
+    entityId: scope === 'team' ? teamCode : user.id,
+    operation: 'recall',
+    planTier: user.plan_tier,
+  }).catch(() => {});
+
+  const ns = scope === 'team' ? teamCode : `usr_${user.id}`;
   const mem = memwalFor(scope as Scope, ns);
   const r = await mem.recall({ query, topK, maxDistance: recallMaxDistance() });
 

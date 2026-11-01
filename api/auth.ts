@@ -3,7 +3,10 @@ import { createProfile, getProfile } from './_lib/db'
 import { getUserFromRequest } from './_lib/auth'
 
 export default async function handler(req: any, res: any) {
-  const path = req.url?.split('?')[0] || ''
+  const rawUrl = req.url || ''
+  const urlPath = rawUrl.split('?')[0] || ''
+  const querySubpath = req.query?.subpath || new URLSearchParams(rawUrl.split('?')[1] || '').get('subpath') || ''
+  const path = querySubpath && !urlPath.endsWith('/' + querySubpath) ? `${urlPath}/${querySubpath}` : urlPath
   const method = req.method
 
   // CORS headers

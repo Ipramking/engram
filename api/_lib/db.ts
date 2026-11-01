@@ -12,6 +12,7 @@ export {
   createTeam,
   listTeams,
   listTeamMembers,
+  isTeamMember,
   addTeamMember,
   getUsage,
   checkAndIncrementUsage,

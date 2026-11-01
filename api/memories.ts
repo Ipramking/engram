@@ -1,5 +1,6 @@
 import { getUserFromRequest } from './_lib/auth'
 import { getSupabaseAdmin } from './_lib/supabase'
+import { isTeamMember } from './_lib/db'
 import { memwalFor, normalizeRecall, decodeMemory, recallMaxDistance, type Scope } from './_lib/memwal'
 import { calculateWalrusEpochMetadata } from './_lib/epochs'
 
@@ -16,7 +17,7 @@ export default async function handler(req: any, res: any) {
 
   const supabase = getSupabaseAdmin()
 
-  // ── DELETE: Remove memory record ──
+  // ── DELETE: Remove memory record (with IDOR protection) ──
   if (req.method === 'DELETE') {
     const { id, blobId } = req.query || {}
     if (!id && !blobId) {
@@ -24,6 +25,26 @@ export default async function handler(req: any, res: any) {
     }
 
     if (supabase) {
+      let checkQuery = supabase.from('memories_meta').select('id, user_id, team_id').limit(1)
+      if (id) checkQuery = checkQuery.eq('id', id)
+      else if (blobId) checkQuery = checkQuery.eq('blob_id', blobId)
+
+      const { data: records, error: checkErr } = await checkQuery
+      if (checkErr || !records || records.length === 0) {
+        return res.status(404).json({ error: 'Memory not found' })
+      }
+
+      const record = records[0]
+      const isOwner = record.user_id === user.id
+      let isAuthorized = isOwner
+      if (!isAuthorized && record.team_id) {
+        isAuthorized = await isTeamMember(user.id, record.team_id)
+      }
+
+      if (!isAuthorized) {
+        return res.status(403).json({ error: 'Forbidden: you do not have permission to delete this memory' })
+      }
+
       let query = supabase.from('memories_meta').delete()
       if (id) query = query.eq('id', id)
       else if (blobId) query = query.eq('blob_id', blobId)
@@ -46,6 +67,15 @@ export default async function handler(req: any, res: any) {
   const typeFilter = req.query?.type
   const searchQuery = (req.query?.search as string) || ''
   const includeSuperseded = req.query?.includeSuperseded === 'true'
+
+  if (scope === 'team') {
+    if (teamCode && teamCode !== 'default') {
+      const isMember = await isTeamMember(user.id, teamCode)
+      if (!isMember) {
+        return res.status(403).json({ error: 'Forbidden: you are not a member of this team.' })
+      }
+    }
+  }
 
   let items: any[] = []
 

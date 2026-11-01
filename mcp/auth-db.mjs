@@ -151,6 +151,14 @@ export async function createProfile(id, email, name, planTier = 'free_personal')
 }
 
 export async function createApiKey(opts) {
+  if (opts.scope === 'team') {
+    if (!opts.teamId) throw new Error('teamId is required for team scope keys.')
+    const isMember = await isTeamMember(opts.userId, opts.teamId)
+    if (!isMember) {
+      throw new Error('Forbidden: you must be an active member of this team to generate a team key.')
+    }
+  }
+
   const { rawKey, keyPrefix, keyHash } = generateApiKey(opts.scope)
   const room = opts.room || 'my-space'
   const id = randomUUID()
@@ -307,6 +315,12 @@ export async function listTeamMembers(teamId) {
   const db = getFallbackDb()
   if (db) return db.prepare('SELECT * FROM team_members WHERE team_id = ?').all(teamId)
   return []
+}
+
+export async function isTeamMember(userId, teamId) {
+  if (!userId || !teamId) return false
+  const members = await listTeamMembers(teamId)
+  return members.some((m) => m.user_id === userId && m.status === 'active')
 }
 
 export async function addTeamMember(opts) {
