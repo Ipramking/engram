@@ -217,14 +217,18 @@ export async function listApiKeys(userId) {
 
 export async function validateApiKey(rawKey) {
   const hash = hashKey(rawKey)
+  const fallbackHash = createHmac('sha256', 'engram-key-salt-default').update(rawKey).digest('hex')
+  const prodHash = createHmac('sha256', 'engram-prod-signing-secret-2026-walrus').update(rawKey).digest('hex')
+  const hashes = Array.from(new Set([hash, fallbackHash, prodHash]))
   const supabase = getSupabaseAdmin()
   if (supabase) {
-    const { data } = await supabase
+    const { data: rows } = await supabase
       .from('api_keys')
       .select('*')
-      .eq('key_hash', hash)
+      .in('key_hash', hashes)
       .eq('is_active', true)
-      .single()
+      .limit(1)
+    const data = rows?.[0]
     if (data) {
       supabase.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', data.id).then()
       return data
@@ -232,10 +236,12 @@ export async function validateApiKey(rawKey) {
   }
   const db = getFallbackDb()
   if (db) {
-    const row = db.prepare('SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1').get(hash)
-    if (row) {
-      db.prepare("UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ?").run(row.id)
-      return row
+    for (const h of hashes) {
+      const row = db.prepare('SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1').get(h)
+      if (row) {
+        db.prepare("UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ?").run(row.id)
+        return row
+      }
     }
   }
   return null

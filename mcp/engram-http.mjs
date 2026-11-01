@@ -120,21 +120,44 @@ const transports = {}; // sessionId -> transport
 const isInit = (body) =>
   (Array.isArray(body) ? body : [body]).some((m) => m && m.method === 'initialize');
 
+const CLOUD_API = process.env.ENGRAM_CLOUD_URL || 'https://engram-pearl.vercel.app';
+
 app.post('/mcp', async (req, res) => {
+  const token = req.query.token || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  // When an eng_ API key is used and local Supabase is not configured on Render,
+  // delegate directly to the primary cloud MCP gateway so Supabase + Walrus stay 100% synced.
+  if (token && token.startsWith('eng_') && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const targetUrl = `${CLOUD_API}/api/mcp?token=${encodeURIComponent(token)}&room=${encodeURIComponent(req.query.room || 'my-space')}`;
+      const upstream = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(req.headers['mcp-session-id'] ? { 'Mcp-Session-Id': req.headers['mcp-session-id'] } : {}),
+        },
+        body: JSON.stringify(req.body),
+      });
+      const sid = upstream.headers.get('mcp-session-id');
+      if (sid) res.setHeader('Mcp-Session-Id', sid);
+      const text = await upstream.text();
+      return res.status(upstream.status).type('application/json').send(text);
+    } catch (err) {
+      return res.status(502).json({ jsonrpc: '2.0', error: { code: -32603, message: `Upstream gateway error: ${err?.message || err}` }, id: null });
+    }
+  }
+
   if (!(await authed(req, res))) return;
   try {
     const sid = req.headers['mcp-session-id'];
     let transport = sid ? transports[sid] : undefined;
-    if (!transport && isInit(req.body)) {
+    if (!transport) {
       const lockNamespace = roomNs(req.query.room, req.tenantId);
       transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
+        sessionIdGenerator: () => sid || randomUUID(),
         onsessioninitialized: (id) => { transports[id] = transport; },
       });
       transport.onclose = () => { if (transport.sessionId) delete transports[transport.sessionId]; };
       await buildServer(lockNamespace, { apiKey: req.apiKey, tenantId: req.tenantId }).connect(transport);
-    } else if (!transport) {
-      return res.status(400).json({ jsonrpc: '2.0', error: { code: -32000, message: 'No valid session; send initialize first' }, id: null });
     }
     await transport.handleRequest(req, res, req.body);
   } catch (e) {
