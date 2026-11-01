@@ -44,7 +44,7 @@ function build(namespace: string, key?: string, accountId?: string): MemwalClien
 const cache = new Map<string, MemwalClient>();
 
 export function memwalFor(scope: Scope, teamCode = "default"): MemwalClient {
-  const ns = scope === "team" ? `team:${teamCode}` : "me";
+  const ns = scope === "team" ? `team:${teamCode}` : (teamCode.startsWith("usr_") ? `user:${teamCode}` : "me");
   let client = cache.get(ns);
   if (!client) {
     const key =

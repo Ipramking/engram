@@ -45,7 +45,7 @@ export default async function handler(req: any, res: any) {
         key: {
           id: key.id,
           name: key.name,
-          keyPrefix: key.keyPrefix,
+          keyPrefix: key.key_prefix || key.keyPrefix,
           scope: key.scope,
           room: key.room,
           teamId: key.teamId,

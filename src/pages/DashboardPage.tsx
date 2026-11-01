@@ -90,6 +90,14 @@ export default function DashboardPage() {
   const [memories, setMemories] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
 
+  // Manual Memory Pin state
+  const [showAddMemoryModal, setShowAddMemoryModal] = useState(false)
+  const [newMemoryText, setNewMemoryText] = useState('')
+  const [newMemoryType, setNewMemoryType] = useState('decision')
+  const [newMemoryScope, setNewMemoryScope] = useState<'personal' | 'team'>('personal')
+  const [savingMemory, setSavingMemory] = useState(false)
+  const [saveMemoryError, setSaveMemoryError] = useState<string | null>(null)
+
   // Copy state helper
   const [copiedText, setCopiedText] = useState<string | null>(null)
   const copyToClipboard = (txt: string, label: string) => {
@@ -282,7 +290,10 @@ export default function DashboardPage() {
     try {
       const res = await fetch('/api/recall', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           query: searchQuery,
           scope: searchScope,
@@ -291,11 +302,49 @@ export default function DashboardPage() {
         }),
       })
       const data = await safeJson(res)
-      setMemories(data.results || [])
+      setMemories(data?.results || [])
     } catch (err) {
       console.error('Failed to search memories:', err)
     } finally {
       setSearching(false)
+    }
+  }
+
+  const handleSaveMemory = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newMemoryText.trim() || !token) return
+    setSavingMemory(true)
+    setSaveMemoryError(null)
+    try {
+      const res = await fetch('/api/remember', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          text: newMemoryText.trim(),
+          type: newMemoryType,
+          scope: newMemoryScope,
+          teamCode: selectedTeam ? selectedTeam.id : 'default',
+        }),
+      })
+      const data = await safeJson(res)
+      if (res.ok && data?.blobId) {
+        setShowAddMemoryModal(false)
+        setNewMemoryText('')
+        setMemories((prev) => [
+          { text: newMemoryText.trim(), type: newMemoryType, blobId: data.blobId },
+          ...prev,
+        ])
+        fetchData()
+      } else {
+        setSaveMemoryError(data?.error || 'Failed to save memory.')
+      }
+    } catch (err: any) {
+      setSaveMemoryError(err?.message || 'Error saving memory.')
+    } finally {
+      setSavingMemory(false)
     }
   }
 
@@ -920,11 +969,20 @@ export default function DashboardPage() {
         {/* ── TAB 5: MEMORY EXPLORER ── */}
         {activeTab === 'memories' && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-display text-txt">Memory Explorer</h2>
-              <p className="text-xs text-mut mt-0.5">
-                Inspect memories stored on Walrus. Search by semantic query to see what your agents recall.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-display text-txt">Memory Explorer</h2>
+                <p className="text-xs text-mut mt-0.5">
+                  Inspect memories stored on Walrus. Search by semantic query to see what your agents recall.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddMemoryModal(true)}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-medium text-bg shadow hover:opacity-95 transition shrink-0"
+              >
+                <Plus size={15} /> Save Test Memory
+              </button>
             </div>
 
             {/* Search form */}
@@ -1196,6 +1254,84 @@ export default function DashboardPage() {
                   className="flex-1 rounded-full bg-gradient-to-r from-rose to-violet py-2.5 text-xs font-medium text-bg shadow hover:opacity-95"
                 >
                   Create Team Space
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: SAVE / PIN MEMORY ── */}
+      {showAddMemoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-line glass p-6 shadow-2xl">
+            <h3 className="text-xl font-display text-txt mb-1">Pin Memory to Walrus</h3>
+            <p className="text-xs text-mut mb-4">
+              Manually store a durable memory directly into your connected Walrus storage.
+            </p>
+
+            {saveMemoryError && (
+              <div className="mb-4 rounded-2xl border border-rose/30 bg-rose/10 p-3 text-xs text-rose">
+                {saveMemoryError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveMemory} className="space-y-4">
+              <div>
+                <label className="block text-xs font-mono uppercase text-mut mb-1">Memory Content</label>
+                <textarea
+                  value={newMemoryText}
+                  onChange={(e) => setNewMemoryText(e.target.value)}
+                  placeholder="e.g. Switched database to Supabase PostgreSQL on 2026-10-31 because local SQLite doesn't sync across devices."
+                  required
+                  rows={3}
+                  className="w-full rounded-2xl border border-line bg-bg/80 px-4 py-2.5 text-xs text-txt placeholder:text-faint focus:border-rose/50 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-mono uppercase text-mut mb-1">Type</label>
+                  <select
+                    value={newMemoryType}
+                    onChange={(e) => setNewMemoryType(e.target.value)}
+                    className="w-full rounded-2xl border border-line bg-bg/80 px-3 py-2 text-xs text-txt focus:border-rose/50 focus:outline-none"
+                  >
+                    <option value="decision">decision</option>
+                    <option value="config">config</option>
+                    <option value="gotcha">gotcha</option>
+                    <option value="person">person</option>
+                    <option value="preference">preference</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-mono uppercase text-mut mb-1">Scope</label>
+                  <select
+                    value={newMemoryScope}
+                    onChange={(e) => setNewMemoryScope(e.target.value as 'personal' | 'team')}
+                    className="w-full rounded-2xl border border-line bg-bg/80 px-3 py-2 text-xs text-txt focus:border-rose/50 focus:outline-none"
+                  >
+                    <option value="personal">personal</option>
+                    <option value="team">team</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddMemoryModal(false)}
+                  className="flex-1 rounded-full border border-line py-2.5 text-xs text-mut hover:text-txt"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingMemory}
+                  className="flex-1 rounded-full bg-gradient-to-r from-rose to-violet py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 disabled:opacity-50"
+                >
+                  {savingMemory ? 'Saving to Walrus…' : 'Pin to Walrus'}
                 </button>
               </div>
             </form>

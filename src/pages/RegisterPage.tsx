@@ -1,12 +1,18 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Brain, Lock, Mail, User, ArrowRight, Eye, EyeOff, Sparkles, Check, AlertCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Wordmark } from '../components/Chrome'
 
 export default function RegisterPage() {
-  const { register } = useAuth()
+  const { user, loading: authLoading, register } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [authLoading, user, navigate])
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
