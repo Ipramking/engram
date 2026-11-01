@@ -8,10 +8,11 @@ import {
 } from "./_lib/memwal";
 import { getUserFromRequest } from "./_lib/auth";
 import { checkAndIncrementUsage } from "./_lib/db";
+import { getSupabaseAdmin } from "./_lib/supabase";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-  const { query = "", scope = "personal", teamCode = "default", topK = 10 } = req.body ?? {};
+  const { query = "", scope = "personal", teamCode = "default", topK = 10, includeSuperseded = false } = req.body ?? {};
 
   const user = await getUserFromRequest(req);
   if (user) {
@@ -26,6 +27,44 @@ export default async function handler(req: any, res: any) {
   const ns = user ? (scope === 'team' ? teamCode : `usr_${user.id}`) : teamCode;
   const mem = memwalFor(scope as Scope, ns);
   const r = await mem.recall({ query, topK, maxDistance: recallMaxDistance() });
-  const results = normalizeRecall(r).map((m) => ({ ...decodeMemory(m.text), blobId: m.blobId }));
+
+  // Check superseded memories from metadata store
+  const supersededMap = new Map<string, string>();
+  const supabase = getSupabaseAdmin();
+  if (supabase && user) {
+    try {
+      let q = supabase.from('memories_meta').select('blob_id, room').like('room', 'superseded_by:%');
+      if (scope === 'team' && teamCode !== 'default') {
+        q = q.eq('team_id', teamCode);
+      } else {
+        q = q.eq('user_id', user.id);
+      }
+      const { data: supersededRows } = await q;
+      if (supersededRows) {
+        for (const row of supersededRows) {
+          if (row.blob_id) {
+            const supersededBy = row.room?.replace('superseded_by:', '') || 'latest';
+            supersededMap.set(row.blob_id, supersededBy);
+          }
+        }
+      }
+    } catch {}
+  }
+
+  let results = normalizeRecall(r).map((m) => {
+    const isSuperseded = m.blobId ? supersededMap.has(m.blobId) : false;
+    const supersededBy = m.blobId ? supersededMap.get(m.blobId) : null;
+    return {
+      ...decodeMemory(m.text),
+      blobId: m.blobId,
+      isSuperseded,
+      supersededBy,
+    };
+  });
+
+  if (!includeSuperseded) {
+    results = results.filter((m) => !m.isSuperseded);
+  }
+
   res.status(200).json({ ok: true, results });
 }

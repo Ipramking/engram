@@ -13,6 +13,7 @@ import auth from "../api/auth";
 import keys from "../api/keys";
 import teams from "../api/teams";
 import usage from "../api/usage";
+import memories from "../api/memories";
 
 const app = express();
 app.disable('etag'); // Prevent 304 Not Modified empty responses that break browser fetch .json()
@@ -42,6 +43,7 @@ app.all(/^\/api\/auth(?:\/.*)?$/, wrap(auth));
 app.all(/^\/api\/keys(?:\/.*)?$/, wrap(keys));
 app.all(/^\/api\/teams(?:\/.*)?$/, wrap(teams));
 app.all(/^\/api\/usage(?:\/.*)?$/, wrap(usage));
+app.all(/^\/api\/memories(?:\/.*)?$/, wrap(memories));
 app.all("/api/health", wrap(health));
 
 const port = Number(process.env.PORT ?? 8787);

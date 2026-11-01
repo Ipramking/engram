@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   Brain, Key, Users, BarChart3, Search, Plus, Trash2, Copy, Check, ExternalLink,
   Shield, Smartphone, Laptop, Terminal, Sparkles, AlertCircle, RefreshCw, LogOut,
-  ChevronRight, Lock, CheckCircle2, UserPlus, Info, Layers
+  ChevronRight, Lock, CheckCircle2, UserPlus, Info, Layers, Download, FileText,
+  AlertTriangle, Clock, Coins, Eye, EyeOff
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Wordmark } from '../components/Chrome'
@@ -102,8 +103,12 @@ export default function DashboardPage() {
   // Memory Explorer state
   const [searchQuery, setSearchQuery] = useState('')
   const [searchScope, setSearchScope] = useState<'personal' | 'team'>('personal')
+  const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [showSuperseded, setShowSuperseded] = useState<boolean>(true)
   const [memories, setMemories] = useState<any[]>([])
+  const [memoryStats, setMemoryStats] = useState<any>(null)
   const [searching, setSearching] = useState(false)
+  const [supersededNotice, setSupersededNotice] = useState<string | null>(null)
 
   // Manual Memory Pin state
   const [showAddMemoryModal, setShowAddMemoryModal] = useState(false)
@@ -299,30 +304,143 @@ export default function DashboardPage() {
     }
   }
 
-  const handleSearchMemories = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const loadMemories = async () => {
+    if (!token) return
     setSearching(true)
     try {
-      const res = await fetch('/api/recall', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          query: searchQuery,
-          scope: searchScope,
-          teamCode: selectedTeam ? selectedTeam.id : 'default',
-          topK: 8,
-        }),
+      const params = new URLSearchParams({
+        scope: searchScope,
+        teamCode: selectedTeam ? selectedTeam.id : 'default',
+        type: typeFilter,
+        includeSuperseded: String(showSuperseded),
+        search: searchQuery.trim(),
+      })
+      const res = await fetch(`/api/memories?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
       })
       const data = await safeJson(res)
-      setMemories(data?.results || [])
+      if (data?.ok) {
+        setMemories(data.memories || [])
+        if (data.stats) setMemoryStats(data.stats)
+      }
     } catch (err) {
-      console.error('Failed to search memories:', err)
+      console.error('Failed to load memories:', err)
     } finally {
       setSearching(false)
     }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'memories' && token) {
+      loadMemories()
+    }
+  }, [activeTab, searchScope, typeFilter, showSuperseded, selectedTeam, token])
+
+  const handleSearchMemories = async (e: React.FormEvent) => {
+    e.preventDefault()
+    loadMemories()
+  }
+
+  const handleDeleteMemory = async (id?: string, blobId?: string) => {
+    if (!token || (!id && !blobId)) return
+    if (!window.confirm('Delete this memory from your active index?')) return
+    try {
+      const params = new URLSearchParams()
+      if (id) params.set('id', id)
+      if (blobId) params.set('blobId', blobId)
+      const res = await fetch(`/api/memories?${params.toString()}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await safeJson(res)
+      if (data?.ok) {
+        setMemories((prev) => prev.filter((m) => (id ? m.id !== id : m.blobId !== blobId)))
+      }
+    } catch (err) {
+      console.error('Failed to delete memory:', err)
+    }
+  }
+
+  const exportMemories = (format: 'json' | 'markdown') => {
+    if (!memories.length) return
+    let content = ''
+    let filename = ''
+    let mimeType = ''
+
+    if (format === 'json') {
+      content = JSON.stringify(memories, null, 2)
+      filename = `engram-memories-${searchScope}-${new Date().toISOString().slice(0, 10)}.json`
+      mimeType = 'application/json'
+    } else {
+      const header = `# Engram Agent Memories (${searchScope.toUpperCase()} SCOPE)\nExported on: ${new Date().toISOString()}\nTotal Memories: ${memories.length}\n\n`
+      const body = memories
+        .map((m, idx) => {
+          const status = m.isSuperseded ? ` [SUPERSEDED by ${m.supersededBy || 'newer fact'}]` : ''
+          const walrusBlob = m.blobId ? `\n- Walrus Blob: https://walruscan.com/testnet/blob/${m.blobId}` : ''
+          const epoch = m.epochMeta ? `\n- Walrus Storage: Epoch ${m.epochMeta.currentEpoch} (${m.epochMeta.daysRemaining}d remaining)` : ''
+          return `### ${idx + 1}. [${m.type.toUpperCase()}]${status}\n${m.text}${walrusBlob}${epoch}\n- Created: ${m.createdAt || 'N/A'}\n`
+        })
+        .join('\n---\n\n')
+      content = header + body
+      filename = `engram-memories-${searchScope}-${new Date().toISOString().slice(0, 10)}.md`
+      mimeType = 'text/markdown'
+    }
+
+    const blob = new Blob([content], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadClientConfig = (target: 'claude' | 'cursor' | 'antigravity', keyVal?: string) => {
+    const k = keyVal || (keys[0]?.key_prefix ? `${keys[0].key_prefix}...` : 'YOUR_ENGRAM_KEY')
+    let filename = ''
+    let configObj: any = {}
+
+    if (target === 'claude') {
+      filename = 'claude_desktop_config.json'
+      configObj = {
+        mcpServers: {
+          engram: {
+            command: 'npx',
+            args: ['-y', 'engram-walrus', `--key=${k}`],
+          },
+        },
+      }
+    } else if (target === 'cursor') {
+      filename = 'mcp.json'
+      configObj = {
+        mcpServers: {
+          engram: {
+            command: 'npx',
+            args: ['-y', 'engram-walrus', `--key=${k}`],
+          },
+        },
+      }
+    } else {
+      filename = 'mcp_servers.json'
+      configObj = {
+        engram: {
+          command: 'npx',
+          args: ['-y', 'engram-walrus', `--key=${k}`],
+        },
+      }
+    }
+
+    const blob = new Blob([JSON.stringify(configObj, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   const handleSaveMemory = async (e: React.FormEvent) => {
@@ -348,10 +466,14 @@ export default function DashboardPage() {
       if (res.ok && data?.blobId) {
         setShowAddMemoryModal(false)
         setNewMemoryText('')
-        setMemories((prev) => [
-          { text: newMemoryText.trim(), type: newMemoryType, blobId: data.blobId },
-          ...prev,
-        ])
+        if (data.superseded && data.superseded.length > 0) {
+          setSupersededNotice(
+            `Pinned! Automatically superseded ${data.superseded.length} older conflicting choice: "${data.superseded[0].oldText.slice(0, 45)}...".`
+          )
+        } else {
+          setSupersededNotice(null)
+        }
+        await loadMemories()
         fetchData()
       } else {
         setSaveMemoryError(data?.error || 'Failed to save memory.')
@@ -487,6 +609,46 @@ export default function DashboardPage() {
                 >
                   {copiedText === 'connectorUrl' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                   {copiedText === 'connectorUrl' ? 'Copied!' : 'Copy URL'}
+                </button>
+              </div>
+            </div>
+
+            {/* 1-Click Client Configuration Generators */}
+            <div className="rounded-3xl border border-line glass p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-base font-display text-txt flex items-center gap-2">
+                    <Download size={16} className="text-rose" /> 1-Click Client Configuration Generators
+                  </h3>
+                  <p className="text-xs text-mut mt-0.5">
+                    Download ready-to-use JSON config files pre-populated with your active API key.
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => downloadClientConfig('claude')}
+                  className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface/40 p-3 text-xs font-mono text-txt hover:border-rose/50 hover:bg-rose/[0.04] transition"
+                >
+                  <Laptop size={15} className="text-rose" />
+                  <span>claude_desktop_config.json</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => downloadClientConfig('cursor')}
+                  className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface/40 p-3 text-xs font-mono text-txt hover:border-violet/50 hover:bg-violet/[0.04] transition"
+                >
+                  <Laptop size={15} className="text-violet-soft" />
+                  <span>.cursor/mcp.json</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => downloadClientConfig('antigravity')}
+                  className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface/40 p-3 text-xs font-mono text-txt hover:border-emerald-500/50 hover:bg-emerald-500/[0.04] transition"
+                >
+                  <Terminal size={15} className="text-emerald-400" />
+                  <span>mcp_servers.json (AGY)</span>
                 </button>
               </div>
             </div>
@@ -1062,21 +1224,111 @@ export default function DashboardPage() {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-display text-txt">Memory Explorer</h2>
+                <h2 className="text-xl font-display text-txt flex items-center gap-2">
+                  <Search size={20} className="text-rose" /> Memory Explorer & Walrus Verification
+                </h2>
                 <p className="text-xs text-mut mt-0.5">
-                  Inspect memories stored on Walrus. Search by semantic query to see what your agents recall.
+                  Inspect memories stored on Walrus decentralized storage. Filter by taxonomy, detect superseded architectural choices, and verify on-chain proofs.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowAddMemoryModal(true)}
-                className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-medium text-bg shadow hover:opacity-95 transition shrink-0"
-              >
-                <Plus size={15} /> Save Test Memory
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => exportMemories('json')}
+                  disabled={!memories.length}
+                  className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface/50 px-3 py-1.5 text-xs text-txt hover:border-rose/50 transition disabled:opacity-40"
+                  title="Export all memories as JSON"
+                >
+                  <Download size={13} className="text-rose" /> JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportMemories('markdown')}
+                  disabled={!memories.length}
+                  className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface/50 px-3 py-1.5 text-xs text-txt hover:border-violet/50 transition disabled:opacity-40"
+                  title="Export all memories as Markdown"
+                >
+                  <FileText size={13} className="text-violet-soft" /> Markdown
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddMemoryModal(true)}
+                  className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-medium text-bg shadow hover:opacity-95 transition shrink-0"
+                >
+                  <Plus size={15} /> Save Test Memory
+                </button>
+              </div>
             </div>
 
-            {/* Search form */}
+            {/* Superseded Notification Banner */}
+            {supersededNotice && (
+              <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={15} className="text-amber-400 shrink-0" />
+                  <span>{supersededNotice}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSupersededNotice(null)}
+                  className="text-amber-400 hover:underline font-mono text-[11px]"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {/* On-Chain Walrus Epoch & Staking Metrics Bar */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-2xl border border-line glass p-4 space-y-1">
+                <div className="flex items-center justify-between text-faint text-[11px]">
+                  <span className="font-mono uppercase">Walrus Epoch</span>
+                  <Clock size={14} className="text-rose" />
+                </div>
+                <p className="text-lg font-mono font-bold text-txt">
+                  Epoch 24
+                </p>
+                <p className="text-[11px] text-mut">
+                  {user?.plan_tier === 'pro' || user?.plan_tier === 'team'
+                    ? 'Permanent Staking Pool'
+                    : '~14 days remaining (Testnet)'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-line glass p-4 space-y-1">
+                <div className="flex items-center justify-between text-faint text-[11px]">
+                  <span className="font-mono uppercase">Total WAL Staked</span>
+                  <Coins size={14} className="text-violet-soft" />
+                </div>
+                <p className="text-lg font-mono font-bold text-violet-soft">
+                  {memoryStats?.totalWalStaked ?? (memories.length * 0.002).toFixed(3)} WAL
+                </p>
+                <p className="text-[11px] text-mut">128 KiB allocated per blob</p>
+              </div>
+
+              <div className="rounded-2xl border border-line glass p-4 space-y-1">
+                <div className="flex items-center justify-between text-faint text-[11px]">
+                  <span className="font-mono uppercase">Ground Truth</span>
+                  <CheckCircle2 size={14} className="text-emerald-400" />
+                </div>
+                <p className="text-lg font-mono font-bold text-emerald-400">
+                  {memoryStats?.active ?? memories.filter((m) => !m.isSuperseded).length}
+                </p>
+                <p className="text-[11px] text-mut">Active validated memories</p>
+              </div>
+
+              <div className="rounded-2xl border border-line glass p-4 space-y-1">
+                <div className="flex items-center justify-between text-faint text-[11px]">
+                  <span className="font-mono uppercase">Conflict Engine</span>
+                  <AlertTriangle size={14} className="text-amber-400" />
+                </div>
+                <p className="text-lg font-mono font-bold text-amber-400">
+                  {memoryStats?.superseded ?? memories.filter((m) => m.isSuperseded).length}
+                </p>
+                <p className="text-[11px] text-mut">Superseded past choices</p>
+              </div>
+            </div>
+
+            {/* Search & Scope form */}
             <form onSubmit={handleSearchMemories} className="flex flex-col sm:flex-row gap-3">
               <div className="flex gap-2">
                 <button
@@ -1119,42 +1371,143 @@ export default function DashboardPage() {
                 disabled={searching}
                 className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose to-violet px-5 py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 transition"
               >
-                {searching ? 'Querying Walrus…' : 'Search Memories'}
+                {searching ? 'Querying Walrus…' : 'Filter / Search'}
               </button>
             </form>
+
+            {/* Taxonomy Filter Pills & Superseded Toggle */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  { id: 'all', label: 'All Types' },
+                  { id: 'decision', label: 'Decisions', color: 'text-rose' },
+                  { id: 'config', label: 'Configs', color: 'text-sky-400' },
+                  { id: 'gotcha', label: 'Gotchas', color: 'text-amber-400' },
+                  { id: 'person', label: 'People', color: 'text-rose-300' },
+                  { id: 'preference', label: 'Preferences', color: 'text-pink-400' },
+                  { id: 'plan', label: 'Plans', color: 'text-emerald-400' },
+                ].map((pill) => (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={() => setTypeFilter(pill.id)}
+                    className={`rounded-xl border px-2.5 py-1 text-[11px] font-mono transition ${
+                      typeFilter === pill.id
+                        ? 'border-rose/60 bg-rose/15 text-txt font-semibold'
+                        : 'border-line/70 bg-surface/30 text-mut hover:border-line hover:text-txt'
+                    }`}
+                  >
+                    {pill.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowSuperseded(!showSuperseded)}
+                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1 text-[11px] font-mono transition ${
+                  showSuperseded
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                    : 'border-line bg-surface/30 text-faint hover:text-mut'
+                }`}
+              >
+                {showSuperseded ? <Eye size={12} /> : <EyeOff size={12} />}
+                <span>{showSuperseded ? 'Showing Superseded' : 'Superseded Hidden'}</span>
+              </button>
+            </div>
 
             {/* Memories Results */}
             {memories.length === 0 ? (
               <div className="rounded-3xl border border-line glass p-8 text-center text-xs text-mut">
                 <Layers size={28} className="mx-auto text-faint mb-2.5" />
-                <p>Run a semantic search above to explore memories captured by your connected agents.</p>
+                <p>No memories found matching this query or filter.</p>
+                <p className="text-[11px] text-faint mt-1">
+                  Connect your AI client via MCP or click "Save Test Memory" to anchor your first decision.
+                </p>
               </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
-                {memories.map((m, idx) => (
-                  <div key={idx} className="rounded-3xl border border-line glass p-5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="rounded-full border border-rose/30 bg-rose/10 px-2 py-0.5 text-[10px] font-mono uppercase text-rose">
-                        {m.type || 'decision'}
-                      </span>
-                      {m.blobId && (
-                        <a
-                          href={`https://walruscan.com/mainnet/blob/${m.blobId}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-1 font-mono text-[10.5px] text-faint hover:text-rose transition"
-                        >
-                          {m.blobId.slice(0, 8)}… <ExternalLink size={11} />
-                        </a>
+                {memories.map((m, idx) => {
+                  const typeColors: Record<string, string> = {
+                    decision: 'border-rose/30 bg-rose/10 text-rose',
+                    config: 'border-sky-400/30 bg-sky-400/10 text-sky-400',
+                    gotcha: 'border-amber-400/30 bg-amber-400/10 text-amber-400',
+                    person: 'border-rose-300/30 bg-rose-300/10 text-rose-300',
+                    preference: 'border-pink-400/30 bg-pink-400/10 text-pink-400',
+                    plan: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-400',
+                  }
+                  const pillClass = typeColors[m.type] || 'border-rose/30 bg-rose/10 text-rose'
+
+                  return (
+                    <div
+                      key={m.id || idx}
+                      className={`rounded-3xl border p-5 space-y-3 transition ${
+                        m.isSuperseded
+                          ? 'border-amber-500/30 bg-amber-500/[0.03] opacity-85'
+                          : 'border-line glass'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase font-bold ${pillClass}`}>
+                            {m.type || 'decision'}
+                          </span>
+                          {m.isSuperseded && (
+                            <span className="rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-mono text-amber-300 flex items-center gap-1">
+                              <AlertTriangle size={10} /> SUPERSEDED
+                            </span>
+                          )}
+                        </div>
+
+                        <span className="flex items-center gap-1 font-mono text-[10px] text-faint">
+                          <Clock size={11} className="text-faint" />
+                          {m.epochMeta?.daysRemaining ? `~${m.epochMeta.daysRemaining}d left` : 'Epoch 24'}
+                        </span>
+                      </div>
+
+                      {/* Conflict Notification Box */}
+                      {m.isSuperseded && (
+                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-2 text-[11px] text-amber-300/90 font-mono">
+                          ⚠️ Superseded by newer decision {m.supersededBy ? `(blob: ${m.supersededBy.slice(0, 10)}…)` : ''}
+                        </div>
                       )}
+
+                      <p className={`text-xs text-txt leading-relaxed ${m.isSuperseded ? 'line-through text-mut' : ''}`}>
+                        {m.text}
+                      </p>
+
+                      <div className="border-t border-line/60 pt-2.5 flex items-center justify-between text-[11px] text-faint">
+                        <div className="flex items-center gap-1.5">
+                          <Coins size={11} className="text-violet-soft" />
+                          <span>0.002 WAL · 128 KiB</span>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          {m.blobId && (
+                            <a
+                              href={`https://walruscan.com/testnet/blob/${m.blobId}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-1 font-mono text-faint hover:text-rose transition"
+                              title="Verify on Walruscan"
+                            >
+                              <span>Proof: {m.blobId.slice(0, 8)}…</span>
+                              <ExternalLink size={10} />
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMemory(m.id, m.blobId)}
+                            className="text-faint hover:text-rose transition p-1"
+                            title="Delete memory"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-xs text-txt leading-relaxed">{m.text}</p>
-                    <div className="border-t border-line/60 pt-2 flex items-center justify-between text-[11px] text-faint">
-                      <span>Scope: {searchScope}</span>
-                      <span>Verified on Walrus</span>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

@@ -2,6 +2,8 @@
 import { memwalFor, encodeMemory, decodeMemory, blobIdOf, MEMORY_TYPES, type Scope } from "./_lib/memwal";
 import { getUserFromRequest } from "./_lib/auth";
 import { checkAndIncrementUsage, getQuotaResetMetadata, PLAN_LIMITS } from "./_lib/db";
+import { getSupabaseAdmin } from "./_lib/supabase";
+import { detectAndResolveConflicts } from "./_lib/conflicts";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -50,5 +52,35 @@ export default async function handler(req: any, res: any) {
   const job = await mem.rememberAndWait(encodeMemory(t as any, cleanText), undefined, {
     timeoutMs: 30_000,
   });
-  res.status(200).json({ ok: true, type: t, text: cleanText, blobId: blobIdOf(job) });
+  const blobId = blobIdOf(job);
+
+  // Persist to memories_meta and run smart conflict resolution
+  let superseded: any[] = [];
+  const supabase = getSupabaseAdmin();
+  if (supabase && user) {
+    try {
+      await supabase.from('memories_meta').insert({
+        user_id: user.id,
+        team_id: scope === 'team' ? (teamCode !== 'default' ? teamCode : null) : null,
+        room: 'my-space',
+        type: t,
+        text: cleanText,
+        blob_id: blobId,
+      });
+
+      const conflictRes = await detectAndResolveConflicts({
+        userId: user.id,
+        teamId: scope === 'team' ? (teamCode !== 'default' ? teamCode : null) : null,
+        scope: scope as 'personal' | 'team',
+        newText: cleanText,
+        newType: t,
+        newBlobId: blobId,
+      });
+      superseded = conflictRes.supersededList;
+    } catch (metaErr) {
+      console.error('Failed to update memories_meta or resolve conflicts:', metaErr);
+    }
+  }
+
+  res.status(200).json({ ok: true, type: t, text: cleanText, blobId, superseded });
 }
