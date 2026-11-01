@@ -782,17 +782,17 @@ MOBILE CONNECTION DETAILS:
                 <div className="min-w-0">
                   <h2 className="text-lg sm:text-xl font-display text-txt">Your Personal Memory Endpoint</h2>
                   <p className="text-xs text-mut mt-0.5">
-                    Ready-to-paste MCP URL pre-authenticated with your live personal key.
+                    Your personal MCP link. Paste this into Claude, Cursor, or any MCP client to connect your memory.
                   </p>
                 </div>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-400 font-mono shrink-0">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> Streamable HTTP
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> Ready to Connect
                 </span>
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 rounded-2xl border border-line bg-bg/80 p-3 font-mono text-xs text-mut min-w-0">
-                <span className="break-all sm:truncate flex-1 min-w-0 text-[11px] sm:text-xs text-txt/90 leading-relaxed">
-                  {defaultConnectorUrl}
+                <span className="truncate flex-1 min-w-0 text-[11px] sm:text-xs text-txt/90">
+                  {`https://engram-pearl.vercel.app/mcp?token=${activeLiveKey.slice(0, 14)}••••••••&room=${activeRoom}`}
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
@@ -801,7 +801,7 @@ MOBILE CONNECTION DETAILS:
                     className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-3.5 py-2 text-xs font-sans font-medium text-bg shadow hover:opacity-95 transition"
                   >
                     {copiedText === 'connectorUrl' ? <Check size={14} /> : <Copy size={14} />}
-                    <span>{copiedText === 'connectorUrl' ? 'Copied Link!' : 'Copy Connector Link'}</span>
+                    <span>{copiedText === 'connectorUrl' ? 'Full Link Copied!' : '1-Tap Copy Full Link'}</span>
                   </button>
                   <button
                     type="button"
@@ -832,67 +832,122 @@ MOBILE CONNECTION DETAILS:
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-lg sm:text-xl font-display text-txt">Mobile Workflows</h3>
+                      <h3 className="text-lg sm:text-xl font-display text-txt">Use Engram on Your Phone</h3>
                       <span className="rounded-full border border-rose/30 bg-rose/10 px-2 py-0.5 text-[10px] font-mono uppercase text-rose">
-                        1-Tap Phone Setup
+                        Beginner Guide
                       </span>
                     </div>
                     <p className="text-xs text-mut mt-0.5 leading-relaxed">
-                      Pick your mobile app below. Every link, system prompt, and code snippet is pre-filled with your live API key — just tap Copy and paste!
+                      Save notes directly from this page, or connect your Claude / ChatGPT phone app so your AI remembers everything across your phone and laptop.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* 3 Mode Selector Tabs */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMobileMode('claude')}
-                  className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
-                    mobileMode === 'claude'
-                      ? 'border-rose bg-rose/15 text-txt shadow-sm'
-                      : 'border-line bg-bg/50 text-mut hover:border-line-2 hover:text-txt'
-                  }`}
-                >
-                  <MessageSquare size={16} className={mobileMode === 'claude' ? 'text-rose shrink-0' : 'text-faint shrink-0'} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-txt truncate">1. Claude App (iOS/Android)</p>
-                    <p className="text-[10.5px] text-faint truncate">Connector Link + System Prompt</p>
+              {/* ALWAYS-VISIBLE: Instant Phone Quick-Save (Zero Setup!) */}
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.05] p-3.5 sm:p-4 space-y-2.5 min-w-0">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                    <Zap size={15} className="text-emerald-400 shrink-0" />
+                    Option 0 (Easiest): Save a Memory Right Here on Your Phone
+                  </span>
+                  <span className="text-[10.5px] font-mono text-emerald-400">Zero setup required</span>
+                </div>
+                <p className="text-xs text-mut leading-relaxed">
+                  Type or voice-dictate any fact or decision below and tap <strong className="text-txt">Save</strong>. Your laptop AI (Cursor, Claude, Antigravity) will immediately know it!
+                </p>
+                {quickMobileSuccess && (
+                  <div className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 p-2.5 text-xs text-emerald-200">
+                    <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                    <span>{quickMobileSuccess}</span>
                   </div>
-                </button>
+                )}
+                <form onSubmit={handleQuickMobileSave} className="flex flex-col sm:flex-row gap-2 min-w-0">
+                  <select
+                    value={quickMobileType}
+                    onChange={(e) => setQuickMobileType(e.target.value)}
+                    className="rounded-xl border border-line bg-bg/90 px-3 py-2.5 text-xs font-mono text-txt focus:border-rose/50 focus:outline-none shrink-0"
+                  >
+                    <option value="decision">Decision</option>
+                    <option value="config">Config / Setup</option>
+                    <option value="gotcha">Gotcha / Fix</option>
+                    <option value="person">Person / Team</option>
+                    <option value="preference">Preference</option>
+                    <option value="plan">Plan / Todo</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={quickMobileText}
+                    onChange={(e) => setQuickMobileText(e.target.value)}
+                    placeholder="Type a note or decision to save to your memory…"
+                    required
+                    className="flex-1 min-w-0 rounded-xl border border-line bg-bg/90 px-3.5 py-2.5 text-xs text-txt placeholder:text-faint focus:border-rose/50 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={quickMobileSaving}
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 disabled:opacity-50 transition shrink-0"
+                  >
+                    <Send size={13} />
+                    <span>{quickMobileSaving ? 'Saving…' : 'Save to My Memory'}</span>
+                  </button>
+                </form>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() => setMobileMode('chatgpt')}
-                  className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
-                    mobileMode === 'chatgpt'
-                      ? 'border-violet bg-violet/15 text-txt shadow-sm'
-                      : 'border-line bg-bg/50 text-mut hover:border-line-2 hover:text-txt'
-                  }`}
-                >
-                  <Sparkles size={16} className={mobileMode === 'chatgpt' ? 'text-violet-soft shrink-0' : 'text-faint shrink-0'} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-txt truncate">2. ChatGPT Mobile App</p>
-                    <p className="text-[10.5px] text-faint truncate">Instructions + Custom GPT Action</p>
-                  </div>
-                </button>
+              {/* 3 App Guides Selector Tabs */}
+              <div>
+                <p className="text-[11px] font-mono uppercase tracking-wider text-faint mb-2">
+                  Want to connect a mobile chatbot app instead? Choose your app:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMobileMode('claude')}
+                    className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
+                      mobileMode === 'claude'
+                        ? 'border-rose bg-rose/15 text-txt shadow-sm'
+                        : 'border-line bg-bg/50 text-mut hover:border-line-2 hover:text-txt'
+                    }`}
+                  >
+                    <MessageSquare size={16} className={mobileMode === 'claude' ? 'text-rose shrink-0' : 'text-faint shrink-0'} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-txt truncate">1. Claude App (Recommended)</p>
+                      <p className="text-[10.5px] text-faint truncate">Easiest — just paste 1 link</p>
+                    </div>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setMobileMode('shortcuts')}
-                  className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
-                    mobileMode === 'shortcuts'
-                      ? 'border-emerald-400/60 bg-emerald-400/10 text-txt shadow-sm'
-                      : 'border-line bg-bg/50 text-mut hover:border-line-2 hover:text-txt'
-                  }`}
-                >
-                  <Zap size={16} className={mobileMode === 'shortcuts' ? 'text-emerald-400 shrink-0' : 'text-faint shrink-0'} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-txt truncate">3. iOS Shortcut & Quick-Save</p>
-                    <p className="text-[10.5px] text-faint truncate">1-Tap Save + Apple/Android Webhook</p>
-                  </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileMode('chatgpt')}
+                    className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
+                      mobileMode === 'chatgpt'
+                        ? 'border-violet bg-violet/15 text-txt shadow-sm'
+                        : 'border-line bg-bg/50 text-mut hover:border-line-2 hover:text-txt'
+                    }`}
+                  >
+                    <Sparkles size={16} className={mobileMode === 'chatgpt' ? 'text-violet-soft shrink-0' : 'text-faint shrink-0'} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-txt truncate">2. ChatGPT Mobile App</p>
+                      <p className="text-[10.5px] text-faint truncate">Custom Instructions or Custom GPT</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMobileMode('shortcuts')}
+                    className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
+                      mobileMode === 'shortcuts'
+                        ? 'border-emerald-400/60 bg-emerald-400/10 text-txt shadow-sm'
+                        : 'border-line bg-bg/50 text-mut hover:border-line-2 hover:text-txt'
+                    }`}
+                  >
+                    <Zap size={16} className={mobileMode === 'shortcuts' ? 'text-emerald-400 shrink-0' : 'text-faint shrink-0'} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-txt truncate">3. iPhone / Android Shortcut</p>
+                      <p className="text-[10.5px] text-faint truncate">For Siri / Home Screen button</p>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {/* MODE 1: CLAUDE MOBILE & WEB */}
@@ -900,10 +955,10 @@ MOBILE CONNECTION DETAILS:
                 <div className="space-y-4 rounded-2xl border border-line bg-bg/50 p-3.5 sm:p-5 min-w-0">
                   <div className="space-y-1">
                     <h4 className="text-sm font-semibold text-txt">
-                      How to connect Claude on iPhone & Android (2 Simple Steps)
+                      Connect the Claude Phone App (Takes 30 Seconds)
                     </h4>
                     <p className="text-xs text-mut leading-relaxed">
-                      Once connected, anything you tell Claude on your phone is saved to Walrus and immediately available in Cursor, Claude Desktop, and your terminal.
+                      Claude has built-in support for Engram. You only need to paste your link once on <strong className="text-txt">claude.ai</strong>, and your Claude iPhone/Android app will automatically have your memory!
                     </p>
                   </div>
 
@@ -912,40 +967,32 @@ MOBILE CONNECTION DETAILS:
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <span className="text-xs font-semibold text-txt flex items-center gap-2">
                         <span className="grid h-5 w-5 place-items-center rounded-full bg-rose/20 text-rose font-mono text-[11px]">1</span>
-                        Copy your Connector Link
+                        Copy your Connector Link & paste into Claude Integrations
                       </span>
-                      <span className="text-[11px] font-mono text-faint">Claude Settings → Integrations → Add MCP</span>
                     </div>
-                    <p className="text-xs text-mut leading-relaxed">
-                      Open <strong className="text-txt">claude.ai</strong> (or Claude Desktop) → <strong className="text-txt">Settings → Integrations → Add More</strong> and paste this link. It automatically syncs with your Claude iOS/Android app.
-                    </p>
-                    <div className="rounded-xl border border-line bg-bg/90 p-2.5 font-mono text-[11px] text-txt/90 break-all">
-                      {defaultConnectorUrl}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <ol className="list-decimal list-inside space-y-1 text-xs text-mut leading-relaxed">
+                      <li>Tap <strong className="text-txt">"1-Tap Copy Connector Link"</strong> below.</li>
+                      <li>Open <a href="https://claude.ai/settings" target="_blank" rel="noreferrer" className="text-rose underline">claude.ai/settings</a> in your browser → tap <strong className="text-txt">Integrations → Add More</strong>.</li>
+                      <li>Name it <strong className="text-txt">Engram</strong> and paste the link. Done!</li>
+                    </ol>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
                       <button
                         type="button"
                         onClick={() => copyToClipboard(defaultConnectorUrl, 'claudeLink')}
-                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-medium text-bg shadow hover:opacity-95 transition"
+                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 transition"
                       >
                         {copiedText === 'claudeLink' ? <Check size={14} /> : <Copy size={14} />}
                         <span>{copiedText === 'claudeLink' ? 'Connector Link Copied!' : '1-Tap Copy Connector Link'}</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          shareTextOrUrl(
-                            'Engram Claude Connector Link',
-                            'Paste this MCP Connector URL into Claude Integrations:',
-                            defaultConnectorUrl,
-                            'claudeLink'
-                          )
-                        }
-                        className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-xs text-txt hover:border-rose/50 transition"
+                      <a
+                        href="https://claude.ai/settings"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-xs text-txt hover:border-rose/50 transition"
                       >
-                        <Share2 size={14} className="text-rose" />
-                        <span>Share Link</span>
-                      </button>
+                        <span>Open Claude Settings</span>
+                        <ExternalLink size={13} className="text-rose" />
+                      </a>
                     </div>
                   </div>
 
@@ -954,39 +1001,32 @@ MOBILE CONNECTION DETAILS:
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <span className="text-xs font-semibold text-txt flex items-center gap-2">
                         <span className="grid h-5 w-5 place-items-center rounded-full bg-rose/20 text-rose font-mono text-[11px]">2</span>
-                        Copy the Engram Memory System Prompt
+                        Optional: Copy the Memory Rules Prompt
                       </span>
-                      <span className="text-[11px] font-mono text-faint">Claude App → Profile → Personal Preferences</span>
                     </div>
                     <p className="text-xs text-mut leading-relaxed">
-                      In the Claude mobile app, tap your <strong className="text-txt">Profile icon → Settings → Profile / Personal Preferences</strong> (or Project Instructions) and paste this prompt so Claude automatically recalls and saves memories without being asked:
+                      Want Claude to automatically check and save memories without you having to say <em>"remember this"</em>? Copy this prompt and paste it into <strong className="text-txt">Claude Settings → Profile → Personal Preferences</strong>:
                     </p>
-                    <div className="rounded-xl border border-line bg-bg/90 p-3 font-mono text-[11px] text-mut leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap break-words">
-                      {showFullMobilePrompt ? ENGRAM_PROMPT : `${ENGRAM_PROMPT.slice(0, 320)}…`}
-                    </div>
+                    {showFullMobilePrompt && (
+                      <div className="rounded-xl border border-line bg-bg/90 p-3 font-mono text-[11px] text-mut leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap break-words">
+                        {ENGRAM_PROMPT}
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => copyToClipboard(ENGRAM_PROMPT, 'claudePrompt')}
-                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-medium text-bg shadow hover:opacity-95 transition"
+                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl border border-rose/40 bg-rose/15 px-4 py-2.5 text-xs font-medium text-txt hover:bg-rose/25 transition"
                       >
-                        {copiedText === 'claudePrompt' ? <Check size={14} /> : <Copy size={14} />}
-                        <span>{copiedText === 'claudePrompt' ? 'System Prompt Copied!' : '1-Tap Copy System Prompt'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadText('ENGRAM_SYSTEM_PROMPT.txt', ENGRAM_PROMPT)}
-                        className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-xs text-txt hover:border-rose/50 transition"
-                      >
-                        <Download size={14} className="text-rose" />
-                        <span>Download .txt</span>
+                        {copiedText === 'claudePrompt' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} className="text-rose" />}
+                        <span>{copiedText === 'claudePrompt' ? 'System Prompt Copied!' : '1-Tap Copy Memory Prompt'}</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setShowFullMobilePrompt(!showFullMobilePrompt)}
-                        className="text-xs font-mono text-rose hover:underline px-2 py-1"
+                        className="text-xs font-mono text-mut hover:text-txt px-2.5 py-1.5"
                       >
-                        {showFullMobilePrompt ? 'Hide full prompt' : 'Preview full prompt'}
+                        {showFullMobilePrompt ? 'Hide prompt text' : 'View prompt text'}
                       </button>
                     </div>
                   </div>
@@ -996,167 +1036,98 @@ MOBILE CONNECTION DETAILS:
               {/* MODE 2: CHATGPT MOBILE APP */}
               {mobileMode === 'chatgpt' && (
                 <div className="space-y-4 rounded-2xl border border-line bg-bg/50 p-3.5 sm:p-5 min-w-0">
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <h4 className="text-sm font-semibold text-txt">
-                      How to use Engram in the ChatGPT Mobile App (iPhone & Android)
+                      How ChatGPT Connects to Your Memory (Plain-English Guide)
                     </h4>
                     <p className="text-xs text-mut leading-relaxed">
-                      Use Custom Instructions for instant setup, or paste the 1-click OpenAPI Action Schema into a Custom GPT so ChatGPT can read and write directly to your Walrus vault from your phone.
+                      In ChatGPT, you can create your own private <strong className="text-txt">"My Memory" assistant (Custom GPT)</strong> at <a href="https://chatgpt.com/gpts/editor" target="_blank" rel="noreferrer" className="text-violet-soft underline">chatgpt.com/gpts/editor</a>. Once created, it shows up in your ChatGPT iPhone & Android app sidebar so you can chat with your memory anytime!
                     </p>
-                  </div>
-
-                  {/* Step 1: ChatGPT Custom Instructions */}
-                  <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="text-xs font-semibold text-txt flex items-center gap-2">
-                        <span className="grid h-5 w-5 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">1</span>
-                        Copy ChatGPT Custom Instructions (Pre-filled with your API key)
-                      </span>
-                      <span className="text-[11px] font-mono text-faint">ChatGPT App → Settings → Personalization</span>
-                    </div>
-                    <p className="text-xs text-mut leading-relaxed">
-                      In the ChatGPT iOS/Android app, open <strong className="text-txt">Settings → Personalization → Custom Instructions</strong> and paste this into <em>"How would you like ChatGPT to respond?"</em>:
-                    </p>
-                    <div className="rounded-xl border border-line bg-bg/90 p-3 font-mono text-[11px] text-mut leading-relaxed max-h-36 overflow-y-auto whitespace-pre-wrap break-all sm:break-words">
-                      {chatgptCustomInstructions.slice(0, 280)}…
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(chatgptCustomInstructions, 'chatgptPrompt')}
-                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-medium text-bg shadow hover:opacity-95 transition"
+                    <div className="pt-1">
+                      <a
+                        href="https://chatgpt.com/gpts/editor"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-violet/40 bg-violet/15 px-3.5 py-2 text-xs font-medium text-txt hover:bg-violet/25 transition"
                       >
-                        {copiedText === 'chatgptPrompt' ? <Check size={14} /> : <Copy size={14} />}
-                        <span>{copiedText === 'chatgptPrompt' ? 'Instructions Copied!' : '1-Tap Copy Custom Instructions'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadText('CHATGPT_ENGRAM_INSTRUCTIONS.txt', chatgptCustomInstructions)}
-                        className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-xs text-txt hover:border-violet/50 transition"
-                      >
-                        <Download size={14} className="text-violet-soft" />
-                        <span>Download .txt</span>
-                      </button>
+                        <span>Open ChatGPT GPT Builder (chatgpt.com/gpts/editor)</span>
+                        <ExternalLink size={13} className="text-violet-soft" />
+                      </a>
                     </div>
                   </div>
 
-                  {/* Step 2: Custom GPT OpenAPI Schema */}
+                  {/* Step 1: Instructions */}
                   <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="text-xs font-semibold text-txt flex items-center gap-2">
-                        <span className="grid h-5 w-5 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">2</span>
-                        Copy Custom GPT Action Schema (OpenAPI 3.1 JSON)
-                      </span>
-                      <span className="text-[11px] font-mono text-faint">Create a GPT → Configure → Create Action</span>
-                    </div>
+                    <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">1</span>
+                      Paste into the "Instructions" box
+                    </span>
                     <p className="text-xs text-mut leading-relaxed">
-                      To give ChatGPT live read/write access to your memory vault: create a Custom GPT → <strong className="text-txt">Actions → Create new action</strong> → paste this OpenAPI schema, then choose <strong className="text-txt">Authentication: API Key (Bearer)</strong> and paste your key from Step 3 below.
+                      In the ChatGPT editor (under the <strong className="text-txt">Configure</strong> tab), tap the <strong className="text-txt">Instructions</strong> box and paste this prompt. (You can also paste this into <strong className="text-txt">ChatGPT Settings → Custom Instructions</strong>):
                     </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(chatgptOpenApiSchema, 'openapiSchema')}
-                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl border border-violet/40 bg-violet/15 px-4 py-2 text-xs font-medium text-txt hover:bg-violet/25 transition"
-                      >
-                        {copiedText === 'openapiSchema' ? <Check size={14} className="text-emerald-400" /> : <Code2 size={14} className="text-violet-soft" />}
-                        <span>{copiedText === 'openapiSchema' ? 'OpenAPI Schema Copied!' : '1-Tap Copy OpenAPI JSON Schema'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadText('engram-chatgpt-openapi.json', chatgptOpenApiSchema)}
-                        className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-xs text-txt hover:border-violet/50 transition"
-                      >
-                        <Download size={14} className="text-violet-soft" />
-                        <span>Download Schema .json</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(chatgptCustomInstructions, 'chatgptPrompt')}
+                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 transition"
+                    >
+                      {copiedText === 'chatgptPrompt' ? <Check size={14} /> : <Copy size={14} />}
+                      <span>{copiedText === 'chatgptPrompt' ? 'Instructions Copied!' : '1-Tap Copy Instructions'}</span>
+                    </button>
+                  </div>
+
+                  {/* Step 2: Action Schema */}
+                  <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
+                    <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">2</span>
+                      Paste into the "Schema" box (under Create new action)
+                    </span>
+                    <p className="text-xs text-mut leading-relaxed">
+                      Scroll to the bottom of the ChatGPT editor and tap <strong className="text-txt">Create new action</strong>. Tap the button below to copy the connection code, and paste it into the big <strong className="text-txt">Schema</strong> box (this tells ChatGPT how to read & save your memories):
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(chatgptOpenApiSchema, 'openapiSchema')}
+                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl border border-violet/40 bg-violet/15 px-4 py-2.5 text-xs font-medium text-txt hover:bg-violet/25 transition"
+                    >
+                      {copiedText === 'openapiSchema' ? <Check size={14} className="text-emerald-400" /> : <Code2 size={14} className="text-violet-soft" />}
+                      <span>{copiedText === 'openapiSchema' ? 'Schema Copied!' : '1-Tap Copy Schema Code'}</span>
+                    </button>
                   </div>
 
                   {/* Step 3: Live Bearer API Key */}
                   <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="text-xs font-semibold text-txt flex items-center gap-2">
-                        <span className="grid h-5 w-5 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">3</span>
-                        Copy Your Live Bearer API Key
-                      </span>
-                      <span className="text-[11px] font-mono text-faint">Auth Type: Bearer</span>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border border-line bg-bg/90 p-2.5 font-mono text-[11px] text-txt/90 min-w-0">
-                      <span className="break-all sm:truncate flex-1 min-w-0">{activeLiveKey}</span>
+                    <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">3</span>
+                      Paste your Private Key into "Authentication"
+                    </span>
+                    <p className="text-xs text-mut leading-relaxed">
+                      Right above the Schema box in ChatGPT, tap <strong className="text-txt">Authentication (None)</strong> → select <strong className="text-txt">API Key</strong> → select <strong className="text-txt">Bearer</strong> → and paste your private key so ChatGPT connects to your account:
+                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-line bg-bg/90 p-2.5 font-mono text-xs text-txt/90 min-w-0">
+                      <span className="truncate text-mut">{activeLiveKey.slice(0, 16)}••••••••••••••••</span>
                       <button
                         type="button"
                         onClick={() => copyToClipboard(activeLiveKey, 'chatgptBearerKey')}
-                        className="flex items-center justify-center gap-1.5 rounded-lg bg-surface border border-line px-3 py-1.5 text-xs font-sans text-txt hover:border-violet/50 shrink-0"
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2 text-xs font-sans font-medium text-bg shadow hover:opacity-95 shrink-0"
                       >
-                        {copiedText === 'chatgptBearerKey' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                        <span>{copiedText === 'chatgptBearerKey' ? 'Key Copied!' : '1-Tap Copy API Key'}</span>
+                        {copiedText === 'chatgptBearerKey' ? <Check size={14} /> : <Copy size={14} />}
+                        <span>{copiedText === 'chatgptBearerKey' ? 'Private Key Copied!' : '1-Tap Copy Private Key'}</span>
                       </button>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* MODE 3: iOS SHORTCUTS / ANDROID WEBHOOK + INSTANT PHONE QUICK-SAVE */}
+              {/* MODE 3: iOS SHORTCUTS / ANDROID WEBHOOK */}
               {mobileMode === 'shortcuts' && (
                 <div className="space-y-4 rounded-2xl border border-line bg-bg/50 p-3.5 sm:p-5 min-w-0">
-                  {/* Instant Browser Quick-Save on Phone */}
-                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.05] p-3.5 sm:p-4 space-y-3 min-w-0">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="text-xs font-semibold text-txt flex items-center gap-2">
-                        <Zap size={15} className="text-emerald-400 shrink-0" />
-                        Instant Phone Quick-Save (No App Setup Needed)
-                      </span>
-                      <span className="text-[10.5px] font-mono text-emerald-400">Bookmark this page on your phone</span>
-                    </div>
-                    <p className="text-xs text-mut leading-relaxed">
-                      Type or voice-dictate any note, decision, or preference right here on your phone to anchor it directly into your Walrus memory vault:
-                    </p>
-                    {quickMobileSuccess && (
-                      <div className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 p-2.5 text-xs text-emerald-200">
-                        <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
-                        <span>{quickMobileSuccess}</span>
-                      </div>
-                    )}
-                    <form onSubmit={handleQuickMobileSave} className="flex flex-col sm:flex-row gap-2 min-w-0">
-                      <select
-                        value={quickMobileType}
-                        onChange={(e) => setQuickMobileType(e.target.value)}
-                        className="rounded-xl border border-line bg-bg/90 px-3 py-2.5 text-xs font-mono text-txt focus:border-rose/50 focus:outline-none shrink-0"
-                      >
-                        <option value="decision">decision</option>
-                        <option value="config">config</option>
-                        <option value="gotcha">gotcha</option>
-                        <option value="person">person</option>
-                        <option value="preference">preference</option>
-                        <option value="plan">plan</option>
-                      </select>
-                      <input
-                        type="text"
-                        value={quickMobileText}
-                        onChange={(e) => setQuickMobileText(e.target.value)}
-                        placeholder="e.g. Always make mobile layouts fit 360px screens with 1-tap copy buttons…"
-                        required
-                        className="flex-1 min-w-0 rounded-xl border border-line bg-bg/90 px-3.5 py-2.5 text-xs text-txt placeholder:text-faint focus:border-rose/50 focus:outline-none"
-                      />
-                      <button
-                        type="submit"
-                        disabled={quickMobileSaving}
-                        className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 disabled:opacity-50 transition shrink-0"
-                      >
-                        <Send size={13} />
-                        <span>{quickMobileSaving ? 'Saving…' : 'Save to My Memory'}</span>
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* Apple Shortcuts / Android HTTP Webhook 1-Tap Copy Fields */}
                   <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-3 min-w-0">
                     <div>
                       <h4 className="text-xs font-semibold text-txt">
-                        Apple iOS Shortcuts & Android HTTP Webhook (1-Tap Copy Credentials)
+                        Optional: Apple iOS Shortcuts & Android Webhook (For Advanced Automation)
                       </h4>
                       <p className="text-xs text-mut mt-0.5 leading-relaxed">
-                        In Apple <strong className="text-txt">Shortcuts</strong> (or Android HTTP Shortcuts), add a <strong className="text-txt">"Get Contents of URL"</strong> action with Method <code className="text-rose font-mono">POST</code> and copy each value below with 1 tap:
+                        If you want to build an iPhone Siri Shortcut (<strong className="text-txt">"Get Contents of URL"</strong>, Method: <code className="text-rose font-mono">POST</code>), copy each field below in 1 tap:
                       </p>
                     </div>
 
@@ -1192,8 +1163,8 @@ MOBILE CONNECTION DETAILS:
                             <span>{copiedText === 'shortcutAuth' ? 'Copied!' : 'Copy Header'}</span>
                           </button>
                         </div>
-                        <p className="font-mono text-[11px] text-txt break-all">
-                          Bearer {activeLiveKey}
+                        <p className="font-mono text-[11px] text-mut truncate">
+                          Bearer {activeLiveKey.slice(0, 14)}••••••••
                         </p>
                       </div>
                     </div>
@@ -1299,7 +1270,7 @@ MOBILE CONNECTION DETAILS:
 {`{
   "mcpServers": {
     "engram": {
-      "url": "${defaultConnectorUrl}"
+      "url": "https://engram-pearl.vercel.app/mcp?token=${activeLiveKey.slice(0, 14)}••••&room=${activeRoom}"
     }
   }
 }`}
@@ -1344,8 +1315,8 @@ MOBILE CONNECTION DETAILS:
                   <p className="mb-2 font-mono text-[11px] uppercase tracking-wider text-faint">
                     NPX Command (Pre-filled with your live key)
                   </p>
-                  <div className="rounded-2xl border border-line bg-bg/80 p-3.5 font-mono text-[11px] text-txt break-all leading-relaxed">
-                    npx -y engram-walrus --key={activeLiveKey}
+                  <div className="rounded-2xl border border-line bg-bg/80 p-3.5 font-mono text-[11px] text-txt truncate leading-relaxed">
+                    npx -y engram-walrus --key={activeLiveKey.slice(0, 14)}••••••••
                   </div>
                 </div>
                 <button
