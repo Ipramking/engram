@@ -1,4 +1,4 @@
-import { newTid, sign } from '../mcp/token.mjs'
+import { newTid, sign } from './_lib/token'
 
 const env = ((globalThis as any).process?.env ?? {}) as Record<string, string | undefined>
 

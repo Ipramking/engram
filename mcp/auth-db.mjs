@@ -1,9 +1,11 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
-import { DatabaseSync } from 'node:sqlite'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { mkdirSync } from 'node:fs'
+
+const require = createRequire(import.meta.url)
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://lqscyshajhvzkusougpy.supabase.co'
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -63,6 +65,7 @@ let fallbackDb = null
 function getFallbackDb() {
   if (!fallbackDb) {
     try {
+      const { DatabaseSync } = require('node:sqlite')
       const dbDir = join(homedir(), '.engram')
       mkdirSync(dbDir, { recursive: true })
       const dbPath = process.env.ENGRAM_DB_PATH || join(dbDir, 'engram-local.db')

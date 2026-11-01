@@ -180,7 +180,7 @@ export default function DashboardPage() {
   // Load team members when selectedTeam changes
   useEffect(() => {
     if (selectedTeam && token) {
-      fetch(`/api/teams/members?teamId=${selectedTeam.id}`, {
+      fetch(`/api/teams?action=members&teamId=${selectedTeam.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((r) => safeJson(r))
@@ -195,13 +195,14 @@ export default function DashboardPage() {
     e.preventDefault()
     if (!newKeyName.trim() || !token) return
     try {
-      const res = await fetch('/api/keys/create', {
+      const res = await fetch('/api/keys?action=create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
+          action: 'create',
           name: newKeyName.trim(),
           scope: newKeyScope,
           teamId: newKeyScope === 'team' ? newKeyTeamId : undefined,
@@ -226,13 +227,13 @@ export default function DashboardPage() {
       return
     }
     try {
-      const res = await fetch('/api/keys/revoke', {
+      const res = await fetch('/api/keys?action=revoke', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ keyId }),
+        body: JSON.stringify({ action: 'revoke', keyId }),
       })
       if (res.ok) {
         setKeys(keys.filter((k) => k.id !== keyId))
@@ -246,13 +247,13 @@ export default function DashboardPage() {
     e.preventDefault()
     if (!newTeamName.trim() || !token) return
     try {
-      const res = await fetch('/api/teams/create', {
+      const res = await fetch('/api/teams?action=create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ name: newTeamName.trim() }),
+        body: JSON.stringify({ action: 'create', name: newTeamName.trim() }),
       })
       const data = await safeJson(res)
       if (res.ok && data?.team) {
@@ -274,13 +275,14 @@ export default function DashboardPage() {
     setInviteError(null)
     setInviteSuccess(null)
     try {
-      const res = await fetch('/api/teams/invite', {
+      const res = await fetch('/api/teams?action=invite', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
+          action: 'invite',
           teamId: selectedTeam.id,
           email: inviteEmail.trim(),
           role: inviteRole,
@@ -291,7 +293,7 @@ export default function DashboardPage() {
         setInviteSuccess(`Invited ${inviteEmail} successfully!`)
         setInviteEmail('')
         // Refresh members
-        const memRes = await fetch(`/api/teams/members?teamId=${selectedTeam.id}`, {
+        const memRes = await fetch(`/api/teams?action=members&teamId=${selectedTeam.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         const memData = await safeJson(memRes)

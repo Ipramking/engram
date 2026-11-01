@@ -5,8 +5,10 @@ import { getUserFromRequest } from './_lib/auth'
 export default async function handler(req: any, res: any) {
   const rawUrl = req.url || ''
   const urlPath = rawUrl.split('?')[0] || ''
-  const querySubpath = req.query?.subpath || new URLSearchParams(rawUrl.split('?')[1] || '').get('subpath') || ''
+  const searchParams = new URLSearchParams(rawUrl.split('?')[1] || '')
+  const querySubpath = req.query?.subpath || req.query?.action || searchParams.get('subpath') || searchParams.get('action') || ''
   const path = querySubpath && !urlPath.endsWith('/' + querySubpath) ? `${urlPath}/${querySubpath}` : urlPath
+  const action = req.body?.action || querySubpath
   const method = req.method
 
   // CORS headers
@@ -17,7 +19,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     // ── Register ──
-    if (path.endsWith('/register') || (method === 'POST' && req.body?.action === 'register')) {
+    if (path.endsWith('/register') || action === 'register') {
       const { email, password, name } = req.body || {}
       if (!email || !password) {
         return res.status(400).json({ error: 'Email and password are required.' })
@@ -82,7 +84,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // ── Login ──
-    if (path.endsWith('/login') || (method === 'POST' && req.body?.action === 'login')) {
+    if (path.endsWith('/login') || action === 'login') {
       const { email, password } = req.body || {}
       if (!email || !password) {
         return res.status(400).json({ error: 'Email and password are required.' })
@@ -122,7 +124,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // ── Me / Current User ──
-    if (path.endsWith('/me') || method === 'GET') {
+    if (path.endsWith('/me') || action === 'me' || method === 'GET') {
       const user = await getUserFromRequest(req)
       if (!user) {
         return res.status(401).json({ error: 'Unauthorized: invalid or missing session.' })
@@ -131,7 +133,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // ── Logout ──
-    if (path.endsWith('/logout')) {
+    if (path.endsWith('/logout') || action === 'logout') {
       return res.status(200).json({ ok: true, message: 'Logged out.' })
     }
 

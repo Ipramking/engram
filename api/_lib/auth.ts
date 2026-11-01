@@ -66,7 +66,7 @@ export async function getUserFromRequest(req: any) {
 
   // 3. Fallback session / token check
   try {
-    const { verify } = await import('../../mcp/token.mjs')
+    const { verify } = await import('./token')
     const verified = verify(token)
     if (verified?.tid) {
       return {

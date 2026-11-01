@@ -7,8 +7,10 @@ export default async function handler(req: any, res: any) {
   const method = req.method
   const rawUrl = req.url || ''
   const urlPath = rawUrl.split('?')[0] || ''
-  const querySubpath = req.query?.subpath || new URLSearchParams(rawUrl.split('?')[1] || '').get('subpath') || ''
+  const searchParams = new URLSearchParams(rawUrl.split('?')[1] || '')
+  const querySubpath = req.query?.subpath || req.query?.action || searchParams.get('subpath') || searchParams.get('action') || ''
   const path = querySubpath && !urlPath.endsWith('/' + querySubpath) ? `${urlPath}/${querySubpath}` : urlPath
+  const action = req.body?.action || querySubpath
 
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')

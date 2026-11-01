@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
     try {
-      const res = await fetch('/api/auth/me', {
+      const res = await fetch('/api/auth?action=me', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, pass: string) => {
     setError(null)
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth?action=login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'login', email, password: pass }),
@@ -120,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (email: string, pass: string, name?: string) => {
     setError(null)
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await fetch('/api/auth?action=register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'register', email, password: pass, name }),
@@ -147,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
+      await fetch('/api/auth?action=logout', { method: 'POST' })
     } catch {}
     saveSession(null, null)
   }
