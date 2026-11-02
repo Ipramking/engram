@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from './_lib/supabase.js'
 import { isTeamMember } from './_lib/db.js'
 import { memwalFor, normalizeRecall, decodeMemory, recallMaxDistance, type Scope } from './_lib/memwal.js'
 import { calculateWalrusEpochMetadata } from './_lib/epochs.js'
+import { formatRetentionContract } from './_lib/storage.js'
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -53,8 +54,19 @@ export default async function handler(req: any, res: any) {
       if (error) {
         return res.status(500).json({ error: error.message })
       }
+      const retentionInfo = formatRetentionContract(record.blob_id || blobId)
+      return res.status(200).json({
+        ok: true,
+        message: 'Memory unindexed from active recall and metadata removed.',
+        ...retentionInfo,
+      })
     }
-    return res.status(200).json({ ok: true, message: 'Memory deleted' })
+    const retentionInfo = formatRetentionContract(blobId)
+    return res.status(200).json({
+      ok: true,
+      message: 'Memory unindexed from active recall and metadata removed.',
+      ...retentionInfo,
+    })
   }
 
   // ── GET: List memories with Epochs, Staking & Conflict status ──

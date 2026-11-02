@@ -382,7 +382,7 @@ await test('api/remember returns explicit persistenceState and sha256 contentHas
   const data = res.getData()
   assert.equal(data.ok, true)
   assert.equal(data.type, 'decision')
-  assert.ok(['confirmed_durable', 'pending_metadata_only'].includes(data.persistenceState), 'Must return explicit persistenceState')
+  assert.ok(['confirmed_durable', 'pending_metadata_only', 'local_mock'].includes(data.persistenceState), 'Must return explicit persistenceState')
   assert.ok(data.contentHash && data.contentHash.length === 64, 'Must return 64-character sha256 contentHash')
 })
 

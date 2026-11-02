@@ -9,6 +9,7 @@ import {
 import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
 import { checkAndIncrementUsage } from "./_lib/db.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
+import { computeContentHash, verifyMemoryIntegrity } from "./_lib/storage.js";
 
 function scoreMemoryMatch(text: string, type: string, query: string): number {
   const q = query.trim().toLowerCase();
@@ -114,11 +115,14 @@ export default async function handler(req: any, res: any) {
             const key = String(row.text || "").trim().toLowerCase();
             if (!seenTexts.has(key)) {
               seenTexts.add(key);
+              const { verified, actualHash } = verifyMemoryIntegrity(row.text || '', row.type || 'note', row.content_hash);
               combined.push({
                 id: row.id,
                 type: row.type || "note",
                 text: row.text,
                 blobId: row.blob_id,
+                contentHash: actualHash,
+                integrityVerified: verified,
                 isSuperseded,
                 supersededBy,
                 score,
@@ -145,10 +149,13 @@ export default async function handler(req: any, res: any) {
       seenTexts.add(key);
       const isSuperseded = m.blobId ? supersededMap.has(m.blobId) : false;
       const supersededBy = m.blobId ? supersededMap.get(m.blobId) || null : null;
+      const { verified, actualHash } = verifyMemoryIntegrity(decoded.text, decoded.type);
       combined.push({
         type: decoded.type,
         text: decoded.text,
         blobId: m.blobId,
+        contentHash: actualHash,
+        integrityVerified: verified,
         isSuperseded,
         supersededBy,
         score: scoreMemoryMatch(decoded.text, decoded.type, query) + 0.5,

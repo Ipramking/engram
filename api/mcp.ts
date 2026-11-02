@@ -17,6 +17,7 @@ import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
 import { detectAndResolveConflicts } from "./_lib/conflicts.js";
 import { scanForSecrets, sanitizeMemoryText } from "./_lib/security.js";
+import { writeMemoryWithRetry, verifyMemoryIntegrity } from "./_lib/storage.js";
 
 const TOOLS = [
   {
@@ -291,24 +292,20 @@ export default async function handler(req: any, res: any) {
 
           const cleanText = sanitizeMemoryText(rawText);
           const mem = memwalFor(scope, ns);
-          let blobId: string | undefined;
-          try {
-            const encoded = encodeMemory(type, cleanText);
-            const job = await Promise.race([
-              mem.rememberAndWait(encoded, undefined, { timeoutMs: 4500 }),
-              new Promise((resolve) => setTimeout(() => resolve(null), 4500)),
-            ]);
-            blobId = blobIdOf(job);
-            if (!blobId && typeof mem.remember === "function") {
-              const asyncJob = await Promise.race([
-                mem.remember(encoded),
-                new Promise((resolve) => setTimeout(() => resolve(null), 2000)),
-              ]);
-              blobId = blobIdOf(asyncJob) || (asyncJob as any)?.jobId || (asyncJob as any)?.job_id;
-            }
-          } catch (e) {
-            console.warn("[api/mcp] Walrus relayer warning:", e);
-          }
+          const encoded = encodeMemory(type, cleanText);
+
+          const writeRes = await writeMemoryWithRetry({
+            mem,
+            encodedText: encoded,
+            type,
+            cleanText,
+            userId: userId || 'anon',
+            scope,
+            teamId: scope === 'team' && activeTeamId !== 'default' ? activeTeamId : null,
+          });
+
+          const blobId = writeRes.blobId;
+          const storageState = writeRes.storageState;
 
           let supersededCount = 0;
           if (supabase && userId) {
@@ -332,8 +329,9 @@ export default async function handler(req: any, res: any) {
           }
 
           const suffix = [
-            blobId ? `blob_id=${blobId}` : "indexed=supabase",
+            blobId ? `blob_id=${blobId}` : `storage_state=${storageState}`,
             supersededCount > 0 ? `superseded=${supersededCount}` : "",
+            writeRes.isDuplicate ? "duplicate=cached" : "",
           ]
             .filter(Boolean)
             .join(", ");

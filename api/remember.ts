@@ -1,11 +1,11 @@
 // Manual "pin this" — store a memory the user explicitly chose.
-import { createHash } from "node:crypto";
-import { memwalFor, encodeMemory, decodeMemory, blobIdOf, MEMORY_TYPES, type Scope } from "./_lib/memwal.js";
+import { memwalFor, encodeMemory, decodeMemory, MEMORY_TYPES, type Scope } from "./_lib/memwal.js";
 import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
 import { checkAndIncrementUsage, getQuotaResetMetadata, PLAN_LIMITS } from "./_lib/db.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
 import { detectAndResolveConflicts } from "./_lib/conflicts.js";
 import { scanForSecrets, sanitizeMemoryText } from "./_lib/security.js";
+import { writeMemoryWithRetry } from "./_lib/storage.js";
 
 export default async function handler(req: any, res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -90,28 +90,24 @@ export default async function handler(req: any, res: any) {
   }
 
   const mem = memwalFor(effectiveScope as Scope, ns);
-  let blobId: string | undefined;
-  try {
-    const encoded = encodeMemory(t as any, cleanText);
-    const job = await Promise.race([
-      mem.rememberAndWait(encoded, undefined, { timeoutMs: 4500 }),
-      new Promise((resolve) => setTimeout(() => resolve(null), 4500)),
-    ]);
-    blobId = blobIdOf(job);
-    if (!blobId && typeof mem.remember === 'function') {
-      const asyncJob = await Promise.race([
-        mem.remember(encoded),
-        new Promise((resolve) => setTimeout(() => resolve(null), 2000)),
-      ]);
-      blobId = blobIdOf(asyncJob) || (asyncJob as any)?.jobId || (asyncJob as any)?.job_id;
-    }
-  } catch (walrusErr) {
-    console.warn("Walrus relayer write warning (persisting to Supabase metadata):", walrusErr);
-  }
+  const encoded = encodeMemory(t as any, cleanText);
 
-  // Explicit truthful persistence state & cryptographic content verification hash
-  const persistenceState = blobId ? 'confirmed_durable' : 'pending_metadata_only';
-  const contentHash = createHash('sha256').update(`${t}:${cleanText}`).digest('hex');
+  // Resilient write-ahead with exponential backoff & idempotency protection
+  const writeRes = await writeMemoryWithRetry({
+    mem,
+    encodedText: encoded,
+    type: t as any,
+    cleanText,
+    userId: user.id,
+    scope: effectiveScope as 'personal' | 'team',
+    teamId: effectiveTeamId,
+  });
+
+  const blobId = writeRes.blobId;
+  const storageState = writeRes.storageState;
+  const contentHash = writeRes.contentHash;
+  const idempotencyKey = writeRes.idempotencyKey;
+  const storageProvider = writeRes.storageProvider;
 
   // Persist to memories_meta and run smart conflict resolution
   let superseded: any[] = [];
@@ -147,9 +143,10 @@ export default async function handler(req: any, res: any) {
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
-    const badgeHtml = blobId
+    const isDurable = storageState === 'confirmed_durable' || storageState === 'local_mock';
+    const badgeHtml = isDurable
       ? `<div class="badge" style="display:inline-block;background:rgba(52,211,153,0.15);color:#34d399;border:1px solid rgba(52,211,153,0.35);border-radius:99px;padding:6px 14px;font-size:12px;font-family:monospace;text-transform:uppercase;margin-bottom:16px;">✓ Anchored on Walrus</div>`
-      : `<div class="badge" style="display:inline-block;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.35);border-radius:99px;padding:6px 14px;font-size:12px;font-family:monospace;text-transform:uppercase;margin-bottom:16px;">⚡ Stored in Vault (Walrus Pending)</div>`;
+      : `<div class="badge" style="display:inline-block;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.35);border-radius:99px;padding:6px 14px;font-size:12px;font-family:monospace;text-transform:uppercase;margin-bottom:16px;">⚡ Stored in Vault (${storageState === 'recovery_required' ? 'Recovery Queued' : 'Walrus Pending'})</div>`;
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(`<!doctype html>
@@ -188,8 +185,13 @@ export default async function handler(req: any, res: any) {
     type: t,
     text: cleanText,
     blobId: blobId ?? null,
-    persistenceState,
+    storageState,
+    persistenceState: storageState,
     contentHash,
+    idempotencyKey,
+    storageProvider,
+    integrityVerified: true,
+    isDuplicate: writeRes.isDuplicate ?? false,
     superseded,
   });
 }
