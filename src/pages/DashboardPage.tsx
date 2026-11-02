@@ -1390,7 +1390,7 @@ mcp_servers:
             </div>
 
             {/* Desktop & CLI Setup Guides */}
-            <div className="grid gap-5 md:grid-cols-2 min-w-0">
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 min-w-0">
               {/* Cursor & Claude Desktop Setup */}
               <div className="rounded-3xl border border-line glass p-4 sm:p-6 min-w-0">
                 <div className="flex items-center gap-3 mb-4">
@@ -1467,6 +1467,46 @@ mcp_servers:
                 >
                   {copiedText === 'npmCmd' ? <Check size={14} className="text-rose" /> : <Copy size={14} />}
                   {copiedText === 'npmCmd' ? 'NPX Command Copied!' : '1-Tap Copy NPX Command'}
+                </button>
+              </div>
+
+              {/* Python SDK & Autonomous Agents */}
+              <div className="rounded-3xl border border-line glass p-4 sm:p-6 flex flex-col justify-between min-w-0 md:col-span-2 lg:col-span-1">
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-violet/30 bg-violet/10 text-violet-soft">
+                      <Code2 size={20} />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-display text-txt">Python SDK & Agents</h3>
+                      <p className="text-xs text-mut">CrewAI, AutoGen, LangChain & Python</p>
+                    </div>
+                  </div>
+                  <p className="mb-2 font-mono text-[11px] uppercase tracking-wider text-faint">
+                    pip install engram-memory
+                  </p>
+                  <pre className="max-w-full overflow-x-auto rounded-2xl border border-line bg-bg/70 p-3.5 font-mono text-[11px] text-txt leading-relaxed">
+{`from engram import remember, recall, handoff
+
+# 1-Tap save durable fact
+remember("Database on Supabase", type="decision")
+
+# Zero-cold-start agent handoff
+handoff(from_agent="Claude", to_agent="Cursor", notes="Continuity verified")`}
+                  </pre>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    copyToClipboard(
+                      `# Install\\npip install engram-memory\\n\\n# Quick start\\nfrom engram import remember, recall, handoff\\n\\nremember("Database migrated to Supabase", type="decision")\\nmemories = recall("What database do we use?")\\nprint(memories)`,
+                      'pySnippet'
+                    )
+                  }
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface/50 py-2.5 text-xs text-txt hover:border-violet/50 transition"
+                >
+                  {copiedText === 'pySnippet' ? <Check size={14} className="text-rose" /> : <Copy size={14} />}
+                  {copiedText === 'pySnippet' ? 'Python Snippet Copied!' : '1-Tap Copy Python Code'}
                 </button>
               </div>
             </div>

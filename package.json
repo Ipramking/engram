@@ -16,7 +16,8 @@
     "test:storage": "tsx scripts/storage-reliability-test.mjs",
     "test:intelligence": "tsx scripts/intelligence-engine-test.mjs",
     "test:continuity": "tsx scripts/continuity-engine-test.mjs",
-    "test:all": "node packages/engram-mcp/test.mjs && tsx scripts/phase5-test.mjs && tsx scripts/phase6-test.mjs && tsx scripts/security-regression-test.mjs && tsx scripts/storage-reliability-test.mjs && tsx scripts/intelligence-engine-test.mjs && tsx scripts/continuity-engine-test.mjs",
+    "test:python": "py packages/engram-py/tests/test_sdk.py",
+    "test:all": "node packages/engram-mcp/test.mjs && tsx scripts/phase5-test.mjs && tsx scripts/phase6-test.mjs && tsx scripts/security-regression-test.mjs && tsx scripts/storage-reliability-test.mjs && tsx scripts/intelligence-engine-test.mjs && tsx scripts/continuity-engine-test.mjs && py packages/engram-py/tests/test_sdk.py",
     "lint": "oxlint",
     "preview": "vite preview"
   },
