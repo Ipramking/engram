@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { getSupabaseAdmin } from './supabase.js'
+import { getSigningSecret, getPreviousSigningSecret } from './token.js'
 
 export interface PlanLimits {
   dailySaves: number
@@ -30,7 +31,7 @@ export const PLAN_LIMITS: Record<string, PlanLimits> = {
 }
 
 export function hashKey(secret: string): string {
-  const salt = process.env.ENGRAM_SIGNING_SECRET || 'engram-key-salt-default'
+  const salt = getSigningSecret()
   return createHmac('sha256', salt).update(secret).digest('hex')
 }
 
@@ -145,9 +146,22 @@ export async function listApiKeys(userId: string) {
 }
 
 export async function validateApiKey(rawKey: string) {
-  const hash = hashKey(rawKey)
-  const fallbackHash = createHmac('sha256', 'engram-key-salt-default').update(rawKey).digest('hex')
-  const hashes = hash === fallbackHash ? [hash] : [hash, fallbackHash]
+  const currentHash = hashKey(rawKey)
+  const hashes = [currentHash]
+
+  const prevSecret = getPreviousSigningSecret()
+  if (prevSecret) {
+    hashes.push(createHmac('sha256', prevSecret).update(rawKey).digest('hex'))
+  }
+
+  const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL)
+  if (!isProd) {
+    const devFallbackHash = createHmac('sha256', 'engram-key-salt-default').update(rawKey).digest('hex')
+    if (!hashes.includes(devFallbackHash)) {
+      hashes.push(devFallbackHash)
+    }
+  }
+
   const supabase = getSupabaseAdmin()
   if (supabase) {
     const { data: rows } = await supabase
@@ -162,12 +176,44 @@ export async function validateApiKey(rawKey: string) {
       return data
     }
   }
-  const row = memApiKeys.get(hash) || memApiKeys.get(fallbackHash)
-  if (row && row.is_active) {
-    row.last_used_at = new Date().toISOString()
-    return row
+
+  for (const h of hashes) {
+    const row = memApiKeys.get(h)
+    if (row && row.is_active) {
+      row.last_used_at = new Date().toISOString()
+      return row
+    }
   }
   return null
+}
+
+export async function isApiKeyActive(keyId: string): Promise<boolean> {
+  if (!keyId) return false
+  if (keyId === 'live') {
+    // Only permit synthetic 'live' kid in non-production environments
+    const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL)
+    return !isProd
+  }
+
+  const supabase = getSupabaseAdmin()
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('api_keys')
+      .select('is_active')
+      .eq('id', keyId)
+      .maybeSingle()
+    if (!error && data) {
+      return Boolean(data.is_active)
+    }
+  }
+
+  for (const [, v] of memApiKeys) {
+    if (v.id === keyId) {
+      return Boolean(v.is_active)
+    }
+  }
+
+  return false
 }
 
 export async function revokeApiKey(keyId: string, userId: string) {

@@ -11,9 +11,9 @@ import {
   MEMORY_TYPES,
   type Scope,
 } from "./_lib/memwal.js";
-import { validateApiKey, checkAndIncrementUsage } from "./_lib/db.js";
+import { validateApiKey, isApiKeyActive, checkAndIncrementUsage } from "./_lib/db.js";
 import { verify, verifyLiveKey } from "./_lib/token.js";
-import { getUserFromRequest } from "./_lib/auth.js";
+import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
 import { detectAndResolveConflicts } from "./_lib/conflicts.js";
 import { scanForSecrets, sanitizeMemoryText } from "./_lib/security.js";
@@ -121,6 +121,8 @@ export default async function handler(req: any, res: any) {
   let defaultScope: Scope = "personal";
   const room = (req.query?.room as string) || searchParams.get("room") || "my-space";
 
+  let callerUser: any = null;
+
   if (token && token.startsWith("eng_live_")) {
     const live = verifyLiveKey(token);
     if (!live?.uid) {
@@ -130,9 +132,23 @@ export default async function handler(req: any, res: any) {
         id: null,
       });
     }
+    if (live.kid) {
+      const active = await isApiKeyActive(live.kid);
+      if (!active) {
+        return res.status(401).json({
+          jsonrpc: "2.0",
+          error: { code: -32001, message: "Unauthorized: invalid or revoked Engram API key" },
+          id: null,
+        });
+      }
+    }
     userId = live.uid;
     teamId = live.tid || null;
     defaultScope = live.scope || "personal";
+    callerUser = {
+      id: userId,
+      apiKey: { id: live.kid || "live", user_id: userId, scope: defaultScope, team_id: teamId, room },
+    };
   } else if (token && token.startsWith("eng_")) {
     const apiKey = await validateApiKey(token);
     if (!apiKey) {
@@ -145,14 +161,22 @@ export default async function handler(req: any, res: any) {
     userId = apiKey.user_id;
     teamId = apiKey.team_id || null;
     defaultScope = (apiKey.scope as Scope) || "personal";
+    callerUser = {
+      id: userId,
+      apiKey,
+    };
   } else if (token) {
     const verifiedTid = verify(token);
     if (verifiedTid?.tid) {
       userId = verifiedTid.tid;
+      callerUser = { id: userId };
     } else {
       const user = await getUserFromRequest(req);
       if (user) {
         userId = user.id;
+        callerUser = user;
+        teamId = user.apiKey?.team_id || null;
+        defaultScope = (user.apiKey?.scope as Scope) || "personal";
       } else {
         return res.status(401).json({
           jsonrpc: "2.0",
@@ -204,8 +228,29 @@ export default async function handler(req: any, res: any) {
     if (method === "tools/call") {
       const toolName = params?.name;
       const args = params?.arguments || {};
-      const scope: Scope = (args.scope as Scope) || defaultScope || "personal";
-      const activeTeamId = args.team_code || teamId || "default";
+      const requestedScope = (args.scope as Scope) || defaultScope || "personal";
+      const requestedTeamCode = args.team_code || teamId;
+
+      // Centralized authorization enforcement:
+      const auth = await authorizeMemoryAccess({
+        user: callerUser,
+        requestedScope,
+        requestedTeamCode,
+      });
+
+      if (!auth.authorized) {
+        return {
+          jsonrpc: "2.0",
+          id,
+          result: {
+            content: [{ type: "text", text: `Error: ${auth.error}` }],
+            isError: true,
+          },
+        };
+      }
+
+      const scope: Scope = auth.effectiveScope;
+      const activeTeamId = auth.effectiveTeamId || "default";
       const ns = scope === "team" ? activeTeamId : `usr_${userId}`;
       const supabase = getSupabaseAdmin();
 
@@ -399,12 +444,19 @@ export default async function handler(req: any, res: any) {
         if (toolName === "engram_tidy") {
           const items: Array<{ id: string; type: string; text: string; blobId?: string }> = [];
           if (supabase && userId) {
-            const { data: rows } = await supabase
+            let dbQuery = supabase
               .from("memories_meta")
               .select("*")
-              .eq("user_id", userId)
               .order("created_at", { ascending: false })
               .limit(100);
+
+            if (scope === "team") {
+              dbQuery = dbQuery.eq("team_id", activeTeamId);
+            } else {
+              dbQuery = dbQuery.eq("user_id", userId).is("team_id", null);
+            }
+
+            const { data: rows } = await dbQuery;
             for (const r of rows || []) {
               if ((r.room || "").startsWith("superseded_by:")) continue;
               items.push({ id: r.id, type: r.type, text: r.text, blobId: r.blob_id });

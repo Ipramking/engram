@@ -1,4 +1,4 @@
-import { getUserFromRequest } from './_lib/auth.js'
+import { getUserFromRequest, authorizeMemoryAccess } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabase.js'
 import { isTeamMember } from './_lib/db.js'
 import { memwalFor, normalizeRecall, decodeMemory, recallMaxDistance, type Scope } from './_lib/memwal.js'
@@ -68,14 +68,18 @@ export default async function handler(req: any, res: any) {
   const searchQuery = (req.query?.search as string) || ''
   const includeSuperseded = req.query?.includeSuperseded === 'true'
 
-  if (scope === 'team') {
-    if (teamCode && teamCode !== 'default') {
-      const isMember = await isTeamMember(user.id, teamCode)
-      if (!isMember) {
-        return res.status(403).json({ error: 'Forbidden: you are not a member of this team.' })
-      }
-    }
+  const authRes = await authorizeMemoryAccess({
+    user,
+    requestedScope: scope,
+    requestedTeamCode: teamCode,
+  })
+
+  if (!authRes.authorized) {
+    return res.status(authRes.statusCode || 403).json({ error: authRes.error })
   }
+
+  const effectiveScope = authRes.effectiveScope
+  const effectiveTeamId = authRes.effectiveTeamId
 
   let items: any[] = []
 
@@ -87,12 +91,10 @@ export default async function handler(req: any, res: any) {
       .order('created_at', { ascending: false })
       .limit(100)
 
-    if (scope === 'team') {
-      if (teamCode !== 'default') {
-        q = q.eq('team_id', teamCode)
-      }
+    if (effectiveScope === 'team' && effectiveTeamId) {
+      q = q.eq('team_id', effectiveTeamId)
     } else {
-      q = q.eq('user_id', user.id)
+      q = q.eq('user_id', user.id).is('team_id', null)
     }
 
     const { data, error } = await q
@@ -115,8 +117,8 @@ export default async function handler(req: any, res: any) {
 
   // 2. If no database memories found (e.g. initial demo store or in-memory Walrus), fallback to memwal.recall
   if (items.length === 0) {
-    const ns = user ? (scope === 'team' ? teamCode : `usr_${user.id}`) : teamCode
-    const mem = memwalFor(scope, ns)
+    const ns = effectiveScope === 'team' ? effectiveTeamId! : `usr_${user.id}`
+    const mem = memwalFor(effectiveScope as Scope, ns)
     const raw = await mem.recall({ query: searchQuery || ' ', topK: 30, maxDistance: recallMaxDistance() }).catch(() => [])
     const norm = normalizeRecall(raw)
     items = norm.map((m, idx) => {

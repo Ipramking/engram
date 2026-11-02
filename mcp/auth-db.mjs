@@ -247,6 +247,21 @@ export async function validateApiKey(rawKey) {
   return null
 }
 
+export async function isApiKeyActive(keyId) {
+  if (!keyId) return false
+  const supabase = getSupabaseAdmin()
+  if (supabase) {
+    const { data, error } = await supabase.from('api_keys').select('is_active').eq('id', keyId).maybeSingle()
+    if (!error && data) return Boolean(data.is_active)
+  }
+  const db = getFallbackDb()
+  if (db) {
+    const row = db.prepare('SELECT is_active FROM api_keys WHERE id = ?').get(keyId)
+    if (row) return Boolean(row.is_active)
+  }
+  return false
+}
+
 export async function revokeApiKey(keyId, userId) {
   const supabase = getSupabaseAdmin()
   if (supabase) {

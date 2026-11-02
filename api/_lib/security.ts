@@ -33,3 +33,20 @@ export function sanitizeMemoryText(text: string): string {
     .replace(/<\/?(?:system|instruction|prompt|override)>/gi, '')
     .trim()
 }
+
+export function redactSensitiveUrl(url: string): string {
+  if (!url || typeof url !== 'string') return ''
+  return url
+    .replace(/([?&]token=)[^&]+/gi, '$1[REDACTED]')
+    .replace(/([?&]key=)[^&]+/gi, '$1[REDACTED]')
+    .replace(/([?&]secret=)[^&]+/gi, '$1[REDACTED]')
+}
+
+export function redactCredentials(input: string): string {
+  if (!input || typeof input !== 'string') return ''
+  let sanitized = redactSensitiveUrl(input)
+  for (const rule of SECRET_PATTERNS) {
+    sanitized = sanitized.replace(rule.regex, '[REDACTED_SECRET]')
+  }
+  return sanitized
+}

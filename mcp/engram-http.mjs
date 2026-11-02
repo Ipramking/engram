@@ -20,8 +20,8 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { createEngram, pickBackend } from './engram-core.mjs';
-import { verify } from './token.mjs';
-import { validateApiKey, checkAndIncrementUsage } from './auth-db.mjs';
+import { verify, verifyLiveKey } from './token.mjs';
+import { validateApiKey, isApiKeyActive, checkAndIncrementUsage } from './auth-db.mjs';
 
 // On a host, provision the Walrus login from env (no browser). Provide the
 // contents of ~/.memwal/credentials.json as ENGRAM_CREDS_JSON.
@@ -77,6 +77,22 @@ function buildServer(lockNamespace, authContext = null) {
 async function authed(req, res) {
   const token = req.query.token || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (token) {
+    if (token.startsWith('eng_live_')) {
+      const live = verifyLiveKey(token);
+      if (live?.uid) {
+        if (live.kid) {
+          const active = await isApiKeyActive(live.kid);
+          if (!active) {
+            res.status(401).json({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized: invalid or revoked Engram API key' }, id: null });
+            return false;
+          }
+        }
+        req.tenantId = `${live.scope === 'personal' ? 'usr' : 'team'}_${String(live.tid || live.uid).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)}`;
+        return true;
+      }
+      res.status(401).json({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized: invalid Engram live API key' }, id: null });
+      return false;
+    }
     if (token.startsWith('eng_')) {
       const apiKey = await validateApiKey(token);
       if (apiKey) {
@@ -98,8 +114,8 @@ async function authed(req, res) {
       req.tenantId = null;
       return true;
     }
-  } else if (!TOKEN && !process.env.ENGRAM_SIGNING_SECRET) {
-    req.tenantId = null;
+  } else if (process.env.NODE_ENV === 'development' && process.env.ENGRAM_ALLOW_ANONYMOUS === 'true') {
+    req.tenantId = 'dev_anon';
     return true;
   }
   res.status(401).json({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized: bad or missing token' }, id: null });

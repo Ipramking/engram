@@ -6,8 +6,8 @@ import {
   recallMaxDistance,
   type Scope,
 } from "./_lib/memwal.js";
-import { getUserFromRequest } from "./_lib/auth.js";
-import { checkAndIncrementUsage, isTeamMember } from "./_lib/db.js";
+import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
+import { checkAndIncrementUsage } from "./_lib/db.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
 
 function scoreMemoryMatch(text: string, type: string, query: string): number {
@@ -52,19 +52,23 @@ export default async function handler(req: any, res: any) {
     return res.status(401).json({ error: "Unauthorized: authentication required to access memory." });
   }
 
-  if (scope === "team") {
-    if (!teamCode || teamCode === "default") {
-      return res.status(400).json({ error: "teamCode (team ID) is required for team scope." });
-    }
-    const isMember = await isTeamMember(user.id, teamCode);
-    if (!isMember) {
-      return res.status(403).json({ error: "Forbidden: you are not an active member of this team." });
-    }
+  // Centralized authorization enforcement
+  const authRes = await authorizeMemoryAccess({
+    user,
+    requestedScope: scope,
+    requestedTeamCode: teamCode,
+  });
+
+  if (!authRes.authorized) {
+    return res.status(authRes.statusCode || 403).json({ error: authRes.error });
   }
 
+  const effectiveScope = authRes.effectiveScope;
+  const effectiveTeamId = authRes.effectiveTeamId;
+
   await checkAndIncrementUsage({
-    entityType: scope === "team" ? "team" : "user",
-    entityId: scope === "team" ? teamCode : user.id,
+    entityType: effectiveScope === "team" ? "team" : "user",
+    entityId: effectiveScope === "team" ? effectiveTeamId! : user.id,
     operation: "recall",
     planTier: user.plan_tier,
   }).catch(() => {});
@@ -91,10 +95,10 @@ export default async function handler(req: any, res: any) {
         .order("created_at", { ascending: false })
         .limit(200);
 
-      if (scope === "team" && teamCode !== "default") {
-        q = q.eq("team_id", teamCode);
+      if (effectiveScope === "team" && effectiveTeamId) {
+        q = q.eq("team_id", effectiveTeamId);
       } else {
-        q = q.eq("user_id", user.id);
+        q = q.eq("user_id", user.id).is("team_id", null);
       }
 
       const { data: rows } = await q;
@@ -127,8 +131,8 @@ export default async function handler(req: any, res: any) {
   }
 
   // 2. Also query live Walrus / MemWal namespace and merge
-  const ns = scope === "team" ? teamCode : `usr_${user.id}`;
-  const mem = memwalFor(scope as Scope, ns);
+  const ns = effectiveScope === "team" ? effectiveTeamId! : `usr_${user.id}`;
+  const mem = memwalFor(effectiveScope as Scope, ns);
   try {
     const r = await Promise.race([
       mem.recall({ query: query || " ", topK, maxDistance: recallMaxDistance() }),
@@ -158,13 +162,22 @@ export default async function handler(req: any, res: any) {
     .slice(0, Number(topK) || 50)
     .map(({ score: _score, ...rest }) => rest);
 
-  if (source.format === "text" || source.format === "md") {
+  const format = source.format || "json";
+  if (format === "text") {
+    const textOutput =
+      results.length > 0
+        ? results
+            .map(
+              (m, i) =>
+                `• (${m.type}) ${i + 1}. ${m.text}${
+                  m.blobId ? ` [walrus:${m.blobId.slice(0, 8)}...]` : ""
+                }`
+            )
+            .join("\n")
+        : "No memories stored yet.";
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    const lines = results.map((m, i) => `${i + 1}. [${m.type.toUpperCase()}] ${m.text}`);
-    return res.status(200).send(
-      `# Engram Active Memories (${results.length} records)\n\n${lines.join("\n")}\n`
-    );
+    return res.status(200).send(textOutput);
   }
 
-  res.status(200).json({ ok: true, count: results.length, results });
+  res.status(200).json({ ok: true, count: results.length, results, memories: results });
 }

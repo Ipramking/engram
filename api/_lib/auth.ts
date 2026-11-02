@@ -1,6 +1,6 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto'
 import { getSupabaseAdmin } from './supabase.js'
-import { getProfile } from './db.js'
+import { getProfile, isApiKeyActive, isTeamMember } from './db.js'
 import { verify, verifySession, verifyLiveKey } from './token.js'
 
 export function hashPassword(password: string): string {
@@ -46,10 +46,16 @@ export async function getUserFromRequest(req: any) {
     }
   }
 
-  // 2. Try Engram API Key (eng_live_..., eng_usr_... or eng_team_...)
+  // 2. Try Engram Live API Key (eng_live_...)
   if (token.startsWith('eng_live_')) {
     const live = verifyLiveKey(token)
     if (live?.uid) {
+      if (live.kid) {
+        const active = await isApiKeyActive(live.kid)
+        if (!active) {
+          return null // Revoked API key
+        }
+      }
       const profile = await getProfile(live.uid)
       return {
         id: live.uid,
@@ -61,6 +67,7 @@ export async function getUserFromRequest(req: any) {
     }
   }
 
+  // 3. Try standard DB API Key (eng_usr_... or eng_team_...)
   if (token.startsWith('eng_')) {
     try {
       const { validateApiKey } = await import('./db.js')
@@ -80,7 +87,7 @@ export async function getUserFromRequest(req: any) {
     }
   }
 
-  // 3. Try Supabase Auth JWT
+  // 4. Try Supabase Auth JWT
   const supabaseAdmin = getSupabaseAdmin()
   if (supabaseAdmin) {
     try {
@@ -97,8 +104,9 @@ export async function getUserFromRequest(req: any) {
     } catch {}
   }
 
-  // 4. Legacy session_<id> or mock_token_<id> support
-  if (token.startsWith('session_') || token.startsWith('mock_token_')) {
+  // 5. Development-only mock session support (Strictly blocked in production)
+  const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL)
+  if (!isProd && (token.startsWith('session_') || token.startsWith('mock_token_'))) {
     const rawId = token.replace(/^(session_|mock_token_)/, '')
     if (rawId) {
       const profile = await getProfile(rawId)
@@ -113,7 +121,7 @@ export async function getUserFromRequest(req: any) {
     }
   }
 
-  // 5. Provisioned space token (v1....)
+  // 6. Provisioned space token (v1....)
   try {
     const verified = verify(token)
     if (verified?.tid) {
@@ -127,4 +135,159 @@ export async function getUserFromRequest(req: any) {
   } catch {}
 
   return null
+}
+
+export interface AuthMemoryResult {
+  authorized: boolean
+  statusCode: number
+  error?: string
+  effectiveScope: 'personal' | 'team'
+  effectiveTeamId?: string
+  namespaces: string[]
+}
+
+/**
+ * Centralized authorization engine for memory operations across REST & MCP.
+ * Prevents cross-tenant / IDOR attacks by strictly enforcing team membership
+ * and key scope boundaries.
+ */
+export async function authorizeMemoryAccess(opts: {
+  user: any
+  requestedScope?: 'personal' | 'team' | 'both' | string
+  requestedTeamCode?: string
+}): Promise<AuthMemoryResult> {
+  const { user, requestedScope = 'personal', requestedTeamCode } = opts
+  if (!user || !user.id) {
+    return {
+      authorized: false,
+      statusCode: 401,
+      error: 'Unauthorized: authentication required to access memory.',
+      effectiveScope: 'personal',
+      namespaces: [],
+    }
+  }
+
+  const userNamespace = `usr_${user.id}`
+
+  // 1. Team-scoped API key enforcement: strictly bound to its own team_id
+  if (user.apiKey?.scope === 'team') {
+    const keyTeamId = user.apiKey.team_id
+    if (!keyTeamId) {
+      return {
+        authorized: false,
+        statusCode: 403,
+        error: 'Forbidden: invalid team API key with no associated team.',
+        effectiveScope: 'team',
+        namespaces: [],
+      }
+    }
+
+    if (requestedScope === 'personal') {
+      return {
+        authorized: false,
+        statusCode: 403,
+        error: 'Forbidden: team-scoped API key cannot access personal memory space.',
+        effectiveScope: 'team',
+        namespaces: [],
+      }
+    }
+
+    if (requestedTeamCode && requestedTeamCode !== 'default' && requestedTeamCode !== keyTeamId) {
+      return {
+        authorized: false,
+        statusCode: 403,
+        error: `Forbidden: this API key is strictly scoped to team ${keyTeamId}. Cross-team access is blocked.`,
+        effectiveScope: 'team',
+        namespaces: [],
+      }
+    }
+
+    const isMember = await isTeamMember(user.id, keyTeamId)
+    if (!isMember) {
+      return {
+        authorized: false,
+        statusCode: 403,
+        error: 'Forbidden: caller is not an active member of this team.',
+        effectiveScope: 'team',
+        namespaces: [],
+      }
+    }
+
+    return {
+      authorized: true,
+      statusCode: 200,
+      effectiveScope: 'team',
+      effectiveTeamId: keyTeamId,
+      namespaces: [keyTeamId],
+    }
+  }
+
+  // 2. Personal key or Session requesting Team scope: must prove active membership
+  if (requestedScope === 'team') {
+    if (!requestedTeamCode || requestedTeamCode === 'default') {
+      return {
+        authorized: false,
+        statusCode: 400,
+        error: 'teamCode (team ID) is required for team scope.',
+        effectiveScope: 'team',
+        namespaces: [],
+      }
+    }
+
+    const isMember = await isTeamMember(user.id, requestedTeamCode)
+    if (!isMember) {
+      return {
+        authorized: false,
+        statusCode: 403,
+        error: `Forbidden: you are not an active member of team ${requestedTeamCode}.`,
+        effectiveScope: 'team',
+        namespaces: [],
+      }
+    }
+
+    return {
+      authorized: true,
+      statusCode: 200,
+      effectiveScope: 'team',
+      effectiveTeamId: requestedTeamCode,
+      namespaces: [requestedTeamCode],
+    }
+  }
+
+  // 3. Requesting both scopes (e.g. unified recall)
+  if (requestedScope === 'both') {
+    const namespaces = [userNamespace]
+    let effectiveTeamId: string | undefined = undefined
+
+    if (requestedTeamCode && requestedTeamCode !== 'default') {
+      const isMember = await isTeamMember(user.id, requestedTeamCode)
+      if (!isMember) {
+        return {
+          authorized: false,
+          statusCode: 403,
+          error: `Forbidden: you are not an active member of team ${requestedTeamCode}.`,
+          effectiveScope: 'personal',
+          namespaces: [],
+        }
+      }
+      namespaces.push(requestedTeamCode)
+      effectiveTeamId = requestedTeamCode
+    }
+
+    return {
+      authorized: true,
+      statusCode: 200,
+      effectiveScope: effectiveTeamId ? 'team' : 'personal',
+      effectiveTeamId,
+      namespaces,
+    }
+  }
+
+  // 4. Personal scope default
+  return {
+    authorized: true,
+    statusCode: 200,
+    effectiveScope: 'personal',
+    namespaces: [userNamespace],
+  }
 }

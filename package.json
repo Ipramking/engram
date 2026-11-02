@@ -12,7 +12,8 @@
     "serve:http": "node mcp/engram-http.mjs",
     "build": "vite build",
     "publish:mcp": "cd packages/engram-mcp && npm publish --access public",
-    "test:all": "node packages/engram-mcp/test.mjs && tsx scripts/phase5-test.mjs && tsx scripts/phase6-test.mjs",
+    "test:security": "tsx scripts/security-regression-test.mjs",
+    "test:all": "node packages/engram-mcp/test.mjs && tsx scripts/phase5-test.mjs && tsx scripts/phase6-test.mjs && tsx scripts/security-regression-test.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },
