@@ -831,8 +831,8 @@ mcp_servers:
                     Your personal MCP link. Paste this into Claude, Cursor, or any MCP client to connect your memory.
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-400 font-mono shrink-0">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> Ready to Connect
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-rose/30 bg-rose/10 px-2.5 py-1 text-[11px] text-rose font-mono shrink-0">
+                  <span className="h-2 w-2 rounded-full bg-rose animate-pulse" /> Ready to Connect
                 </span>
               </div>
 
@@ -891,20 +891,20 @@ mcp_servers:
               </div>
 
               {/* ALWAYS-VISIBLE: Instant Phone Quick-Save (Zero Setup!) */}
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.05] p-3.5 sm:p-4 space-y-2.5 min-w-0">
+              <div className="rounded-2xl border border-rose/30 bg-rose/[0.04] p-3.5 sm:p-4 space-y-2.5 min-w-0">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-xs font-semibold text-txt flex items-center gap-2">
-                    <Zap size={15} className="text-emerald-400 shrink-0" />
+                    <Zap size={15} className="text-rose shrink-0" />
                     Option 0 (Easiest): Save a Memory Right Here on Your Phone
                   </span>
-                  <span className="text-[10.5px] font-mono text-emerald-400">Zero setup required</span>
+                  <span className="text-[10.5px] font-mono text-rose">Zero setup required</span>
                 </div>
                 <p className="text-xs text-mut leading-relaxed">
                   Type or voice-dictate any fact or decision below and tap <strong className="text-txt">Save</strong>. Your laptop AI (Cursor, Claude, Antigravity) will immediately know it!
                 </p>
                 {quickMobileSuccess && (
-                  <div className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 p-2.5 text-xs text-emerald-200">
-                    <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                  <div className="flex items-center gap-2 rounded-xl border border-rose/30 bg-rose/15 p-2.5 text-xs text-rose">
+                    <CheckCircle2 size={14} className="text-rose shrink-0" />
                     <span>{quickMobileSuccess}</span>
                   </div>
                 )}
@@ -983,11 +983,11 @@ mcp_servers:
                     onClick={() => setMobileMode('gemini')}
                     className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
                       mobileMode === 'gemini'
-                        ? 'border-sky-400 bg-sky-400/15 text-txt shadow-sm'
+                        ? 'border-violet/60 bg-violet/10 text-txt shadow-sm'
                         : 'border-line bg-bg/50 text-mut hover:border-line-2 hover:text-txt'
                     }`}
                   >
-                    <Sparkles size={16} className={mobileMode === 'gemini' ? 'text-sky-400 shrink-0' : 'text-faint shrink-0'} />
+                    <Sparkles size={16} className={mobileMode === 'gemini' ? 'text-violet-soft shrink-0' : 'text-faint shrink-0'} />
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-txt truncate">3. Google Gemini</p>
                       <p className="text-[10.5px] text-faint truncate">Gems & Mobile App</p>
@@ -999,11 +999,11 @@ mcp_servers:
                     onClick={() => setMobileMode('shortcuts')}
                     className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
                       mobileMode === 'shortcuts'
-                        ? 'border-emerald-400/60 bg-emerald-400/10 text-txt shadow-sm'
+                        ? 'border-violet/60 bg-violet/10 text-txt shadow-sm'
                         : 'border-line bg-bg/50 text-mut hover:border-line-2 hover:text-txt'
                     }`}
                   >
-                    <Zap size={16} className={mobileMode === 'shortcuts' ? 'text-emerald-400 shrink-0' : 'text-faint shrink-0'} />
+                    <Zap size={16} className={mobileMode === 'shortcuts' ? 'text-violet-soft shrink-0' : 'text-faint shrink-0'} />
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-txt truncate">4. Shortcuts / Siri</p>
                       <p className="text-[10.5px] text-faint truncate">1-tap webhook</p>
@@ -1080,7 +1080,7 @@ mcp_servers:
                         onClick={() => copyToClipboard(ENGRAM_PROMPT, 'claudePrompt')}
                         className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl border border-rose/40 bg-rose/15 px-4 py-2.5 text-xs font-medium text-txt hover:bg-rose/25 transition"
                       >
-                        {copiedText === 'claudePrompt' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} className="text-rose" />}
+                        {copiedText === 'claudePrompt' ? <Check size={14} className="text-rose" /> : <Copy size={14} className="text-rose" />}
                         <span>{copiedText === 'claudePrompt' ? 'System Prompt Copied!' : '1-Tap Copy Memory Prompt'}</span>
                       </button>
                       <button
@@ -1103,7 +1103,7 @@ mcp_servers:
                       <h4 className="text-sm font-semibold text-txt">
                         Use Engram in Regular ChatGPT Conversations (Works on Free & Mobile App!)
                       </h4>
-                      <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-mono text-emerald-400">
+                      <span className="rounded-full border border-violet/30 bg-violet/10 px-2 py-0.5 text-[10px] font-mono text-violet-soft">
                         No Paid Plan Needed
                       </span>
                     </div>
@@ -1123,7 +1123,7 @@ mcp_servers:
                       <li>Open your <strong className="text-txt">ChatGPT Android/iPhone App → Settings → Personalization → Custom Instructions</strong>.</li>
                       <li>Paste into <strong className="text-txt">"How would you like ChatGPT to respond?"</strong> and tap Save.</li>
                     </ol>
-                    <p className="text-[11px] text-emerald-400/90 font-mono">
+                    <p className="text-[11px] text-violet-soft font-mono">
                       ✨ How it works: Whenever you tell ChatGPT something worth keeping, ChatGPT will reply with a clickable "💾 Tap to Save to Engram" link right in the chat!
                     </p>
                     <button
@@ -1150,7 +1150,7 @@ mcp_servers:
                       onClick={() => copyToClipboard(fullMemoryPackForChat, 'memoryPack')}
                       className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl border border-violet/40 bg-violet/15 px-4 py-2.5 text-xs font-medium text-txt hover:bg-violet/25 transition"
                     >
-                      {copiedText === 'memoryPack' ? <Check size={14} className="text-emerald-400" /> : <Sparkles size={14} className="text-violet-soft" />}
+                      {copiedText === 'memoryPack' ? <Check size={14} className="text-rose" /> : <Sparkles size={14} className="text-violet-soft" />}
                       <span>
                         {copiedText === 'memoryPack'
                           ? `All ${activeMemoriesList.length} Memories Copied!`
@@ -1169,7 +1169,7 @@ mcp_servers:
                       <h4 className="text-sm font-semibold text-txt">
                         Connect Google Gemini (Gemini Gems & Mobile App)
                       </h4>
-                      <span className="rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-0.5 text-[10px] font-mono text-sky-400">
+                      <span className="rounded-full border border-violet/30 bg-violet/10 px-2 py-0.5 text-[10px] font-mono text-violet-soft">
                         Works on Web, Android & iOS
                       </span>
                     </div>
@@ -1181,11 +1181,11 @@ mcp_servers:
                   {/* Step 1: Create a Gem */}
                   <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
                     <span className="text-xs font-semibold text-txt flex items-center gap-2">
-                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-400/20 text-sky-400 font-mono text-[11px]">1</span>
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-rose/20 text-rose font-mono text-[11px]">1</span>
                       Create an "Engram Memory" Gem in 1 Minute
                     </span>
                     <ol className="list-decimal list-inside space-y-1 text-xs text-mut leading-relaxed">
-                      <li>Open <a href="https://gemini.google.com/gems" target="_blank" rel="noreferrer" className="text-sky-400 underline">gemini.google.com/gems</a> (or open Gemini App → tap Gems → New Gem).</li>
+                      <li>Open <a href="https://gemini.google.com/gems" target="_blank" rel="noreferrer" className="text-rose underline">gemini.google.com/gems</a> (or open Gemini App → tap Gems → New Gem).</li>
                       <li>Name your Gem: <strong className="text-txt">Engram Brain</strong>.</li>
                       <li>Tap the button below to copy your tailored Gem Instructions, then paste it into the <strong className="text-txt">Instructions</strong> box.</li>
                       <li>Tap <strong className="text-txt">Save</strong>. Done! Now Gemini automatically checks your memories and outputs 1-tap save links!</li>
@@ -1194,7 +1194,7 @@ mcp_servers:
                       <button
                         type="button"
                         onClick={() => copyToClipboard(geminiGemInstructions, 'geminiInstructions')}
-                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-400 to-violet px-4 py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 transition"
+                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose to-violet px-4 py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 transition"
                       >
                         {copiedText === 'geminiInstructions' ? <Check size={14} /> : <Copy size={14} />}
                         <span>{copiedText === 'geminiInstructions' ? 'Gem Instructions Copied!' : '1-Tap Copy Gem Instructions'}</span>
@@ -1203,10 +1203,10 @@ mcp_servers:
                         href="https://gemini.google.com/gems"
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-xs text-txt hover:border-sky-400/50 transition"
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-xs text-txt hover:border-rose/50 transition"
                       >
                         <span>Open Gemini Gems</span>
-                        <ExternalLink size={13} className="text-sky-400" />
+                        <ExternalLink size={13} className="text-rose" />
                       </a>
                     </div>
                   </div>
@@ -1214,7 +1214,7 @@ mcp_servers:
                   {/* Step 2: Instant Memory Pack for Gemini Regular / Live */}
                   <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
                     <span className="text-xs font-semibold text-txt flex items-center gap-2">
-                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-400/20 text-sky-400 font-mono text-[11px]">2</span>
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet/20 text-violet-soft font-mono text-[11px]">2</span>
                       Gemini Live & Regular Chats: Paste Memory Pack
                     </span>
                     <p className="text-xs text-mut leading-relaxed">
@@ -1223,9 +1223,9 @@ mcp_servers:
                     <button
                       type="button"
                       onClick={() => copyToClipboard(fullMemoryPackForChat, 'geminiMemoryPack')}
-                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl border border-sky-400/40 bg-sky-400/15 px-4 py-2.5 text-xs font-medium text-txt hover:bg-sky-400/25 transition"
+                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl border border-violet/40 bg-violet/15 px-4 py-2.5 text-xs font-medium text-txt hover:bg-violet/25 transition"
                     >
-                      {copiedText === 'geminiMemoryPack' ? <Check size={14} className="text-emerald-400" /> : <Sparkles size={14} className="text-sky-400" />}
+                      {copiedText === 'geminiMemoryPack' ? <Check size={14} className="text-rose" /> : <Sparkles size={14} className="text-violet-soft" />}
                       <span>
                         {copiedText === 'geminiMemoryPack'
                           ? `All ${activeMemoriesList.length} Memories Copied!`
@@ -1237,11 +1237,11 @@ mcp_servers:
                   {/* Step 3: Google Antigravity & Gemini CLI (Developer Setup) */}
                   <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
                     <span className="text-xs font-semibold text-txt flex items-center gap-2">
-                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-400/20 text-emerald-400 font-mono text-[11px]">3</span>
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-rose/20 text-rose font-mono text-[11px]">3</span>
                       Developer: Google Antigravity & Gemini CLI (MCP)
                     </span>
                     <p className="text-xs text-mut leading-relaxed">
-                      If you use the Gemini CLI or Antigravity IDE, paste this into your local <code className="text-emerald-400 font-mono">~/.gemini/settings.json</code> or <code className="text-emerald-400 font-mono">mcp_servers.json</code>:
+                      If you use the Gemini CLI or Antigravity IDE, paste this into your local <code className="text-rose font-mono">~/.gemini/settings.json</code> or <code className="text-rose font-mono">mcp_servers.json</code>:
                     </p>
                     <pre className="overflow-x-auto rounded-xl border border-line bg-bg/90 p-3 font-mono text-[11px] text-txt leading-relaxed">
                       {geminiMcpSnippet}
@@ -1249,9 +1249,9 @@ mcp_servers:
                     <button
                       type="button"
                       onClick={() => copyToClipboard(geminiMcpSnippet, 'geminiMcp')}
-                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface py-2 px-3 text-xs text-txt hover:border-emerald-400/50 transition"
+                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface py-2 px-3 text-xs text-txt hover:border-rose/50 transition"
                     >
-                      {copiedText === 'geminiMcp' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                      {copiedText === 'geminiMcp' ? <Check size={14} className="text-rose" /> : <Copy size={14} />}
                       <span>{copiedText === 'geminiMcp' ? 'Snippet Copied!' : 'Copy Gemini CLI MCP Config'}</span>
                     </button>
                   </div>
@@ -1281,7 +1281,7 @@ mcp_servers:
                             onClick={() => copyToClipboard('https://engram-pearl.vercel.app/api/remember', 'shortcutUrl')}
                             className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1 text-[11px] text-txt hover:border-rose/50"
                           >
-                            {copiedText === 'shortcutUrl' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            {copiedText === 'shortcutUrl' ? <Check size={12} className="text-rose" /> : <Copy size={12} />}
                             <span>{copiedText === 'shortcutUrl' ? 'Copied!' : 'Copy URL'}</span>
                           </button>
                         </div>
@@ -1299,7 +1299,7 @@ mcp_servers:
                             onClick={() => copyToClipboard(`Bearer ${activeLiveKey}`, 'shortcutAuth')}
                             className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1 text-[11px] text-txt hover:border-rose/50"
                           >
-                            {copiedText === 'shortcutAuth' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            {copiedText === 'shortcutAuth' ? <Check size={12} className="text-rose" /> : <Copy size={12} />}
                             <span>{copiedText === 'shortcutAuth' ? 'Copied!' : 'Copy Header'}</span>
                           </button>
                         </div>
@@ -1319,7 +1319,7 @@ mcp_servers:
                             onClick={() => copyToClipboard(shortcutJsonTemplate, 'shortcutJson')}
                             className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1 text-[11px] text-txt hover:border-rose/50"
                           >
-                            {copiedText === 'shortcutJson' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            {copiedText === 'shortcutJson' ? <Check size={12} className="text-rose" /> : <Copy size={12} />}
                             <span>{copiedText === 'shortcutJson' ? 'Copied!' : 'Copy JSON'}</span>
                           </button>
                         </div>
@@ -1336,7 +1336,7 @@ mcp_servers:
                             onClick={() => copyToClipboard(shortcutCurlSnippet, 'shortcutCurl')}
                             className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1 text-[11px] text-txt hover:border-rose/50"
                           >
-                            {copiedText === 'shortcutCurl' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            {copiedText === 'shortcutCurl' ? <Check size={12} className="text-rose" /> : <Copy size={12} />}
                             <span>{copiedText === 'shortcutCurl' ? 'Copied!' : 'Copy cURL'}</span>
                           </button>
                         </div>
@@ -1382,9 +1382,9 @@ mcp_servers:
                 <button
                   type="button"
                   onClick={() => downloadClientConfig('antigravity')}
-                  className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface/40 p-3 text-xs font-mono text-txt hover:border-emerald-500/50 hover:bg-emerald-500/[0.04] transition min-w-0"
+                  className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface/40 p-3 text-xs font-mono text-txt hover:border-violet/50 hover:bg-violet/[0.04] transition min-w-0"
                 >
-                  <Terminal size={15} className="text-emerald-400 shrink-0" />
+                  <Terminal size={15} className="text-violet-soft shrink-0" />
                   <span className="truncate">mcp_servers.json (AGY / Gemini)</span>
                 </button>
               </div>
@@ -1435,7 +1435,7 @@ mcp_servers:
                   }
                   className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface/50 py-2.5 text-xs text-txt hover:border-violet/50 transition"
                 >
-                  {copiedText === 'mcpJson' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                  {copiedText === 'mcpJson' ? <Check size={14} className="text-rose" /> : <Copy size={14} />}
                   {copiedText === 'mcpJson' ? 'Config Copied!' : '1-Tap Copy MCP JSON Config'}
                 </button>
               </div>
@@ -1444,7 +1444,7 @@ mcp_servers:
               <div className="rounded-3xl border border-line glass p-4 sm:p-6 flex flex-col justify-between min-w-0">
                 <div>
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-emerald-400/30 bg-emerald-400/10 text-emerald-400">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-rose/30 bg-rose/10 text-rose">
                       <Terminal size={20} />
                     </div>
                     <div className="min-w-0">
@@ -1464,9 +1464,9 @@ mcp_servers:
                   onClick={() =>
                     copyToClipboard(`npx -y engram-walrus --key=${activeLiveKey}`, 'npmCmd')
                   }
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface/50 py-2.5 text-xs text-txt hover:border-emerald-400/50 transition"
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface/50 py-2.5 text-xs text-txt hover:border-rose/50 transition"
                 >
-                  {copiedText === 'npmCmd' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                  {copiedText === 'npmCmd' ? <Check size={14} className="text-rose" /> : <Copy size={14} />}
                   {copiedText === 'npmCmd' ? 'NPX Command Copied!' : '1-Tap Copy NPX Command'}
                 </button>
               </div>
@@ -1553,7 +1553,7 @@ mcp_servers:
                             onClick={() => copyToClipboard(keyToken, `key-${k.id}`)}
                             className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-2 text-xs text-txt hover:border-rose/40"
                           >
-                            {copiedText === `key-${k.id}` ? <Check size={13} className="text-emerald-400" /> : <Key size={13} className="text-rose" />}
+                            {copiedText === `key-${k.id}` ? <Check size={13} className="text-rose" /> : <Key size={13} className="text-rose" />}
                             <span>{copiedText === `key-${k.id}` ? 'Key Copied!' : 'Copy API Key'}</span>
                           </button>
                           <button
@@ -1613,7 +1613,7 @@ mcp_servers:
                                     className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface/50 px-2.5 py-1.5 text-xs text-txt hover:border-rose/40 transition"
                                     title="Copy Live API Key"
                                   >
-                                    {copiedText === `key-${k.id}` ? <Check size={13} className="text-emerald-400" /> : <Key size={13} className="text-rose" />}
+                                    {copiedText === `key-${k.id}` ? <Check size={13} className="text-rose" /> : <Key size={13} className="text-rose" />}
                                     <span>{copiedText === `key-${k.id}` ? 'Copied!' : 'Copy Key'}</span>
                                   </button>
                                   <button
@@ -1621,7 +1621,7 @@ mcp_servers:
                                     className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface/50 px-2.5 py-1.5 text-xs text-txt hover:border-rose/40 transition"
                                     title="Copy MCP Connector URL"
                                   >
-                                    {copiedText === k.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                                    {copiedText === k.id ? <Check size={13} className="text-rose" /> : <Copy size={13} />}
                                     <span>{copiedText === k.id ? 'Copied!' : 'Copy Link'}</span>
                                   </button>
                                   <button
@@ -1712,7 +1712,7 @@ mcp_servers:
                       {/* Free Plan 3-Member Ceiling Badge */}
                       <div className="flex items-center gap-2 rounded-2xl border border-line bg-bg/80 px-3.5 py-1.5 text-xs font-mono">
                         <span className="text-faint">Members:</span>
-                        <span className={teamMembers.length >= 3 ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'}>
+                        <span className={teamMembers.length >= 3 ? 'text-amber-400 font-bold' : 'text-violet-soft font-bold'}>
                           {teamMembers.length} / 3
                         </span>
                         {teamMembers.length >= 3 && (
@@ -1759,15 +1759,15 @@ mcp_servers:
                       </p>
 
                       {inviteError && (
-                        <div className="mb-4 flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
-                          <AlertCircle size={15} className="shrink-0 text-rose-400" />
+                        <div className="mb-4 flex items-center gap-2 rounded-xl border border-rose/30 bg-rose/10 p-3 text-xs text-rose">
+                          <AlertCircle size={15} className="shrink-0 text-rose" />
                           <span>{inviteError}</span>
                         </div>
                       )}
 
                       {inviteSuccess && (
-                        <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-200">
-                          <CheckCircle2 size={15} className="shrink-0 text-emerald-400" />
+                        <div className="mb-4 flex items-center gap-2 rounded-xl border border-violet/30 bg-violet/10 p-3 text-xs text-violet-soft">
+                          <CheckCircle2 size={15} className="shrink-0 text-violet-soft" />
                           <span>{inviteSuccess}</span>
                         </div>
                       )}
@@ -1822,29 +1822,29 @@ mcp_servers:
                   </p>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-2xl border border-line bg-surface/70 px-3.5 py-1.5 font-mono text-[11px] text-mut">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="h-2 w-2 rounded-full bg-rose animate-pulse" />
                   <span>Resets in: <strong className="text-txt">{personalReset}</strong></span>
                 </div>
               </div>
 
               {/* Quota Threshold Warnings */}
               {personalSaves >= personalLimit ? (
-                <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 text-xs text-rose-200 flex items-start gap-3">
-                  <AlertCircle size={18} className="text-rose-400 shrink-0 mt-0.5" />
+                <div className="rounded-2xl border border-rose/40 bg-rose/10 p-4 text-xs text-rose flex items-start gap-3">
+                  <AlertCircle size={18} className="text-rose shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-rose-300">Personal Daily Quota Exhausted ({personalSaves}/{personalLimit} saves)</p>
-                    <p className="text-[11.5px] mt-0.5 text-rose-200/90">
+                    <p className="font-semibold text-rose">Personal Daily Quota Exhausted ({personalSaves}/{personalLimit} saves)</p>
+                    <p className="text-[11.5px] mt-0.5 text-rose/90">
                       Your connected agents have reached today's 50 memory save limit. Read/recall operations remain active.
                       Save quota will automatically unlock in {personalReset} (midnight UTC).
                     </p>
                   </div>
                 </div>
               ) : personalPercent >= 80 ? (
-                <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-200 flex items-start gap-3">
-                  <AlertCircle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+                <div className="rounded-2xl border border-violet/40 bg-violet/10 p-4 text-xs text-violet-soft flex items-start gap-3">
+                  <AlertCircle size={18} className="text-violet-soft shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-amber-300">Approaching Daily Quota ({personalSaves}/{personalLimit} saves - {personalPercent}%)</p>
-                    <p className="text-[11.5px] mt-0.5 text-amber-200/90">
+                    <p className="font-semibold text-violet-soft">Approaching Daily Quota ({personalSaves}/{personalLimit} saves - {personalPercent}%)</p>
+                    <p className="text-[11.5px] mt-0.5 text-violet-soft/90">
                       You have {personalRemaining} memory saves remaining today. Quota resets at midnight UTC.
                     </p>
                   </div>
@@ -1865,13 +1865,7 @@ mcp_servers:
                   </div>
                   <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface">
                     <div
-                      className={`h-full transition-all duration-500 ${
-                        personalPercent >= 100
-                          ? 'bg-rose-500'
-                          : personalPercent >= 80
-                          ? 'bg-amber-400'
-                          : 'bg-gradient-to-r from-rose to-violet'
-                      }`}
+                      className="h-full transition-all duration-500 bg-gradient-to-r from-rose to-violet"
                       style={{ width: `${personalPercent}%` }}
                     />
                   </div>
@@ -1895,13 +1889,7 @@ mcp_servers:
                   </div>
                   <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface">
                     <div
-                      className={`h-full transition-all duration-500 ${
-                        teamPercent >= 100
-                          ? 'bg-rose-500'
-                          : teamPercent >= 80
-                          ? 'bg-amber-400'
-                          : 'bg-gradient-to-r from-violet to-sky-400'
-                      }`}
+                      className="h-full transition-all duration-500 bg-gradient-to-r from-rose to-violet"
                       style={{ width: `${teamPercent}%` }}
                     />
                   </div>
@@ -1926,9 +1914,7 @@ mcp_servers:
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-surface">
                     <div
-                      className={`h-full transition-all duration-500 ${
-                        teamMembers.length >= 3 ? 'bg-amber-400' : 'bg-emerald-400'
-                      }`}
+                      className="h-full transition-all duration-500 bg-gradient-to-r from-rose to-violet"
                       style={{ width: `${Math.min(100, (teamMembers.length / 3) * 100)}%` }}
                     />
                   </div>
@@ -1953,10 +1939,10 @@ mcp_servers:
                     <h4 className="font-display text-xl text-txt">Personal Free</h4>
                     <p className="text-2xl font-bold font-mono text-txt mt-2 mb-4">$0 <span className="text-xs text-faint font-normal">/ month</span></p>
                     <ul className="space-y-2 text-xs text-mut">
-                      <li className="flex items-center gap-2"><Check size={14} className="text-emerald-400" /> 1 User Account</li>
-                      <li className="flex items-center gap-2"><Check size={14} className="text-emerald-400" /> 50 Saves / Day</li>
-                      <li className="flex items-center gap-2"><Check size={14} className="text-emerald-400" /> Cross-device sync (Mobile, Desktop, CLI)</li>
-                      <li className="flex items-center gap-2"><Check size={14} className="text-emerald-400" /> Seal-encrypted Walrus storage</li>
+                      <li className="flex items-center gap-2"><Check size={14} className="text-rose" /> 1 User Account</li>
+                      <li className="flex items-center gap-2"><Check size={14} className="text-rose" /> 50 Saves / Day</li>
+                      <li className="flex items-center gap-2"><Check size={14} className="text-rose" /> Cross-device sync (Mobile, Desktop, CLI)</li>
+                      <li className="flex items-center gap-2"><Check size={14} className="text-rose" /> Seal-encrypted Walrus storage</li>
                     </ul>
                   </div>
                 </div>
@@ -1970,10 +1956,10 @@ mcp_servers:
                     <h4 className="font-display text-xl text-txt">Team Free</h4>
                     <p className="text-2xl font-bold font-mono text-txt mt-2 mb-4">$0 <span className="text-xs text-faint font-normal">/ month</span></p>
                     <ul className="space-y-2 text-xs text-mut">
-                      <li className="flex items-center gap-2 font-semibold text-txt"><Check size={14} className="text-emerald-400" /> Up to 3 Team Members</li>
-                      <li className="flex items-center gap-2"><Check size={14} className="text-emerald-400" /> 150 Saves / Day (Shared)</li>
-                      <li className="flex items-center gap-2"><Check size={14} className="text-emerald-400" /> 1 Shared Team Memory Space</li>
-                      <li className="flex items-center gap-2"><Check size={14} className="text-emerald-400" /> Role-based access (Owner, Member)</li>
+                      <li className="flex items-center gap-2 font-semibold text-txt"><Check size={14} className="text-rose" /> Up to 3 Team Members</li>
+                      <li className="flex items-center gap-2"><Check size={14} className="text-rose" /> 150 Saves / Day (Shared)</li>
+                      <li className="flex items-center gap-2"><Check size={14} className="text-rose" /> 1 Shared Team Memory Space</li>
+                      <li className="flex items-center gap-2"><Check size={14} className="text-rose" /> Role-based access (Owner, Member)</li>
                     </ul>
                   </div>
                 </div>
@@ -2044,10 +2030,10 @@ mcp_servers:
                   type="button"
                   onClick={handleTidyMemories}
                   disabled={!memories.length}
-                  className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface/50 px-3 py-1.5 text-xs text-txt hover:border-emerald-400/50 transition disabled:opacity-40"
+                  className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface/50 px-3 py-1.5 text-xs text-txt hover:border-rose/50 transition disabled:opacity-40"
                   title="Scan and deduplicate memories"
                 >
-                  <Sparkles size={13} className="text-emerald-400" /> Tidy
+                  <Sparkles size={13} className="text-rose" /> Tidy
                 </button>
                 <button
                   type="button"
@@ -2125,9 +2111,9 @@ mcp_servers:
               <div className="rounded-2xl border border-line glass p-3.5 sm:p-4 space-y-1 min-w-0">
                 <div className="flex items-center justify-between text-faint text-[10.5px] sm:text-[11px]">
                   <span className="font-mono uppercase truncate">Ground Truth</span>
-                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                  <CheckCircle2 size={13} className="text-rose shrink-0" />
                 </div>
-                <p className="text-base sm:text-lg font-mono font-bold text-emerald-400">
+                <p className="text-base sm:text-lg font-mono font-bold text-rose">
                   {memoryStats?.active ?? memories.filter((m) => !m.isSuperseded).length}
                 </p>
                 <p className="text-[10.5px] sm:text-[11px] text-mut truncate">Active memories</p>
@@ -2202,7 +2188,7 @@ mcp_servers:
                   { id: 'gotcha', label: 'Gotchas', color: 'text-amber-400' },
                   { id: 'person', label: 'People', color: 'text-rose-300' },
                   { id: 'preference', label: 'Preferences', color: 'text-pink-400' },
-                  { id: 'plan', label: 'Plans', color: 'text-emerald-400' },
+                  { id: 'plan', label: 'Plans', color: 'text-violet-soft' },
                 ].map((pill) => (
                   <button
                     key={pill.id}
@@ -2355,7 +2341,7 @@ mcp_servers:
                     gotcha: 'border-amber-400/30 bg-amber-400/10 text-amber-400',
                     person: 'border-rose-300/30 bg-rose-300/10 text-rose-300',
                     preference: 'border-pink-400/30 bg-pink-400/10 text-pink-400',
-                    plan: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-400',
+                    plan: 'border-violet/30 bg-violet/10 text-violet-soft',
                   }
                   const pillClass = typeColors[m.type] || 'border-rose/30 bg-rose/10 text-rose'
 
@@ -2411,7 +2397,7 @@ mcp_servers:
                             title="Copy memory text"
                           >
                             {copiedText === `mem-${m.id || idx}` ? (
-                              <Check size={12} className="text-emerald-400" />
+                              <Check size={12} className="text-rose" />
                             ) : (
                               <Copy size={12} />
                             )}
@@ -2458,9 +2444,9 @@ mcp_servers:
 
             {createdKeyRaw ? (
               <div className="space-y-4">
-                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-200">
+                <div className="rounded-2xl border border-rose/30 bg-rose/10 p-3.5 text-xs text-rose">
                   <p className="font-semibold mb-1">Key Created! Copy it now.</p>
-                  <p className="text-[11px] text-emerald-300/80">
+                  <p className="text-[11px] text-rose/80">
                     For security reasons, this key will not be displayed again.
                   </p>
                 </div>
@@ -2473,7 +2459,7 @@ mcp_servers:
                       onClick={() => copyToClipboard(createdKeyRaw, 'rawKey')}
                       className="rounded-lg border border-line p-1.5 text-mut hover:text-txt"
                     >
-                      {copiedText === 'rawKey' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                      {copiedText === 'rawKey' ? <Check size={14} className="text-rose" /> : <Copy size={14} />}
                     </button>
                   </div>
                 </div>
@@ -2487,7 +2473,7 @@ mcp_servers:
                         onClick={() => copyToClipboard(createdKeyUrl, 'rawUrl')}
                         className="rounded-lg border border-line p-1.5 text-mut hover:text-txt"
                       >
-                        {copiedText === 'rawUrl' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                        {copiedText === 'rawUrl' ? <Check size={14} className="text-rose" /> : <Copy size={14} />}
                       </button>
                     </div>
                   </div>

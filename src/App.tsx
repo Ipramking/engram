@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Brain, Lock, Users, GitBranch, Settings2, TriangleAlert, UserRound, Star,
   Link2, Check, Sparkles, Download, ClipboardList, ArrowRight, Smartphone,
-  Laptop, Terminal, Shield, Zap, ExternalLink, KeyRound, Cpu, Layers, Copy,
-  CheckCircle2, ChevronRight, Server, Radio, ArrowUpRight
+  Laptop, Terminal, ExternalLink, Copy
 } from 'lucide-react'
 import { Nav, Footer } from './components/Chrome'
 import { ENGRAM_PROMPT, downloadText } from './lib/promptText'
@@ -27,50 +26,75 @@ const MEM_TYPES = [
   {
     icon: GitBranch,
     t: 'Decision',
-    d: 'An architectural choice and the underlying reason.',
+    d: 'An architectural choice and the reason behind it.',
     ex: '“Moved DB to Neon Postgres on Aug 3 — Render free tier expired.”',
-    tag: 'ARCHITECTURE',
     c: 'from-violet/25',
   },
   {
     icon: Settings2,
     t: 'Config',
-    d: 'A concrete setup value, port, or where an env variable lives.',
-    ex: '“DATABASE_URL is set in Render dashboard env, not in .env file.”',
-    tag: 'INFRASTRUCTURE',
-    c: 'from-sky-400/20',
+    d: 'A concrete setup value, port, or where a secret lives.',
+    ex: '“DATABASE_URL is set in Render dashboard env, not .env.”',
+    c: 'from-violet-soft/20',
   },
   {
     icon: TriangleAlert,
     t: 'Gotcha',
-    d: 'A non-obvious engineering pitfall and its tested fix.',
-    ex: '“Chromium sticky breaks with overflow-x: hidden; use overflow-x: clip.”',
-    tag: 'DEFENSIVE CODE',
-    c: 'from-amber-400/20',
+    d: 'A non-obvious pitfall and its tested workaround.',
+    ex: '“supabase CLI has no win32 binary — use the standalone .exe.”',
+    c: 'from-rose/20',
   },
   {
     icon: UserRound,
     t: 'Person',
-    d: 'A stable fact about a teammate, lead, or client preference.',
-    ex: '“Ada leads frontend, prefers Tailwind v4, in WAT timezone.”',
-    tag: 'TEAM COLLAB',
+    d: 'A stable fact about a teammate, lead, or client.',
+    ex: '“Ada leads frontend, prefers Tailwind v4, WAT timezone.”',
     c: 'from-rose/25',
   },
   {
     icon: Star,
     t: 'Preference',
-    d: 'A lasting coding preference, UX principle, or design rule.',
-    ex: '“User wants every UI to work seamlessly on both phone and desktop.”',
-    tag: 'DESIGN RULE',
-    c: 'from-pink-400/20',
+    d: 'A lasting engineering preference, style, or rule.',
+    ex: '“Every UI must work seamlessly on both phone and desktop.”',
+    c: 'from-violet/20',
   },
   {
     icon: ClipboardList,
     t: 'Plan',
-    d: 'A multi-step spec, task list, or continuous working roadmap.',
-    ex: '“Launch plan: 1) Ship MCP gateway, 2) Commit Walrus blobs, 3) Open signups.”',
-    tag: 'EXECUTION',
-    c: 'from-emerald-400/20',
+    d: 'A spec, multi-step task list, or sprint roadmap.',
+    ex: '“Launch plan: 1) Ship MCP, 2) Verify Walrus blobs, 3) Open signups.”',
+    c: 'from-rose-deep/20',
+  },
+]
+
+const PLATFORMS = [
+  {
+    icon: Smartphone,
+    title: 'Mobile Workflows',
+    subtitle: 'Claude, ChatGPT & Google Gemini',
+    description: 'Save insights on the go during mobile brainstorming. Everything is instantly synced to your cloud memory for laptop and CLI recall.',
+    tag: 'Mobile Ready',
+  },
+  {
+    icon: Laptop,
+    title: 'IDEs & Desktop AIs',
+    subtitle: 'Cursor, Claude Desktop, VS Code',
+    description: 'Connect natively using Streamable HTTP MCP. Your code-assistant automatically recalls your stack rules without re-prompting.',
+    tag: 'Native MCP',
+  },
+  {
+    icon: Terminal,
+    title: 'CLI & Developer Agents',
+    subtitle: 'npx engram-walrus, Antigravity, Windsurf',
+    description: 'Run the verified npm package in your terminal or CI pipelines. Works in headless agents and automated coding workflows.',
+    tag: 'Verified NPM',
+  },
+  {
+    icon: Users,
+    title: 'Shared Team Brains',
+    subtitle: 'Collaborative engineering workspaces',
+    description: 'Team members read and write a shared memory pool. Onboard new developers in minutes without repeating architectural context.',
+    tag: 'Team Isolation',
   },
 ]
 
@@ -78,13 +102,14 @@ export default function App() {
   useReveal()
 
   return (
-    <div className="relative min-h-screen bg-bg text-txt">
+    <div className="relative min-h-screen">
       <Nav />
       <Hero />
       <Marquee />
-      <FrictionMatrix />
+      <Problem />
       <Taxonomy />
-      <AgentOSProtocol />
+      <HowItWorks />
+      <Platforms />
       <QuickConnectPreview />
       <TeamIsolation />
       <Pricing />
@@ -96,222 +121,114 @@ export default function App() {
 
 function Hero() {
   return (
-    <header className="relative mx-auto max-w-6xl px-5 pt-8 pb-16 sm:pt-20 sm:pb-24">
-      {/* Background ambient lighting */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute top-1/4 left-1/2 h-[600px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-tr from-violet/20 via-rose/15 to-transparent blur-3xl opacity-70" />
-      </div>
-
-      <div className="relative z-10 grid grid-cols-1 items-center gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
+    <header className="relative mx-auto max-w-6xl px-5 pt-10 pb-16 sm:pt-24 sm:pb-24">
+      <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-14">
         <div data-reveal className="min-w-0">
-          {/* Telemetry pill */}
-          <div className="inline-flex items-center gap-2.5 rounded-full border border-line bg-surface/70 px-3.5 py-1.5 text-[11px] font-mono text-mut backdrop-blur-md">
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
-            <span className="text-txt font-semibold">WALRUS MAINNET</span>
-            <span className="text-line-2">|</span>
-            <span className="text-rose">SEAL-256 CIPHER</span>
-            <span className="text-line-2">|</span>
-            <span className="text-emerald-400">OPERATIONAL</span>
+          <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/50 px-3 py-1 text-xs text-mut">
+            <Sparkles size={13} className="text-rose" />
+            <span>Decentralized Cross-Platform Memory · Backed by Walrus</span>
           </div>
 
-          <h1 className="mt-6 text-[2.7rem] leading-[1.03] sm:text-[4.2rem] sm:leading-[1.02] tracking-tight">
-            Permanent memory for your <span className="text-gradient italic">autonomous agents</span>.
+          <h1 className="mt-6 text-[2.6rem] leading-[1.04] sm:text-[4.2rem] sm:leading-[1.02]">
+            Never re-explain<br />
+            your stack <span className="text-gradient italic">again</span>.
           </h1>
 
           <p className="mt-6 max-w-xl text-[16px] leading-relaxed text-mut sm:text-[18px]">
-            Engram decouples agent knowledge from ephemeral chat sessions. Save a technical choice during
-            mobile brainstorming on Claude, recall it automatically in Cursor on your laptop, and sync
-            team conventions across every developer in your pod.
+            Engram gives your AI agents a persistent, portable memory across mobile, desktop, and CLI.
+            Save a decision on your phone in Claude or Gemini, recall it in Cursor on your laptop, and share context
+            seamlessly across your engineering team.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:mt-9 sm:flex-row sm:flex-wrap sm:items-center">
             <Link
               to="/register"
-              className="group inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-rose to-violet px-7 py-3.5 text-center text-sm font-medium text-bg shadow-lg shadow-violet/20 transition hover:opacity-95 sm:w-auto"
+              className="rounded-full bg-gradient-to-r from-rose to-violet px-7 py-3.5 text-center text-sm font-medium text-bg shadow-lg shadow-violet/20 transition hover:opacity-90 sm:w-auto"
             >
               Get started free
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-black/15 transition group-hover:translate-x-0.5">
-                <ArrowRight size={13} />
-              </span>
             </Link>
-
             <Link
-              to="/dashboard"
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-line px-6 py-3.5 text-center text-sm text-txt transition hover:border-rose/50 hover:bg-surface/40 sm:w-auto"
+              to="/login"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-line px-6 py-3.5 text-center text-sm text-txt transition hover:border-rose/50 sm:w-auto"
             >
-              Open Dashboard
+              Go to Dashboard <ArrowRight size={15} />
             </Link>
-
             <button
               onClick={() => downloadText('engram-memory-prompt.txt', ENGRAM_PROMPT)}
-              className="inline-flex items-center justify-center gap-2 px-3 py-3 text-xs font-mono text-mut transition hover:text-rose sm:justify-start"
+              className="inline-flex items-center justify-center gap-2 px-2 py-3 text-sm text-mut transition hover:text-rose sm:justify-start"
             >
-              <Download size={14} /> System Prompt (.txt)
+              <Download size={15} /> System Prompt
             </button>
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center gap-5 text-xs font-mono text-faint">
+          <div className="mt-8 flex items-center gap-6 text-xs font-mono text-faint">
             <span className="flex items-center gap-1.5">
-              <Check size={14} className="text-emerald-400" /> 50 Saves/Day Free
+              <Check size={14} className="text-rose" /> Free Personal Plan
             </span>
             <span className="flex items-center gap-1.5">
-              <Check size={14} className="text-emerald-400" /> 3-Member Free Team
+              <Check size={14} className="text-rose" /> 3-Member Free Team
             </span>
             <span className="flex items-center gap-1.5">
-              <Check size={14} className="text-emerald-400" /> Cryptographic Proofs
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Check size={14} className="text-emerald-400" /> Zero-Install MCP
+              <Check size={14} className="text-rose" /> Seal Encrypted
             </span>
           </div>
         </div>
 
-        {/* Interactive Live Memory Pipeline Simulator */}
         <div data-reveal className="relative">
-          <HeroSimulator />
+          <HeroCard />
         </div>
       </div>
     </header>
   )
 }
 
-function HeroSimulator() {
-  const [activeScenario, setActiveScenario] = useState(0)
-
-  const scenarios = [
-    {
-      title: 'Mobile → Laptop IDE',
-      source: 'Claude iOS (Mobile)',
-      sourceIcon: Smartphone,
-      target: 'Cursor (Work Laptop)',
-      targetIcon: Laptop,
-      input: '“We switched auth to Supabase Admin createUser to bypass unconfigured SMTP domain checks.”',
-      type: 'decision',
-      scope: 'personal',
-      blobId: '2iD9wFtosZo0AwOEmEmHWyjWw6T_gOuY899xrqU2qdI',
-      query: '“Why is registration failing on test emails?”',
-      recall: '“Per your note: use supabaseAdmin.auth.admin.createUser({ email_confirm: true }) to bypass SMTP blocks.”',
-    },
-    {
-      title: 'Bug Gotcha → Zero Regress',
-      source: 'Antigravity CLI (Terminal)',
-      sourceIcon: Terminal,
-      target: 'Claude Desktop',
-      targetIcon: Laptop,
-      input: '“In Chromium, overflow-x: hidden on body breaks position: sticky; use overflow-x: clip instead.”',
-      type: 'gotcha',
-      scope: 'personal',
-      blobId: '7XqP2kLM1n9aBbCcDdEeFfGgHhIiJjKkLlMmNnOoPp',
-      query: '“Sidebar moves when user scrolls the page”',
-      recall: '“Gotcha: Replace overflow-x: hidden with overflow-x: clip on html, body to restore sticky nav.”',
-    },
-    {
-      title: 'Team Stack Rule → Sync',
-      source: 'Tech Lead (Sarah)',
-      sourceIcon: Users,
-      target: 'New Engineer (Alex)',
-      targetIcon: Laptop,
-      input: '“All API keys must follow format eng_usr_<hash> or eng_team_<hash> with SHA-256 validation.”',
-      type: 'config',
-      scope: 'team',
-      blobId: '9WvT4sRQ3m8zYxWvUtSrQpOnMlKjIhGfEdCbAz',
-      query: '“How do we structure new service tokens?”',
-      recall: '“Team convention: Keys use eng_ prefix with SHA-256 HMAC and SHA-256 lookup in api_keys table.”',
-    },
-  ]
-
-  const current = scenarios[activeScenario]
-
+function HeroCard() {
   return (
-    <div className="relative mx-auto max-w-lg">
-      {/* Glow aura */}
-      <div className="absolute -inset-4 -z-10 rounded-[2.5rem] bg-gradient-to-tr from-rose/25 via-violet/20 to-transparent blur-2xl" />
-
-      {/* Double-Bezel Hardware Wrapper */}
-      <div className="rounded-[2.2rem] border border-line/80 bg-surface/40 p-2 shadow-2xl shadow-black/80 backdrop-blur-xl">
-        <div className="rounded-[1.7rem] border border-line bg-bg/95 p-5 sm:p-6 shadow-inner">
-          {/* Header Scenario Switcher */}
-          <div className="flex items-center justify-between border-b border-line/70 pb-3 mb-4">
-            <span className="font-mono text-[11px] uppercase tracking-wider text-faint flex items-center gap-1.5">
-              <Radio size={13} className="text-rose animate-pulse" /> Live Memory Protocol
-            </span>
-            <div className="flex gap-1 bg-surface/60 rounded-xl p-1 border border-line/60">
-              {scenarios.map((s, idx) => (
-                <button
-                  key={s.title}
-                  onClick={() => setActiveScenario(idx)}
-                  className={`px-2.5 py-1 text-[10.5px] font-mono rounded-lg transition ${
-                    activeScenario === idx
-                      ? 'bg-rose/15 text-rose font-medium border border-rose/30'
-                      : 'text-mut hover:text-txt'
-                  }`}
-                >
-                  0{idx + 1}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Step 1: Ingestion */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-[11px] font-mono text-mut">
-              <span className="flex items-center gap-1.5 text-txt">
-                <current.sourceIcon size={13} className="text-rose" /> {current.source}
-              </span>
-              <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] text-faint border border-line">
-                WRITE PIPELINE
-              </span>
-            </div>
-
-            <div className="rounded-2xl border border-line/80 bg-surface/50 p-3 text-xs text-txt leading-relaxed font-sans">
-              {current.input}
-            </div>
-
-            {/* Step 2: Protocol Engine */}
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line/60 bg-bg p-2.5 text-[11px] font-mono">
-              <div className="flex items-center gap-1.5">
-                <Brain size={14} className="text-rose" />
-                <span className="rounded bg-rose/15 px-1.5 py-0.5 text-[10px] uppercase text-rose font-medium">
-                  {current.type}
-                </span>
-                <span className="text-faint">·</span>
-                <span className="text-mut capitalize">{current.scope}</span>
-              </div>
-              <a
-                href={`https://walruscan.com/mainnet/blob/${PROOF_BLOB}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 text-[10px] text-faint hover:text-rose transition"
-              >
-                <span>Blob: {current.blobId.slice(0, 8)}…</span>
-                <ExternalLink size={10} />
-              </a>
-            </div>
-
-            {/* Connecting visual beam */}
-            <div className="relative py-1 flex items-center justify-center">
-              <div className="h-6 w-[1.5px] bg-gradient-to-b from-rose to-violet" />
-            </div>
-
-            {/* Step 3: IDE Zero-Effort Recall */}
-            <div className="flex items-center justify-between text-[11px] font-mono text-mut">
-              <span className="flex items-center gap-1.5 text-txt">
-                <current.targetIcon size={13} className="text-violet-soft" /> {current.target}
-              </span>
-              <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-mono">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> RECALLED
-              </span>
-            </div>
-
-            <div className="rounded-2xl border border-violet/30 bg-violet/[0.08] p-3 text-xs text-violet-100 leading-relaxed font-sans">
-              <p className="text-[11px] font-mono text-violet-300/80 mb-1">Agent Query: {current.query}</p>
-              <p className="text-txt font-medium">{current.recall}</p>
-            </div>
-          </div>
+    <div className="relative mx-auto max-w-sm sm:max-w-md">
+      <div className="absolute -inset-6 -z-10 rounded-[2.5rem] bg-gradient-to-tr from-rose/20 via-violet/15 to-transparent blur-3xl" />
+      <div className="animate-float rounded-3xl border border-line glass p-6 shadow-2xl shadow-black/70">
+        <div className="flex items-center justify-between mb-3 border-b border-line/60 pb-2.5">
+          <span className="font-mono text-[11px] text-faint flex items-center gap-1.5">
+            <Smartphone size={12} className="text-rose" /> Claude iOS · memory written
+          </span>
+          <span className="flex items-center gap-1 text-[11px] text-violet-soft font-mono">
+            <span className="h-1.5 w-1.5 rounded-full bg-violet-soft animate-pulse" /> synced
+          </span>
         </div>
+
+        <div className="rounded-2xl border border-violet/30 bg-violet/10 px-4 py-3 text-sm text-txt leading-relaxed">
+          “We moved the database to Neon Postgres because Render free tier expired. Connection string in dashboard env.”
+        </div>
+
+        <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose/30 bg-rose/[0.07] px-3.5 py-2.5">
+          <Brain size={16} className="text-rose" />
+          <span className="rounded-full border border-violet/30 bg-violet/15 px-2 py-0.5 text-[10px] tracking-wider text-violet-200 uppercase font-mono">
+            decision
+          </span>
+          <span className="ml-auto font-mono text-[11px] text-faint">Walrus blob: 2iD9wF…</span>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between border-t border-line/80 pt-3">
+          <span className="font-mono text-[11px] text-mut flex items-center gap-1.5">
+            <Laptop size={13} className="text-violet-soft" /> Cursor recall: “db setup?”
+          </span>
+          <span className="inline-flex items-center gap-1 text-[11px] text-rose font-medium">
+            <Check size={13} /> Active in IDE
+          </span>
+        </div>
+      </div>
+
+      <div
+        className="absolute -right-2 -top-4 inline-flex rotate-6 items-center gap-1.5 rounded-2xl border border-line glass px-3.5 py-2 text-xs text-mut animate-float shadow-lg sm:-right-4"
+        style={{ animationDelay: '1.5s' }}
+      >
+        <Users size={13} className="text-violet-soft" /> Team Shared
+      </div>
+      <div
+        className="absolute -left-2 bottom-6 inline-flex -rotate-6 items-center gap-1.5 rounded-2xl border border-line glass px-3.5 py-2 text-xs text-mut animate-float shadow-lg sm:-left-5"
+        style={{ animationDelay: '0.8s' }}
+      >
+        <Lock size={13} className="text-rose" /> Personal Memory
       </div>
     </div>
   )
@@ -319,17 +236,19 @@ function HeroSimulator() {
 
 function Marquee() {
   const tools = [
-    'Cursor', 'Claude Desktop', 'ChatGPT Mobile', 'VS Code', 'Antigravity CLI',
-    'Claude iOS', 'Windsurf', 'Walrus Storage', 'Sui Network', 'GitHub Actions',
-    'OpenCode', 'Zed Editor', 'Docker Dev Environments'
+    'Cursor', 'Claude Desktop', 'ChatGPT Mobile', 'Google Gemini', 'VS Code', 'Antigravity CLI',
+    'Claude iOS', 'Windsurf', 'Walrus Storage', 'Sui Network', 'GitHub Actions'
   ]
   const row = [...tools, ...tools]
   return (
-    <div className="relative overflow-hidden border-y border-line/80 py-4 bg-surface/20">
-      <div className="flex w-max gap-12 whitespace-nowrap" style={{ animation: 'marquee 40s linear infinite' }}>
+    <div className="relative overflow-hidden border-y border-line/80 py-4.5 bg-surface/20">
+      <p className="mb-2.5 text-center text-[10.5px] tracking-widest text-faint uppercase font-mono">
+        One unified memory across every platform you use
+      </p>
+      <div className="flex w-max gap-12 whitespace-nowrap" style={{ animation: 'marquee 36s linear infinite' }}>
         {row.map((t, i) => (
-          <span key={i} className="flex items-center gap-3 font-display text-base text-mut/80">
-            {t} <Sparkles size={11} className="text-rose/40" />
+          <span key={i} className="flex items-center gap-3 font-display text-lg text-mut/80">
+            {t} <Sparkles size={12} className="text-rose/50" />
           </span>
         ))}
       </div>
@@ -337,66 +256,27 @@ function Marquee() {
   )
 }
 
-function FrictionMatrix() {
-  const comparisons = [
-    {
-      feature: 'Session Boundaries',
-      without: 'Context evaporates after 10 minutes or window refresh; zero memory across chats.',
-      withEngram: 'Infinite lifetime. Memories are persisted to Walrus and recalled semantically weeks later.',
-    },
-    {
-      feature: 'Cross-Device Portability',
-      without: 'Siloed on one laptop. Mobile brainstorming cannot reach your IDE without copy-pasting.',
-      withEngram: 'Universal Streamable HTTP MCP. Save on iOS/Android, recall in Cursor, CLI, and desktop.',
-    },
-    {
-      feature: 'Engineering Pod Sync',
-      without: 'Every teammate repeats questions: “What port was the DB?”, “How do we deploy?”.',
-      withEngram: 'Shared Team Brain. Decisions & configs sync across all developers in real time.',
-    },
-    {
-      feature: 'Cryptographic Provenance',
-      without: 'Stored in black-box corporate silos subject to silent model fine-tuning and deletion.',
-      withEngram: 'Seal-encrypted, immutable Walrus blobs with decentralized provenance verified on Sui.',
-    },
-  ]
-
+function Problem() {
   return (
     <section className="mx-auto max-w-6xl px-5 py-20 sm:py-28">
-      <div data-reveal className="mb-14 text-center max-w-2xl mx-auto">
-        <p className="mb-3 font-mono text-xs tracking-widest text-rose uppercase">The Core Difference</p>
-        <h2 className="text-3xl sm:text-5xl font-display">Why agents forget, and how Engram fixes it.</h2>
-        <p className="mt-4 text-base sm:text-lg text-mut">
-          LLMs are stateless engines. Engram provides the durable long-term cortex they’ve been missing.
-        </p>
-      </div>
-
-      <div data-reveal className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {comparisons.map((c, i) => (
-          <div
-            key={c.feature}
-            style={{ transitionDelay: `${i * 60}ms` }}
-            className="rounded-3xl border border-line bg-surface/30 p-6 flex flex-col justify-between"
-          >
-            <div>
-              <span className="font-mono text-xs uppercase tracking-wider text-rose">{c.feature}</span>
-              
-              <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-3.5 text-xs text-rose-200/90 leading-relaxed">
-                <span className="block font-mono text-[10px] uppercase text-rose-400 font-semibold mb-1">
-                  ✕ Without Engram
-                </span>
-                {c.without}
-              </div>
-
-              <div className="mt-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-3.5 text-xs text-emerald-200/90 leading-relaxed">
-                <span className="block font-mono text-[10px] uppercase text-emerald-400 font-semibold mb-1">
-                  ✓ With Engram
-                </span>
-                {c.withEngram}
-              </div>
-            </div>
-          </div>
-        ))}
+      <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+        <div data-reveal>
+          <span className="font-mono text-xs text-rose uppercase tracking-widest">The Core Problem</span>
+          <h2 className="mt-3 text-3xl leading-tight sm:text-5xl font-display">
+            Every new session,<br />
+            your agent starts from <span className="text-mut italic">scratch</span>.
+          </h2>
+        </div>
+        <div data-reveal className="space-y-4 text-base sm:text-lg leading-relaxed text-mut">
+          <p>
+            You painstakingly explain your architecture, environment configurations, and quirks in one chat.
+            Ten minutes later, in Cursor or on your phone, you have to explain it all over again.
+          </p>
+          <p>
+            Engram separates memory from the ephemeral chat session. Stored securely on Walrus, memories
+            persist forever, belong to you, and travel across every AI client you connect.
+          </p>
+        </div>
       </div>
     </section>
   )
@@ -407,10 +287,10 @@ function Taxonomy() {
     <section id="taxonomy" className="mx-auto max-w-6xl px-5 py-16">
       <div data-reveal className="mb-12 max-w-2xl">
         <p className="mb-3 font-mono text-xs tracking-widest text-rose uppercase">Signal, not noise</p>
-        <h2 className="text-3xl sm:text-5xl font-display">Six high-signal memory types.</h2>
+        <h2 className="text-3xl sm:text-5xl font-display">What Engram remembers.</h2>
         <p className="mt-4 text-base sm:text-lg text-mut">
-          Engram filters out throwaway banter and captures structured engineering signal.
-          Recall operates semantically — matching by concept rather than exact keywords.
+          Never spam or throwaway chatter. Engram captures structured, durable facts worth reusing weeks later
+          and recalls them semantically — matching by concept rather than just keywords.
         </p>
       </div>
 
@@ -423,17 +303,12 @@ function Taxonomy() {
             className="group relative overflow-hidden rounded-3xl border border-line bg-surface/30 p-6 transition hover:border-rose/40 hover:bg-surface/50"
           >
             <div className={`pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-br ${m.c} to-transparent opacity-0 blur-2xl transition group-hover:opacity-100`} />
-            <div className="flex items-center justify-between mb-4">
-              <div className="grid h-11 w-11 place-items-center rounded-2xl border border-line bg-bg/60 text-rose">
-                <m.icon size={19} />
-              </div>
-              <span className="rounded-full border border-line/60 bg-surface px-2.5 py-0.5 font-mono text-[10px] tracking-wider text-faint uppercase">
-                {m.tag}
-              </span>
+            <div className="mb-4 grid h-11 w-11 place-items-center rounded-2xl border border-line bg-bg/60 text-rose">
+              <m.icon size={19} />
             </div>
             <h3 className="text-xl font-display text-txt">{m.t}</h3>
             <p className="mt-1.5 text-xs sm:text-sm text-mut leading-relaxed">{m.d}</p>
-            <p className="mt-4 border-t border-line/70 pt-3 font-mono text-[11px] leading-relaxed text-faint">
+            <p className="mt-4 border-t border-line/70 pt-3 font-mono text-[11.5px] leading-relaxed text-faint">
               {m.ex}
             </p>
           </div>
@@ -443,61 +318,44 @@ function Taxonomy() {
   )
 }
 
-function AgentOSProtocol() {
-  const layers = [
+function HowItWorks() {
+  const steps = [
     {
-      num: 'LAYER 01',
-      title: 'Agent Interfaces',
-      desc: 'Cursor, Claude Desktop, ChatGPT Mobile, Antigravity, and Terminal CLI communicate via JSON-RPC 2.0.',
-      badge: 'Zero-Install MCP',
+      num: '01',
+      title: 'Durable Capture',
+      desc: 'As you work, your connected AI recognizes important facts (or captures explicit plans on request) and calls engram_remember.',
     },
     {
-      num: 'LAYER 02',
-      title: 'Streamable HTTP Gateway',
-      desc: 'Bearer tokens route to isolated personal (usr_) or team (team_) namespaces with quota enforcement.',
-      badge: 'Multi-Tenant Router',
+      num: '02',
+      title: 'Seal-Encrypted on Walrus',
+      desc: 'Each memory is encrypted with Seal and committed to Walrus as a verifiable, decentralized blob anchored on Sui.',
     },
     {
-      num: 'LAYER 03',
-      title: 'Seal Cryptographic Engine',
-      desc: 'Client-held or host-held keys encrypt memory payloads before any blob is broadcast to network nodes.',
-      badge: 'Seal-256 Encryption',
-    },
-    {
-      num: 'LAYER 04',
-      title: 'Walrus & Sui Network',
-      desc: 'Epoch-based decentralized storage nodes guarantee permanent durability with Sui-anchored verification.',
-      badge: 'Immutable Blobs',
+      num: '03',
+      title: 'Zero-Effort Recall',
+      desc: 'Open any AI client, phone, or IDE weeks later. The agent automatically retrieves relevant context before answering.',
     },
   ]
 
   return (
     <section id="how" className="mx-auto max-w-6xl px-5 py-20 sm:py-28">
       <div data-reveal className="mb-14 max-w-2xl">
-        <p className="mb-3 font-mono text-xs tracking-widest text-rose uppercase">Agent-OS Architecture</p>
-        <h2 className="text-3xl sm:text-5xl font-display">Decentralized memory stack.</h2>
-        <p className="mt-4 text-base sm:text-lg text-mut">
-          Engineered like an operating system: modular client transports, cryptographic namespaces, and decentralized persistence.
-        </p>
+        <p className="mb-3 font-mono text-xs tracking-widest text-rose uppercase">Architecture</p>
+        <h2 className="text-3xl sm:text-5xl font-display">Remember once. Recall everywhere.</h2>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-        {layers.map((l, i) => (
+      <div className="grid gap-6 md:grid-cols-3">
+        {steps.map((s, i) => (
           <div
-            key={l.num}
+            key={s.num}
             data-reveal
-            style={{ transitionDelay: `${i * 70}ms` }}
-            className="rounded-3xl border border-line bg-surface/30 p-6 flex flex-col justify-between relative overflow-hidden"
+            style={{ transitionDelay: `${i * 80}ms` }}
+            className="rounded-3xl border border-line bg-surface/30 p-7 flex flex-col justify-between"
           >
             <div>
-              <span className="font-mono text-xs text-rose uppercase tracking-wider">{l.num}</span>
-              <h3 className="mt-3 text-xl font-display text-txt">{l.title}</h3>
-              <p className="mt-2 text-xs sm:text-sm text-mut leading-relaxed">{l.desc}</p>
-            </div>
-            <div className="mt-6 border-t border-line/60 pt-3">
-              <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] text-faint">
-                <CheckCircle2 size={12} className="text-emerald-400" /> {l.badge}
-              </span>
+              <span className="font-display text-5xl text-gradient">{s.num}</span>
+              <h3 className="mt-5 text-2xl font-display text-txt">{s.title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-mut">{s.desc}</p>
             </div>
           </div>
         ))}
@@ -509,7 +367,7 @@ function AgentOSProtocol() {
         </span>
         <div>
           <p className="text-sm font-medium text-txt">Every memory is an immutable, verifiable Walrus blob.</p>
-          <p className="text-xs text-faint">Decentralized proof anchored on Sui mainnet.</p>
+          <p className="text-xs text-faint">Cryptographically verified on Sui mainnet.</p>
         </div>
         <a
           href={`https://walruscan.com/mainnet/blob/${PROOF_BLOB}`}
@@ -517,8 +375,45 @@ function AgentOSProtocol() {
           rel="noreferrer"
           className="ml-auto flex items-center gap-1.5 rounded-full border border-line px-4 py-2 font-mono text-xs text-rose transition hover:border-rose/50"
         >
-          {PROOF_BLOB.slice(0, 10)}… · view on Walruscan <ExternalLink size={12} />
+          {PROOF_BLOB.slice(0, 10)}… · inspect on Walruscan <ExternalLink size={12} />
         </a>
+      </div>
+    </section>
+  )
+}
+
+function Platforms() {
+  return (
+    <section id="platforms" className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
+      <div data-reveal className="mb-14 max-w-2xl">
+        <p className="mb-3 font-mono text-xs tracking-widest text-rose uppercase">Cross-Platform</p>
+        <h2 className="text-3xl sm:text-5xl font-display">Built for your entire workflow.</h2>
+        <p className="mt-4 text-base sm:text-lg text-mut">
+          Not just desktop or terminal. Engram connects all the surfaces where you interact with AI.
+        </p>
+      </div>
+
+      <div className="grid gap-6 sm:grid-cols-2">
+        {PLATFORMS.map((p, i) => (
+          <div
+            key={p.title}
+            data-reveal
+            style={{ transitionDelay: `${i * 70}ms` }}
+            className="rounded-3xl border border-line bg-surface/30 p-7 hover:border-line-2 transition"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="grid h-12 w-12 place-items-center rounded-2xl border border-line bg-bg/60 text-rose">
+                <p.icon size={22} />
+              </div>
+              <span className="rounded-full border border-line bg-surface/50 px-3 py-1 font-mono text-[10.5px] uppercase tracking-wider text-mut">
+                {p.tag}
+              </span>
+            </div>
+            <h3 className="text-2xl font-display text-txt">{p.title}</h3>
+            <p className="font-mono text-xs text-rose mt-1 mb-3">{p.subtitle}</p>
+            <p className="text-sm leading-relaxed text-mut">{p.description}</p>
+          </div>
+        ))}
       </div>
     </section>
   )
@@ -565,7 +460,7 @@ npx engram-walrus --key=YOUR_API_KEY --room=my-space`,
   }
 
   return (
-    <section id="platforms" className="mx-auto max-w-6xl px-5 py-16">
+    <section id="connect" className="mx-auto max-w-6xl px-5 py-16">
       <div data-reveal className="rounded-3xl border border-line glass p-7 sm:p-10 shadow-2xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
@@ -594,17 +489,10 @@ npx engram-walrus --key=YOUR_API_KEY --room=my-space`,
             onClick={handleCopy}
             className="absolute top-3 right-3 flex items-center gap-1.5 rounded-xl border border-line bg-surface/80 px-3 py-1.5 text-xs text-mut hover:text-txt transition"
           >
-            {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+            {copied ? <Check size={13} className="text-rose" /> : <Copy size={13} />}
             <span>{copied ? 'Copied' : 'Copy'}</span>
           </button>
           <pre className="text-mut leading-relaxed">{configs[tab]}</pre>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-between text-xs text-faint font-mono">
-          <span>Get your live token on the dashboard in 1 click.</span>
-          <Link to="/register" className="text-rose hover:underline flex items-center gap-1">
-            Generate Free Key <ArrowRight size={12} />
-          </Link>
         </div>
       </div>
     </section>
@@ -688,19 +576,19 @@ function Pricing() {
             <p className="text-xs text-faint font-mono mt-1 mb-6">Free forever for everyday use</p>
             <ul className="space-y-3 text-xs sm:text-sm text-mut">
               <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+                <Check size={16} className="text-rose mt-0.5 shrink-0" />
                 <span><strong>50 memory saves</strong> per day</span>
               </li>
               <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+                <Check size={16} className="text-rose mt-0.5 shrink-0" />
                 <span>1 user account & personal API keys</span>
               </li>
               <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+                <Check size={16} className="text-rose mt-0.5 shrink-0" />
                 <span>Cross-device sync (Mobile, Desktop, CLI)</span>
               </li>
               <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+                <Check size={16} className="text-rose mt-0.5 shrink-0" />
                 <span>Seal-encrypted Walrus storage</span>
               </li>
             </ul>
@@ -725,23 +613,23 @@ function Pricing() {
             <p className="text-xs text-faint font-mono mt-1 mb-6">For small engineering pods</p>
             <ul className="space-y-3 text-xs sm:text-sm text-mut">
               <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+                <Check size={16} className="text-rose mt-0.5 shrink-0" />
                 <span><strong>Maximum 3 team members</strong></span>
               </li>
               <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+                <Check size={16} className="text-rose mt-0.5 shrink-0" />
                 <span><strong>150 shared saves</strong> per day</span>
               </li>
               <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+                <Check size={16} className="text-rose mt-0.5 shrink-0" />
                 <span>1 shared team memory pool</span>
               </li>
               <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+                <Check size={16} className="text-rose mt-0.5 shrink-0" />
                 <span>Role controls (Owner, Member)</span>
               </li>
               <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+                <Check size={16} className="text-rose mt-0.5 shrink-0" />
                 <span>Team MCP connector endpoints</span>
               </li>
             </ul>
@@ -768,7 +656,7 @@ function Pricing() {
               </li>
               <li className="flex items-start gap-2.5">
                 <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span><strong>5,000 saves</strong> per day</span>
+                <span><strong>2,000+ saves</strong> per day</span>
               </li>
               <li className="flex items-start gap-2.5">
                 <Check size={16} className="text-rose mt-0.5 shrink-0" />

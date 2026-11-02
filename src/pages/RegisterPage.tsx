@@ -82,15 +82,15 @@ export default function RegisterPage() {
             </p>
             <ul className="space-y-1 text-mut">
               <li className="flex items-center gap-2">
-                <Check size={13} className="text-emerald-400 shrink-0" />
+                <Check size={13} className="text-rose shrink-0" />
                 <span><strong>Personal Plan:</strong> 50 saves/day, cross-device sync</span>
               </li>
               <li className="flex items-center gap-2">
-                <Check size={13} className="text-emerald-400 shrink-0" />
+                <Check size={13} className="text-rose shrink-0" />
                 <span><strong>Free Team:</strong> Up to 3 members, 150 shared saves/day</span>
               </li>
               <li className="flex items-center gap-2">
-                <Check size={13} className="text-emerald-400 shrink-0" />
+                <Check size={13} className="text-rose shrink-0" />
                 <span>Walrus on-chain verification & Seal encryption</span>
               </li>
             </ul>
