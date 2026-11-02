@@ -3,17 +3,59 @@ import { getSupabaseAdmin } from './_lib/supabase.js'
 import { isTeamMember } from './_lib/db.js'
 import { memwalFor, normalizeRecall, decodeMemory, recallMaxDistance, type Scope } from './_lib/memwal.js'
 import { calculateWalrusEpochMetadata } from './_lib/epochs.js'
-import { formatRetentionContract } from './_lib/storage.js'
+import {
+  formatRetentionContract,
+  getStorageProvider,
+  getRecoveryQueueStats,
+  processRecoveryQueue,
+} from './_lib/storage.js'
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, DELETE, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
   if (req.method === 'OPTIONS') return res.status(200).end()
 
   const user = await getUserFromRequest(req)
   if (!user) {
     return res.status(401).json({ error: 'Unauthorized: please sign in to access memory explorer.' })
+  }
+
+  const rawUrl = req.url || ''
+  const urlPath = rawUrl.split('?')[0] || ''
+  const searchParams = new URLSearchParams(rawUrl.split('?')[1] || '')
+  const querySubpath = req.query?.subpath || req.query?.action || searchParams.get('subpath') || searchParams.get('action') || ''
+  const isStorage = querySubpath === 'storage' || urlPath.endsWith('/storage') || urlPath.includes('/api/storage')
+
+  // ── Storage Sub-resource Handler (consolidated for Vercel Hobby plan limit) ──
+  if (isStorage) {
+    try {
+      if (req.method === 'GET') {
+        const provider = getStorageProvider()
+        const stats = getRecoveryQueueStats()
+        return res.status(200).json({
+          ok: true,
+          storageProvider: provider,
+          isDurableOnChain: provider !== 'local_mock',
+          recoveryQueue: stats,
+          timestamp: new Date().toISOString(),
+        })
+      }
+
+      if (req.method === 'POST') {
+        const result = await processRecoveryQueue((scope, teamCode) => memwalFor(scope, teamCode))
+        return res.status(200).json({
+          ok: true,
+          recoveryResult: result,
+          queueStats: getRecoveryQueueStats(),
+        })
+      }
+
+      return res.status(405).json({ error: 'Method not allowed' })
+    } catch (err: any) {
+      console.error('[api/memories:storage] error:', err)
+      return res.status(500).json({ error: err?.message || 'Storage engine error' })
+    }
   }
 
   const supabase = getSupabaseAdmin()

@@ -29,6 +29,11 @@ dist-ssr
 *.sln
 *.sw?
 
-.vercel
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
 
 engram-showcase.mp4

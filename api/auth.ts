@@ -19,6 +19,13 @@ export default async function handler(req: any, res: any) {
   if (method === 'OPTIONS') return res.status(200).end()
 
   try {
+    // ── Health Check ──
+    if (path.endsWith('/health') || action === 'health' || querySubpath === 'health') {
+      const env = ((globalThis as any).process?.env ?? {}) as Record<string, string | undefined>
+      const mock = Boolean(env.ENGRAM_USE_MOCK) || !env.MEMWAL_PRIVATE_KEY
+      return res.status(200).json({ mock, llm: Boolean(env.GROQ_API_KEY) })
+    }
+
     // ── Register ──
     if (path.endsWith('/register') || action === 'register') {
       const { email, password, name } = req.body || {}
