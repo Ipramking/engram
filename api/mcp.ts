@@ -18,6 +18,14 @@ import { getSupabaseAdmin } from "./_lib/supabase.js";
 import { detectAndResolveConflicts } from "./_lib/conflicts.js";
 import { scanForSecrets, sanitizeMemoryText } from "./_lib/security.js";
 import { writeMemoryWithRetry, verifyMemoryIntegrity } from "./_lib/storage.js";
+import {
+  getOrCreateProjectContext,
+  recordAgentHandoff,
+  getLatestHandoff,
+  generateContinuitySnapshot,
+  restoreContinuitySnapshot,
+  formatQuickResumeBrief,
+} from "./_lib/continuity.js";
 
 const TOOLS = [
   {
@@ -60,6 +68,60 @@ const TOOLS = [
       type: "object",
       properties: {
         scope: { type: "string", enum: ["personal", "team"], default: "personal" },
+      },
+    },
+  },
+  {
+    name: "engram_handoff",
+    description:
+      "Record or inspect a continuous context handoff between AI agents (Claude, Cursor, Copilot, Antigravity, Gemini). " +
+      "Preserves task state, notes, unresolved questions, and immediate next actions with zero context loss.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_id: { type: "string", description: "Project identifier (optional)" },
+        action: {
+          type: "string",
+          enum: ["record", "latest", "resume_brief"],
+          default: "record",
+          description: "Action to perform: record a handoff, get latest handoff, or generate quick-resume brief",
+        },
+        from_agent: { type: "string", description: "Name of the departing agent (e.g., Claude Code, Cursor, Antigravity)" },
+        to_agent: { type: "string", description: "Name of the resuming agent (e.g., Next Agent, Cursor, Claude)" },
+        task_state: { type: "string", description: "Current state of work (e.g., in_progress, milestone_2_complete, blocked)" },
+        handoff_notes: { type: "string", description: "Important context, work completed, and things the next agent needs to know" },
+        next_actions: {
+          type: "array",
+          items: { type: "string" },
+          description: "Immediate step-by-step next tasks for the resuming agent",
+        },
+        unresolved_questions: {
+          type: "array",
+          items: { type: "string" },
+          description: "Open questions or blockers needing user or agent attention",
+        },
+        scope: { type: "string", enum: ["personal", "team"], default: "personal" },
+        team_code: { type: "string", description: "Shared team ID or code (when scope is team)" },
+      },
+    },
+  },
+  {
+    name: "engram_snapshot",
+    description:
+      "Create, verify, or restore exportable continuity snapshots of active project context and memory state.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_id: { type: "string", description: "Project identifier (optional)" },
+        action: {
+          type: "string",
+          enum: ["generate", "restore", "brief"],
+          default: "brief",
+          description: "Snapshot action: generate a new verifiable snapshot, restore an existing one, or view markdown brief",
+        },
+        snapshot_json: { type: "string", description: "Full JSON snapshot string required when action is 'restore'" },
+        scope: { type: "string", enum: ["personal", "team"], default: "personal" },
+        team_code: { type: "string", description: "Shared team ID or code (when scope is team)" },
       },
     },
   },
@@ -482,6 +544,172 @@ export default async function handler(req: any, res: any) {
             id,
             result: {
               content: [{ type: "text", text: summary }],
+            },
+          };
+        }
+
+        if (toolName === "engram_handoff") {
+          const pId = String(args.project_id || (userId ? `proj_${userId.slice(0, 8)}` : "default_proj"));
+          const handoffAction = String(args.action || "record");
+
+          if (handoffAction === "latest") {
+            const latest = getLatestHandoff(pId);
+            if (!latest) {
+              return {
+                jsonrpc: "2.0",
+                id,
+                result: {
+                  content: [{ type: "text", text: `No active agent handoff found for project "${pId}".` }],
+                },
+              };
+            }
+            const brief = [
+              `# Latest Agent Handoff (${latest.id})`,
+              `- From: ${latest.fromAgent} → To: ${latest.toAgent}`,
+              `- Task State: ${latest.taskState}`,
+              `- Recorded: ${latest.createdAt}`,
+              `- Notes: ${latest.handoffNotes}`,
+            ];
+            if (latest.nextActions?.length) {
+              brief.push(`### Next Actions:\n${latest.nextActions.map((a: string) => `- [ ] ${a}`).join("\n")}`);
+            }
+            if (latest.unresolvedQuestions?.length) {
+              brief.push(`### Unresolved Questions:\n${latest.unresolvedQuestions.map((q: string) => `- ❓ ${q}`).join("\n")}`);
+            }
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [{ type: "text", text: brief.join("\n") }],
+              },
+            };
+          }
+
+          if (handoffAction === "resume_brief") {
+            const snap = generateContinuitySnapshot({
+              projectId: pId,
+              userId: userId || "mcp_user",
+              scope,
+              teamId: activeTeamId,
+            });
+            const brief = formatQuickResumeBrief(snap);
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [{ type: "text", text: brief }],
+              },
+            };
+          }
+
+          // Default: record
+          const notes = String(args.handoff_notes || "").trim();
+          if (!notes) {
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [{ type: "text", text: "Error: handoff_notes is required to record a continuity handoff." }],
+                isError: true,
+              },
+            };
+          }
+
+          const handoff = recordAgentHandoff({
+            projectId: pId,
+            fromAgent: String(args.from_agent || "Agent"),
+            toAgent: String(args.to_agent || "Next Agent"),
+            taskState: String(args.task_state || "in_progress"),
+            handoffNotes: notes,
+            nextActions: Array.isArray(args.next_actions) ? args.next_actions : [],
+            unresolvedQuestions: Array.isArray(args.unresolved_questions) ? args.unresolved_questions : [],
+          });
+
+          return {
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: `✓ Context handoff recorded [${handoff.id}] for project "${pId}". Departing agent: "${handoff.fromAgent}". Task state: "${handoff.taskState}". Resuming agents will inherit this context seamlessly.`,
+                },
+              ],
+            },
+          };
+        }
+
+        if (toolName === "engram_snapshot") {
+          const pId = String(args.project_id || (userId ? `proj_${userId.slice(0, 8)}` : "default_proj"));
+          const snapAction = String(args.action || "brief");
+
+          if (snapAction === "restore") {
+            const rawJson = args.snapshot_json;
+            if (!rawJson) {
+              return {
+                jsonrpc: "2.0",
+                id,
+                result: {
+                  content: [{ type: "text", text: "Error: snapshot_json string is required for action='restore'." }],
+                  isError: true,
+                },
+              };
+            }
+            const resRestore = restoreContinuitySnapshot(rawJson);
+            if (!resRestore.verified) {
+              return {
+                jsonrpc: "2.0",
+                id,
+                result: {
+                  content: [{ type: "text", text: `Error: ${resRestore.error || "Snapshot integrity verification failed."}` }],
+                  isError: true,
+                },
+              };
+            }
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: `✓ Continuity snapshot verified and restored for project "${pId}". Checksum: ${resRestore.snapshot?.checksum}`,
+                  },
+                ],
+              },
+            };
+          }
+
+          // Generate or Brief
+          const snapshot = generateContinuitySnapshot({
+            projectId: pId,
+            userId: userId || "mcp_user",
+            scope,
+            teamId: activeTeamId,
+          });
+
+          if (snapAction === "generate") {
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: JSON.stringify(snapshot, null, 2),
+                  },
+                ],
+              },
+            };
+          }
+
+          // Default: brief
+          const brief = formatQuickResumeBrief(snapshot);
+          return {
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [{ type: "text", text: brief }],
             },
           };
         }

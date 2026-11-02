@@ -13,6 +13,8 @@ import keys from "../api/keys.js";
 import teams from "../api/teams.js";
 import usage from "../api/usage.js";
 import memories from "../api/memories.js";
+import storage from "../api/storage.js";
+import continuity from "../api/continuity.js";
 import mcp from "../api/mcp.js";
 
 const app = express();
@@ -45,6 +47,8 @@ app.all(/^\/api\/keys(?:\/.*)?$/, wrap(keys));
 app.all(/^\/api\/teams(?:\/.*)?$/, wrap(teams));
 app.all(/^\/api\/usage(?:\/.*)?$/, wrap(usage));
 app.all(/^\/api\/memories(?:\/.*)?$/, wrap(memories));
+app.all(/^\/api\/storage(?:\/.*)?$/, wrap(storage));
+app.all(/^\/api\/continuity(?:\/.*)?$/, wrap(continuity));
 app.all("/api/health", wrap(health));
 
 const port = Number(process.env.PORT ?? 8787);
