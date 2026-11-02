@@ -604,15 +604,13 @@ ${activeMemoriesList.map((m, i) => `${i + 1}. [${(m.type || 'decision').toUpperC
   const geminiGemInstructions = `You are my personalized AI assistant connected to my Engram decentralized memory vault on Walrus.
 
 HOW TO OPERATE:
-1. RECALL (GROUND TRUTH): Before answering questions about my projects, stack, decisions, preferences, or team members, verify against my active memories below or check my live plain-text feed:
-https://engram-pearl.vercel.app/api/recall?token=${activeLiveKey}&format=text
-
-2. SAVING MEMORIES (IMPORTANT): Whenever I state an architectural choice, setup value, gotcha fix, person/teammate note, preference, or plan (or ask you to remember/keep something), acknowledge it and ALWAYS append a clickable Markdown link at the very end of your response:
-[💾 Tap to Save to Engram](https://engram-pearl.vercel.app/api/remember?token=${activeLiveKey}&type=decision&text=URL_ENCODED_ONE_SENTENCE_FACT)
-Replace "decision" with (decision|config|gotcha|person|preference|plan) and URL-encode the one-sentence fact with %20.
+1. RECALL (GROUND TRUTH): Before answering questions about my projects, stack, decisions, preferences, or team members, verify against my active memories listed below as absolute ground truth:
 
 MY ACTIVE MEMORIES:
-${activeMemoriesList.map((m, i) => `${i + 1}. [${(m.type || 'decision').toUpperCase()}] ${m.text}`).join('\n') || '- User prefers every UI to work on both phone and desktop.'}`
+${activeMemoriesList.map((m, i) => `${i + 1}. [${(m.type || 'decision').toUpperCase()}] ${m.text}`).join('\n') || '- User prefers every UI to work on both phone and desktop.'}
+
+2. SAVING MEMORIES: Whenever I state an architectural choice, setup value, gotcha fix, teammate note, preference, or plan (or ask you to remember/keep something), acknowledge it and ALWAYS append a clean save summary at the very end of your response:
+[💾 SAVE TO ENGRAM]: [type] Single self-contained sentence fact`
 
   const geminiMcpSnippet = `# Add to ~/.gemini/settings.json or mcp_servers.json
 mcp_servers:
@@ -1186,9 +1184,10 @@ mcp_servers:
                     </span>
                     <ol className="list-decimal list-inside space-y-1 text-xs text-mut leading-relaxed">
                       <li>Open <a href="https://gemini.google.com/gems" target="_blank" rel="noreferrer" className="text-rose underline">gemini.google.com/gems</a> (or open Gemini App → tap Gems → New Gem).</li>
-                      <li>Name your Gem: <strong className="text-txt">Engram Brain</strong>.</li>
+                      <li>Name your Gem: <strong className="text-txt">Engram Brain</strong> (use letters & spaces, avoid hyphens).</li>
+                      <li>Description: <strong className="text-txt">My Engram memory vault for personal and team context</strong>.</li>
                       <li>Tap the button below to copy your tailored Gem Instructions, then paste it into the <strong className="text-txt">Instructions</strong> box.</li>
-                      <li>Tap <strong className="text-txt">Save</strong>. Done! Now Gemini automatically checks your memories and outputs 1-tap save links!</li>
+                      <li>Tap <strong className="text-txt">Create / Save</strong>. Done! Now Gemini automatically checks your memories in every conversation!</li>
                     </ol>
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       <button
