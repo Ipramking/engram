@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "./_lib/supabase.js";
 import { detectAndResolveConflicts } from "./_lib/conflicts.js";
 import { scanForSecrets, sanitizeMemoryText } from "./_lib/security.js";
 import { writeMemoryWithRetry } from "./_lib/storage.js";
+import { executeLifecyclePipeline } from "./_lib/intelligence.js";
 
 export default async function handler(req: any, res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -180,10 +181,26 @@ export default async function handler(req: any, res: any) {
 </html>`);
   }
 
+  const pipelineResult = executeLifecyclePipeline({
+    userId: user.id,
+    scope: effectiveScope as 'personal' | 'team',
+    teamId: effectiveTeamId,
+    text: cleanText,
+    type: t,
+    blobId,
+  });
+  const structured = pipelineResult.memory;
+
   res.status(200).json({
     ok: true,
     type: t,
     text: cleanText,
+    category: structured.category,
+    subtype: structured.subtype,
+    entities: structured.entities,
+    confidence: structured.confidence,
+    importance: structured.importance,
+    sensitivity: structured.sensitivity,
     blobId: blobId ?? null,
     storageState,
     persistenceState: storageState,

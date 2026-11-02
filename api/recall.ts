@@ -1,4 +1,4 @@
-// Explicit recall — powers the MCP engram_recall tool and search endpoints.
+// Explicit recall — powers the MCP engram_recall tool and search endpoints with hybrid scoring.
 import {
   memwalFor,
   normalizeRecall,
@@ -9,7 +9,13 @@ import {
 import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
 import { checkAndIncrementUsage } from "./_lib/db.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
-import { computeContentHash, verifyMemoryIntegrity } from "./_lib/storage.js";
+import { verifyMemoryIntegrity } from "./_lib/storage.js";
+import {
+  scoreMemoryHybrid,
+  mapSubtypeToCategory,
+  extractEntities,
+  type StructuredMemory,
+} from "./_lib/intelligence.js";
 
 function scoreMemoryMatch(text: string, type: string, query: string): number {
   const q = query.trim().toLowerCase();
@@ -47,6 +53,7 @@ export default async function handler(req: any, res: any) {
   const teamCode = String(source.teamCode ?? "default");
   const topK = Number(source.topK ?? 10) || 10;
   const includeSuperseded = source.includeSuperseded === true || source.includeSuperseded === "true";
+  const categoryFilter = source.category ? String(source.category).toLowerCase() : undefined;
 
   const user = await getUserFromRequest(req);
   if (!user) {
@@ -74,15 +81,7 @@ export default async function handler(req: any, res: any) {
     planTier: user.plan_tier,
   }).catch(() => {});
 
-  const combined: Array<{
-    id?: string;
-    type: string;
-    text: string;
-    blobId?: string;
-    isSuperseded: boolean;
-    supersededBy: string | null;
-    score: number;
-  }> = [];
+  const combined: any[] = [];
   const seenTexts = new Set<string>();
   const supersededMap = new Map<string, string>();
 
@@ -110,24 +109,42 @@ export default async function handler(req: any, res: any) {
           if (isSuperseded && row.blob_id) {
             supersededMap.set(row.blob_id, supersededBy || "latest");
           }
-          const score = scoreMemoryMatch(row.text || "", row.type || "note", query);
-          if (score > 0) {
-            const key = String(row.text || "").trim().toLowerCase();
-            if (!seenTexts.has(key)) {
-              seenTexts.add(key);
-              const { verified, actualHash } = verifyMemoryIntegrity(row.text || '', row.type || 'note', row.content_hash);
-              combined.push({
-                id: row.id,
-                type: row.type || "note",
-                text: row.text,
-                blobId: row.blob_id,
-                contentHash: actualHash,
-                integrityVerified: verified,
-                isSuperseded,
-                supersededBy,
-                score,
-              });
-            }
+
+          const key = String(row.text || "").trim().toLowerCase();
+          if (!seenTexts.has(key)) {
+            seenTexts.add(key);
+            const { verified, actualHash } = verifyMemoryIntegrity(row.text || '', row.type || 'note', row.content_hash);
+            const { category, subtype } = mapSubtypeToCategory(row.type || 'note');
+
+            const structured: StructuredMemory = {
+              id: row.id,
+              userId: user.id,
+              teamId: effectiveTeamId,
+              scope: effectiveScope,
+              category,
+              subtype,
+              text: row.text,
+              entities: extractEntities(row.text),
+              confidence: 1.0,
+              importance: (row.type === 'decision' ? 4 : 3),
+              sensitivity: 'internal',
+              status: isSuperseded ? 'superseded' : 'active',
+              source: 'explicit_user',
+              version: 1,
+              createdAt: row.created_at || new Date().toISOString(),
+              updatedAt: row.created_at || new Date().toISOString(),
+              blobId: row.blob_id,
+              contentHash: actualHash,
+            };
+
+            const scored = scoreMemoryHybrid(structured, query);
+            combined.push({
+              ...scored,
+              type: subtype, // backward-compat for existing clients
+              isSuperseded,
+              supersededBy,
+              integrityVerified: verified,
+            });
           }
         }
       }
@@ -150,41 +167,82 @@ export default async function handler(req: any, res: any) {
       const isSuperseded = m.blobId ? supersededMap.has(m.blobId) : false;
       const supersededBy = m.blobId ? supersededMap.get(m.blobId) || null : null;
       const { verified, actualHash } = verifyMemoryIntegrity(decoded.text, decoded.type);
-      combined.push({
-        type: decoded.type,
+      const { category, subtype } = mapSubtypeToCategory(decoded.type);
+
+      const structured: StructuredMemory = {
+        id: `walrus-${combined.length + 1}`,
+        userId: user.id,
+        teamId: effectiveTeamId,
+        scope: effectiveScope,
+        category,
+        subtype,
         text: decoded.text,
+        entities: extractEntities(decoded.text),
+        confidence: 1.0,
+        importance: (decoded.type === 'decision' ? 4 : 3),
+        sensitivity: 'internal',
+        status: isSuperseded ? 'superseded' : 'active',
+        source: 'explicit_user',
+        version: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         blobId: m.blobId,
         contentHash: actualHash,
-        integrityVerified: verified,
+      };
+
+      const scored = scoreMemoryHybrid(structured, query);
+      combined.push({
+        ...scored,
+        type: subtype,
         isSuperseded,
         supersededBy,
-        score: scoreMemoryMatch(decoded.text, decoded.type, query) + 0.5,
+        integrityVerified: verified,
       });
     }
   } catch {}
 
   let results = combined
-    .filter((m) => includeSuperseded || !m.isSuperseded)
+    .filter((m) => includeSuperseded || (!m.isSuperseded && m.status !== 'superseded'))
+    .filter((m) => !categoryFilter || categoryFilter === 'all' || m.category === categoryFilter || m.subtype === categoryFilter)
+    .filter((m) => (query ? m.score > 0.05 : true))
     .sort((a, b) => b.score - a.score)
-    .slice(0, Number(topK) || 50)
-    .map(({ score: _score, ...rest }) => rest);
+    .slice(0, Number(topK) || 50);
 
   const format = source.format || "json";
+
+  if (results.length === 0) {
+    if (format === "text") {
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      return res.status(200).send(`No relevant memories in ${effectiveScope} scope for "${query}".`);
+    }
+    return res.status(200).json({
+      ok: true,
+      count: 0,
+      confidence: "uncertain",
+      reason: `No memories in ${effectiveScope} scope matched query "${query}" with sufficient evidence.`,
+      results: [],
+      memories: [],
+    });
+  }
+
   if (format === "text") {
-    const textOutput =
-      results.length > 0
-        ? results
-            .map(
-              (m, i) =>
-                `• (${m.type}) ${i + 1}. ${m.text}${
-                  m.blobId ? ` [walrus:${m.blobId.slice(0, 8)}...]` : ""
-                }`
-            )
-            .join("\n")
-        : "No memories stored yet.";
+    const textOutput = results
+      .map(
+        (m, i) =>
+          `• (${m.type}) ${i + 1}. ${m.text}${
+            m.blobId ? ` [walrus:${m.blobId.slice(0, 8)}...]` : ""
+          }`
+      )
+      .join("\n");
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(200).send(textOutput);
   }
 
-  res.status(200).json({ ok: true, count: results.length, results, memories: results });
+  res.status(200).json({
+    ok: true,
+    count: results.length,
+    confidence: results[0].score >= 0.4 ? "high" : "medium",
+    results,
+    memories: results,
+  });
 }
