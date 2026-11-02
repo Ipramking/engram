@@ -123,7 +123,7 @@ export default function DashboardPage() {
   const [saveMemoryError, setSaveMemoryError] = useState<string | null>(null)
 
   // Mobile Workflows Interactive Toolkit State
-  const [mobileMode, setMobileMode] = useState<'claude' | 'chatgpt' | 'shortcuts'>('claude')
+  const [mobileMode, setMobileMode] = useState<'claude' | 'chatgpt' | 'gemini' | 'shortcuts'>('claude')
   const [showFullMobilePrompt, setShowFullMobilePrompt] = useState(false)
   const [quickMobileText, setQuickMobileText] = useState('')
   const [quickMobileType, setQuickMobileType] = useState('decision')
@@ -601,6 +601,24 @@ RULES:
 MY ACTIVE MEMORIES:
 ${activeMemoriesList.map((m, i) => `${i + 1}. [${(m.type || 'decision').toUpperCase()}] ${m.text}`).join('\n')}`
 
+  const geminiGemInstructions = `You are my personalized AI assistant connected to my Engram decentralized memory vault on Walrus.
+
+HOW TO OPERATE:
+1. RECALL (GROUND TRUTH): Before answering questions about my projects, stack, decisions, preferences, or team members, verify against my active memories below or check my live plain-text feed:
+https://engram-pearl.vercel.app/api/recall?token=${activeLiveKey}&format=text
+
+2. SAVING MEMORIES (IMPORTANT): Whenever I state an architectural choice, setup value, gotcha fix, person/teammate note, preference, or plan (or ask you to remember/keep something), acknowledge it and ALWAYS append a clickable Markdown link at the very end of your response:
+[💾 Tap to Save to Engram](https://engram-pearl.vercel.app/api/remember?token=${activeLiveKey}&type=decision&text=URL_ENCODED_ONE_SENTENCE_FACT)
+Replace "decision" with (decision|config|gotcha|person|preference|plan) and URL-encode the one-sentence fact with %20.
+
+MY ACTIVE MEMORIES:
+${activeMemoriesList.map((m, i) => `${i + 1}. [${(m.type || 'decision').toUpperCase()}] ${m.text}`).join('\n') || '- User prefers every UI to work on both phone and desktop.'}`
+
+  const geminiMcpSnippet = `# Add to ~/.gemini/settings.json or mcp_servers.json
+mcp_servers:
+  engram:
+    url: "${defaultConnectorUrl}"`
+
   const chatgptOpenApiSchema = JSON.stringify(
     {
       openapi: '3.1.0',
@@ -922,12 +940,12 @@ ${activeMemoriesList.map((m, i) => `${i + 1}. [${(m.type || 'decision').toUpperC
                 </form>
               </div>
 
-              {/* 3 App Guides Selector Tabs */}
+              {/* 4 App Guides Selector Tabs */}
               <div>
                 <p className="text-[11px] font-mono uppercase tracking-wider text-faint mb-2">
                   Want to connect a mobile chatbot app instead? Choose your app:
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <button
                     type="button"
                     onClick={() => setMobileMode('claude')}
@@ -939,8 +957,8 @@ ${activeMemoriesList.map((m, i) => `${i + 1}. [${(m.type || 'decision').toUpperC
                   >
                     <MessageSquare size={16} className={mobileMode === 'claude' ? 'text-rose shrink-0' : 'text-faint shrink-0'} />
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-txt truncate">1. Claude App (Recommended)</p>
-                      <p className="text-[10.5px] text-faint truncate">Easiest — just paste 1 link</p>
+                      <p className="text-xs font-semibold text-txt truncate">1. Claude App</p>
+                      <p className="text-[10.5px] text-faint truncate">1-link MCP connect</p>
                     </div>
                   </button>
 
@@ -955,8 +973,24 @@ ${activeMemoriesList.map((m, i) => `${i + 1}. [${(m.type || 'decision').toUpperC
                   >
                     <Sparkles size={16} className={mobileMode === 'chatgpt' ? 'text-violet-soft shrink-0' : 'text-faint shrink-0'} />
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-txt truncate">2. ChatGPT Mobile App</p>
-                      <p className="text-[10.5px] text-faint truncate">Custom Instructions or Custom GPT</p>
+                      <p className="text-xs font-semibold text-txt truncate">2. ChatGPT App</p>
+                      <p className="text-[10.5px] text-faint truncate">Custom Instructions</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMobileMode('gemini')}
+                    className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition ${
+                      mobileMode === 'gemini'
+                        ? 'border-sky-400 bg-sky-400/15 text-txt shadow-sm'
+                        : 'border-line bg-bg/50 text-mut hover:border-line-2 hover:text-txt'
+                    }`}
+                  >
+                    <Sparkles size={16} className={mobileMode === 'gemini' ? 'text-sky-400 shrink-0' : 'text-faint shrink-0'} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-txt truncate">3. Google Gemini</p>
+                      <p className="text-[10.5px] text-faint truncate">Gems & Mobile App</p>
                     </div>
                   </button>
 
@@ -971,8 +1005,8 @@ ${activeMemoriesList.map((m, i) => `${i + 1}. [${(m.type || 'decision').toUpperC
                   >
                     <Zap size={16} className={mobileMode === 'shortcuts' ? 'text-emerald-400 shrink-0' : 'text-faint shrink-0'} />
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-txt truncate">3. iPhone / Android Shortcut</p>
-                      <p className="text-[10.5px] text-faint truncate">For Siri / Home Screen button</p>
+                      <p className="text-xs font-semibold text-txt truncate">4. Shortcuts / Siri</p>
+                      <p className="text-[10.5px] text-faint truncate">1-tap webhook</p>
                     </div>
                   </button>
                 </div>
@@ -1127,7 +1161,104 @@ ${activeMemoriesList.map((m, i) => `${i + 1}. [${(m.type || 'decision').toUpperC
                 </div>
               )}
 
-              {/* MODE 3: iOS SHORTCUTS / ANDROID WEBHOOK */}
+              {/* MODE 3: GOOGLE GEMINI (GEMS & MOBILE APP) */}
+              {mobileMode === 'gemini' && (
+                <div className="space-y-4 rounded-2xl border border-line bg-bg/50 p-3.5 sm:p-5 min-w-0">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-sm font-semibold text-txt">
+                        Connect Google Gemini (Gemini Gems & Mobile App)
+                      </h4>
+                      <span className="rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-0.5 text-[10px] font-mono text-sky-400">
+                        Works on Web, Android & iOS
+                      </span>
+                    </div>
+                    <p className="text-xs text-mut leading-relaxed">
+                      Google Gemini lets you create custom <strong className="text-txt">Gems</strong> that have their own persistent instructions. Once created, your Gem lives in your Gemini mobile app sidebar!
+                    </p>
+                  </div>
+
+                  {/* Step 1: Create a Gem */}
+                  <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
+                    <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-400/20 text-sky-400 font-mono text-[11px]">1</span>
+                      Create an "Engram Memory" Gem in 1 Minute
+                    </span>
+                    <ol className="list-decimal list-inside space-y-1 text-xs text-mut leading-relaxed">
+                      <li>Open <a href="https://gemini.google.com/gems" target="_blank" rel="noreferrer" className="text-sky-400 underline">gemini.google.com/gems</a> (or open Gemini App → tap Gems → New Gem).</li>
+                      <li>Name your Gem: <strong className="text-txt">Engram Brain</strong>.</li>
+                      <li>Tap the button below to copy your tailored Gem Instructions, then paste it into the <strong className="text-txt">Instructions</strong> box.</li>
+                      <li>Tap <strong className="text-txt">Save</strong>. Done! Now Gemini automatically checks your memories and outputs 1-tap save links!</li>
+                    </ol>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(geminiGemInstructions, 'geminiInstructions')}
+                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-400 to-violet px-4 py-2.5 text-xs font-medium text-bg shadow hover:opacity-95 transition"
+                      >
+                        {copiedText === 'geminiInstructions' ? <Check size={14} /> : <Copy size={14} />}
+                        <span>{copiedText === 'geminiInstructions' ? 'Gem Instructions Copied!' : '1-Tap Copy Gem Instructions'}</span>
+                      </button>
+                      <a
+                        href="https://gemini.google.com/gems"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-xs text-txt hover:border-sky-400/50 transition"
+                      >
+                        <span>Open Gemini Gems</span>
+                        <ExternalLink size={13} className="text-sky-400" />
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Step 2: Instant Memory Pack for Gemini Regular / Live */}
+                  <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
+                    <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-400/20 text-sky-400 font-mono text-[11px]">2</span>
+                      Gemini Live & Regular Chats: Paste Memory Pack
+                    </span>
+                    <p className="text-xs text-mut leading-relaxed">
+                      Starting a fresh conversation or voice session on Gemini Live? Tap below to copy all {activeMemoriesList.length} active memories + save link rules in one clean prompt:
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(fullMemoryPackForChat, 'geminiMemoryPack')}
+                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl border border-sky-400/40 bg-sky-400/15 px-4 py-2.5 text-xs font-medium text-txt hover:bg-sky-400/25 transition"
+                    >
+                      {copiedText === 'geminiMemoryPack' ? <Check size={14} className="text-emerald-400" /> : <Sparkles size={14} className="text-sky-400" />}
+                      <span>
+                        {copiedText === 'geminiMemoryPack'
+                          ? `All ${activeMemoriesList.length} Memories Copied!`
+                          : `1-Tap Copy All ${activeMemoriesList.length} Memories for Gemini`}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Step 3: Google Antigravity & Gemini CLI (Developer Setup) */}
+                  <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-2.5 min-w-0">
+                    <span className="text-xs font-semibold text-txt flex items-center gap-2">
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-400/20 text-emerald-400 font-mono text-[11px]">3</span>
+                      Developer: Google Antigravity & Gemini CLI (MCP)
+                    </span>
+                    <p className="text-xs text-mut leading-relaxed">
+                      If you use the Gemini CLI or Antigravity IDE, paste this into your local <code className="text-emerald-400 font-mono">~/.gemini/settings.json</code> or <code className="text-emerald-400 font-mono">mcp_servers.json</code>:
+                    </p>
+                    <pre className="overflow-x-auto rounded-xl border border-line bg-bg/90 p-3 font-mono text-[11px] text-txt leading-relaxed">
+                      {geminiMcpSnippet}
+                    </pre>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(geminiMcpSnippet, 'geminiMcp')}
+                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface py-2 px-3 text-xs text-txt hover:border-emerald-400/50 transition"
+                    >
+                      {copiedText === 'geminiMcp' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                      <span>{copiedText === 'geminiMcp' ? 'Snippet Copied!' : 'Copy Gemini CLI MCP Config'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* MODE 4: iOS SHORTCUTS / ANDROID WEBHOOK */}
               {mobileMode === 'shortcuts' && (
                 <div className="space-y-4 rounded-2xl border border-line bg-bg/50 p-3.5 sm:p-5 min-w-0">
                   <div className="rounded-2xl border border-line bg-surface/40 p-3.5 space-y-3 min-w-0">
@@ -1254,7 +1385,7 @@ ${activeMemoriesList.map((m, i) => `${i + 1}. [${(m.type || 'decision').toUpperC
                   className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface/40 p-3 text-xs font-mono text-txt hover:border-emerald-500/50 hover:bg-emerald-500/[0.04] transition min-w-0"
                 >
                   <Terminal size={15} className="text-emerald-400 shrink-0" />
-                  <span className="truncate">mcp_servers.json (AGY)</span>
+                  <span className="truncate">mcp_servers.json (AGY / Gemini)</span>
                 </button>
               </div>
             </div>

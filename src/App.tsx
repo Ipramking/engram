@@ -525,7 +525,7 @@ function AgentOSProtocol() {
 }
 
 function QuickConnectPreview() {
-  const [tab, setTab] = useState<'cursor' | 'claude' | 'antigravity' | 'cli'>('cursor')
+  const [tab, setTab] = useState<'cursor' | 'claude' | 'gemini' | 'antigravity' | 'cli'>('cursor')
   const [copied, setCopied] = useState(false)
 
   const configs = {
@@ -544,7 +544,13 @@ function QuickConnectPreview() {
     }
   }
 }`,
-    antigravity: `# Antigravity / Gemini CLI Configuration
+    gemini: `# Google Gemini CLI & Antigravity (MCP)
+mcp_servers:
+  engram:
+    url: "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"
+
+# Or create a custom Gem at gemini.google.com/gems for 1-tap memory sync!`,
+    antigravity: `# Antigravity IDE & Gemini CLI Configuration
 mcp_servers:
   engram:
     url: "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"`,
@@ -567,7 +573,7 @@ npx engram-walrus --key=YOUR_API_KEY --room=my-space`,
             <h2 className="text-2xl sm:text-3xl font-display text-txt mt-1">Connect in 30 seconds.</h2>
           </div>
           <div className="flex flex-wrap gap-1.5 bg-surface/70 rounded-2xl p-1.5 border border-line/80">
-            {(['cursor', 'claude', 'antigravity', 'cli'] as const).map((t) => (
+            {(['cursor', 'claude', 'gemini', 'antigravity', 'cli'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
