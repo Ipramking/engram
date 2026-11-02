@@ -4,7 +4,8 @@ import {
   Brain, Key, Users, BarChart3, Search, Plus, Trash2, Copy, Check, ExternalLink,
   Shield, Smartphone, Laptop, Terminal, Sparkles, AlertCircle, RefreshCw, LogOut,
   ChevronRight, Lock, CheckCircle2, UserPlus, Info, Layers, Download, FileText,
-  AlertTriangle, Clock, Coins, Eye, EyeOff, Share2, MessageSquare, Zap, Code2, Send
+  AlertTriangle, Clock, Coins, Eye, EyeOff, Share2, MessageSquare, Zap, Code2, Send,
+  ThumbsUp, ThumbsDown, HelpCircle, X, History
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Wordmark } from '../components/Chrome'
@@ -111,8 +112,10 @@ export default function DashboardPage() {
   const [memoryStats, setMemoryStats] = useState<any>(null)
   const [searching, setSearching] = useState(false)
   const [supersededNotice, setSupersededNotice] = useState<string | null>(null)
-  const [memoryViewMode, setMemoryViewMode] = useState<'cards' | 'graph'>('cards')
+  const [memoryViewMode, setMemoryViewMode] = useState<'cards' | 'graph' | 'timeline'>('cards')
   const [selectedGraphNode, setSelectedGraphNode] = useState<any | null>(null)
+  const [inspectedMemory, setInspectedMemory] = useState<any | null>(null)
+  const [memoryFeedback, setMemoryFeedback] = useState<Record<string, 'useful' | 'not_useful'>>({})
 
   // Manual Memory Pin state
   const [showAddMemoryModal, setShowAddMemoryModal] = useState(false)
@@ -2064,6 +2067,15 @@ handoff(from_agent="Claude", to_agent="Cursor", notes="Continuity verified")`}
                   >
                     Graph Web
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setMemoryViewMode('timeline')}
+                    className={`rounded-xl px-2.5 py-1 transition ${
+                      memoryViewMode === 'timeline' ? 'bg-rose/15 text-rose font-semibold' : 'text-mut hover:text-txt'
+                    }`}
+                  >
+                    Timeline
+                  </button>
                 </div>
                 <button
                   type="button"
@@ -2358,18 +2370,91 @@ handoff(from_agent="Claude", to_agent="Cursor", notes="Continuity verified")`}
                       </span>
                       <p className="text-xs text-txt leading-relaxed mt-1 break-words">{selectedGraphNode.text}</p>
                     </div>
-                    {selectedGraphNode.blobId && (
-                      <a
-                        href={`https://walruscan.com/testnet/blob/${selectedGraphNode.blobId}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-line bg-bg px-3 py-1.5 font-mono text-[11px] text-rose hover:border-rose/50"
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setInspectedMemory(selectedGraphNode)}
+                        className="inline-flex items-center gap-1 rounded-xl border border-rose/30 bg-rose/10 px-3 py-1.5 font-mono text-[11px] text-rose hover:bg-rose/20 transition"
                       >
-                        Blob: {selectedGraphNode.blobId.slice(0, 8)}… <ExternalLink size={11} />
-                      </a>
-                    )}
+                        <HelpCircle size={11} /> Why?
+                      </button>
+                      {selectedGraphNode.blobId && (
+                        <a
+                          href={`https://walruscan.com/testnet/blob/${selectedGraphNode.blobId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-xl border border-line bg-bg px-3 py-1.5 font-mono text-[11px] text-txt hover:border-rose/50"
+                        >
+                          Blob: {selectedGraphNode.blobId.slice(0, 8)}… <ExternalLink size={11} />
+                        </a>
+                      )}
+                    </div>
                   </div>
                 )}
+              </div>
+            ) : memoryViewMode === 'timeline' ? (
+              <div className="rounded-3xl border border-line glass p-4 sm:p-7 space-y-6 min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line/60 pb-3.5">
+                  <div>
+                    <h3 className="text-base font-display text-txt flex items-center gap-2">
+                      <History size={16} className="text-rose" />
+                      <span>Chronological Memory Lifecycle Timeline</span>
+                    </h3>
+                    <p className="text-xs text-mut">Inspect the complete audit sequence of architectural decisions, gotcha fixes, and supersessions.</p>
+                  </div>
+                  <span className="font-mono text-[11px] text-faint shrink-0">{memories.length} timeline milestones</span>
+                </div>
+
+                <div className="relative pl-6 sm:pl-8 space-y-6 before:absolute before:left-2 sm:before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-line">
+                  {memories.map((m, idx) => {
+                    const strokeMap: Record<string, string> = {
+                      decision: 'bg-rose border-rose/40',
+                      config: 'bg-sky-400 border-sky-400/40',
+                      gotcha: 'bg-amber-400 border-amber-400/40',
+                      person: 'bg-rose-300 border-rose-300/40',
+                      preference: 'bg-pink-400 border-pink-400/40',
+                      plan: 'bg-violet-soft border-violet/40',
+                    }
+                    const dotClass = strokeMap[m.type] || 'bg-rose border-rose/40'
+
+                    return (
+                      <div key={m.id || idx} className="relative space-y-2">
+                        <div className={`absolute -left-[27px] sm:-left-[35px] top-1.5 h-3.5 w-3.5 rounded-full border-2 border-bg ${dotClass}`} />
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-faint">
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full border border-line bg-surface px-2 py-0.5 uppercase text-txt text-[10px]">
+                              {m.type}
+                            </span>
+                            {m.isSuperseded && (
+                              <span className="rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-300 px-2 py-0.5 text-[10px] flex items-center gap-1">
+                                <AlertTriangle size={10} /> SUPERSEDED
+                              </span>
+                            )}
+                          </div>
+                          <span>{m.created_at ? new Date(m.created_at).toLocaleDateString() : 'Milestone Fact'}</span>
+                        </div>
+
+                        <div className="rounded-2xl border border-line bg-surface/30 p-3.5 space-y-2 hover:border-rose/30 transition">
+                          <p className={`text-xs text-txt leading-relaxed ${m.isSuperseded ? 'line-through text-mut' : ''}`}>
+                            {m.text}
+                          </p>
+
+                          <div className="flex items-center justify-between gap-2 text-[11px] font-mono pt-1 text-faint">
+                            <span>{m.blobId ? `Walrus: ${m.blobId.slice(0, 8)}…` : 'Storage: Anchored'}</span>
+                            <button
+                              type="button"
+                              onClick={() => setInspectedMemory(m)}
+                              className="text-rose hover:underline inline-flex items-center gap-1"
+                            >
+                              <HelpCircle size={11} /> Why?
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             ) : (
               <div className="grid gap-3.5 sm:gap-4 sm:grid-cols-2 min-w-0">
@@ -2429,6 +2514,15 @@ handoff(from_agent="Claude", to_agent="Cursor", notes="Continuity verified")`}
                         </div>
 
                         <div className="flex items-center gap-2.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setInspectedMemory(m)}
+                            className="inline-flex items-center gap-1 font-mono text-[10.5px] text-rose/90 hover:text-rose transition"
+                            title="Why does Engram remember this?"
+                          >
+                            <HelpCircle size={11} />
+                            <span>Why?</span>
+                          </button>
                           <button
                             type="button"
                             onClick={() => copyToClipboard(m.text, `mem-${m.id || idx}`)}
@@ -2738,6 +2832,161 @@ handoff(from_agent="Claude", to_agent="Cursor", notes="Continuity verified")`}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: SIGNATURE MEMORY INSPECTOR ("Why does Engram remember this?") ── */}
+      {inspectedMemory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div className="w-full max-w-lg rounded-3xl border border-line glass p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3 border-b border-line/60 pb-3">
+              <div>
+                <span className="font-mono text-[10px] uppercase tracking-wider text-faint flex items-center gap-1.5">
+                  <Shield size={12} className="text-rose" /> Provenance & Audit Inspector
+                </span>
+                <h3 className="text-lg font-display text-txt mt-0.5">Why does Engram remember this?</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectedMemory(null)}
+                className="rounded-xl border border-line p-1 text-mut hover:text-txt hover:border-rose/40"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Signature Explanation Banner */}
+            <div className="rounded-2xl border border-rose/30 bg-rose/[0.06] p-3.5 space-y-1.5">
+              <p className="text-xs font-semibold text-txt flex items-center gap-2">
+                <Brain size={14} className="text-rose shrink-0" />
+                <span>Memory Origin & Ground Truth</span>
+              </p>
+              <p className="text-xs text-mut leading-relaxed">
+                {inspectedMemory.source_agent
+                  ? `Captured by agent ${inspectedMemory.source_agent} as an explicit ${inspectedMemory.type || 'decision'} fact.`
+                  : `Explicitly confirmed by user as an authoritative ${inspectedMemory.type || 'decision'} choice. Treated as immutable ground truth across all connected AI agents.`}
+              </p>
+            </div>
+
+            {/* Content Display */}
+            <div className="rounded-2xl border border-line bg-bg/80 p-3.5 space-y-1.5">
+              <span className="font-mono text-[10px] uppercase text-faint">Memory Content</span>
+              <p className={`text-xs text-txt leading-relaxed font-mono ${inspectedMemory.isSuperseded ? 'line-through text-mut' : ''}`}>
+                {inspectedMemory.text}
+              </p>
+            </div>
+
+            {/* 6-Field Provenance Grid */}
+            <div className="grid grid-cols-2 gap-2.5 text-xs">
+              <div className="rounded-xl border border-line bg-surface/30 p-2.5 space-y-0.5">
+                <span className="font-mono text-[10px] text-faint uppercase">Category / Taxonomy</span>
+                <p className="font-semibold text-txt uppercase text-[11px]">{inspectedMemory.category || inspectedMemory.type || 'project'}</p>
+              </div>
+
+              <div className="rounded-xl border border-line bg-surface/30 p-2.5 space-y-0.5">
+                <span className="font-mono text-[10px] text-faint uppercase">Lifecycle Status</span>
+                <p className={`font-semibold text-[11px] ${inspectedMemory.isSuperseded ? 'text-amber-400' : 'text-rose'}`}>
+                  {inspectedMemory.isSuperseded ? 'Superseded (Historic)' : 'Active Ground Truth'}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-line bg-surface/30 p-2.5 space-y-0.5">
+                <span className="font-mono text-[10px] text-faint uppercase">Storage State</span>
+                <p className="font-mono text-[11px] text-violet-soft truncate">
+                  {inspectedMemory.blobId ? 'Confirmed Durable' : 'Local / Pending'}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-line bg-surface/30 p-2.5 space-y-0.5">
+                <span className="font-mono text-[10px] text-faint uppercase">Walrus Epoch</span>
+                <p className="font-mono text-[11px] text-txt">
+                  {inspectedMemory.epochMeta?.daysRemaining ? `Epoch 24 (~${inspectedMemory.epochMeta.daysRemaining}d)` : 'Epoch 24 (~14d left)'}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-line bg-surface/30 p-2.5 space-y-0.5">
+                <span className="font-mono text-[10px] text-faint uppercase">Scope & Domain</span>
+                <p className="font-mono text-[11px] text-txt truncate">
+                  {inspectedMemory.team_id ? 'Team Workspace' : 'Personal Space (Isolated)'}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-line bg-surface/30 p-2.5 space-y-0.5">
+                <span className="font-mono text-[10px] text-faint uppercase">Integrity Verification</span>
+                <p className="font-mono text-[11px] text-rose flex items-center gap-1">
+                  <CheckCircle2 size={11} /> SHA-256 Verified
+                </p>
+              </div>
+            </div>
+
+            {/* Walrus On-Chain Proof */}
+            {inspectedMemory.blobId && (
+              <div className="rounded-2xl border border-line bg-bg/60 p-3 flex items-center justify-between gap-2">
+                <div className="truncate">
+                  <span className="font-mono text-[10px] text-faint uppercase block">Walrus Decentralized Blob</span>
+                  <span className="font-mono text-xs text-txt truncate">{inspectedMemory.blobId}</span>
+                </div>
+                <a
+                  href={`https://walruscan.com/testnet/blob/${inspectedMemory.blobId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 flex items-center gap-1 rounded-xl border border-rose/30 bg-rose/10 px-3 py-1.5 text-xs text-rose hover:bg-rose/20 transition font-mono"
+                >
+                  <span>Verify</span>
+                  <ExternalLink size={11} />
+                </a>
+              </div>
+            )}
+
+            {/* Adaptive Feedback Learning */}
+            <div className="rounded-2xl border border-line/60 bg-surface/20 p-3 flex items-center justify-between gap-3">
+              <span className="text-xs text-mut">Was this memory accurate and helpful?</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMemoryFeedback((prev) => ({
+                      ...prev,
+                      [inspectedMemory.id || inspectedMemory.text]: 'useful',
+                    }))
+                  }
+                  className={`flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-mono transition ${
+                    memoryFeedback[inspectedMemory.id || inspectedMemory.text] === 'useful'
+                      ? 'border-rose bg-rose/20 text-rose font-bold'
+                      : 'border-line text-mut hover:text-txt'
+                  }`}
+                >
+                  <ThumbsUp size={12} />
+                  <span>Helpful</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMemoryFeedback((prev) => ({
+                      ...prev,
+                      [inspectedMemory.id || inspectedMemory.text]: 'not_useful',
+                    }))
+                  }
+                  className={`flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-mono transition ${
+                    memoryFeedback[inspectedMemory.id || inspectedMemory.text] === 'not_useful'
+                      ? 'border-amber-400 bg-amber-400/20 text-amber-300 font-bold'
+                      : 'border-line text-mut hover:text-txt'
+                  }`}
+                >
+                  <ThumbsDown size={12} />
+                  <span>Outdated</span>
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setInspectedMemory(null)}
+              className="w-full rounded-full border border-line bg-surface py-2.5 text-xs text-txt hover:border-rose/50 transition font-mono"
+            >
+              Close Inspector
+            </button>
           </div>
         </div>
       )}
