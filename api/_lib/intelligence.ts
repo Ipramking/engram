@@ -1,4 +1,4 @@
-// Engram 2.0 Intelligent Memory Engine: 5 Categories, Lifecycle Pipeline, Hybrid Retrieval & Entity Graph
+// Engram 2.1 Intelligent Memory Engine: 5 Categories, Lifecycle Pipeline, Hybrid Retrieval & Entity Graph
 import { randomUUID } from 'node:crypto'
 import {
   MEMORY_CATEGORIES,
@@ -85,13 +85,37 @@ export function mapSubtypeToCategory(val: string = ''): { category: MemoryCatego
   return { category: 'semantic', subtype: norm || 'fact' }
 }
 
-const COMMON_TECH_ENTITIES = [
+export const COMMON_STOP_WORDS = new Set([
+  'the', 'and', 'for', 'with', 'what', 'how', 'our', 'are', 'was', 'were',
+  'is', 'in', 'to', 'of', 'on', 'we', 'do', 'does', 'did', 'by', 'as', 'at',
+  'an', 'a', 'be', 'or', 'if', 'my', 'your', 'their', 'this', 'that', 'from',
+  'it', 'its', 'so', 'can', 'will', 'have', 'has', 'had', 'been', 'which', 'who',
+])
+
+export const COMMON_TECH_ENTITIES = [
   'typescript', 'javascript', 'python', 'rust', 'go', 'golang', 'solidity', 'move',
   'react', 'next', 'nextjs', 'vite', 'tailwind', 'vue', 'svelte',
   'postgres', 'postgresql', 'supabase', 'neon', 'mysql', 'sqlite', 'redis', 'mongodb', 'dynamodb',
   'docker', 'kubernetes', 'aws', 'gcp', 'vercel', 'render', 'railway', 'cloudflare',
   'walrus', 'sui', 'memwal', 'mcp', 'openai', 'anthropic', 'groq', 'gemini', 'claude',
 ]
+
+export const ENTITY_ALIASES: Record<string, string> = {
+  postgresql: 'postgres',
+  reactjs: 'react',
+  nextjs: 'next',
+  golang: 'go',
+  k8s: 'kubernetes',
+  javascript: 'js',
+  typescript: 'ts',
+  vitejs: 'vite',
+  tailwindcss: 'tailwind',
+}
+
+export function canonicalEntity(entity: string): string {
+  const norm = entity.toLowerCase().trim()
+  return ENTITY_ALIASES[norm] || norm
+}
 
 /**
  * Extracts key named entities and domain subjects for knowledge graph links.
@@ -344,7 +368,8 @@ export interface ScoredMemory extends StructuredMemory {
 
 /**
  * Hybrid retrieval scoring engine:
- * Combines semantic keyword matching, entity graph links, recency decay, and importance.
+ * Combines semantic keyword matching, entity graph links with canonical aliases,
+ * recency decay, and importance weighting.
  */
 export function scoreMemoryHybrid(
   memory: StructuredMemory,
@@ -366,7 +391,7 @@ export function scoreMemoryHybrid(
   } else {
     const qWords = qLower
       .split(/[^a-z0-9_]+/)
-      .filter((w) => w.length >= 2 && !['the', 'and', 'for', 'with', 'what', 'how', 'our', 'are'].includes(w))
+      .filter((w) => w.length >= 2 && !COMMON_STOP_WORDS.has(w))
     if (qWords.length === 0) {
       keywordScore = 0.5
     } else {
@@ -381,11 +406,11 @@ export function scoreMemoryHybrid(
     }
   }
 
-  // Entity graph score
+  // Entity graph score with canonical alias resolution
   const qEntities = extractEntities(query)
   if (memory.entities && memory.entities.length > 0 && qEntities.length > 0) {
-    const memEntitiesLow = memory.entities.map((e) => e.toLowerCase())
-    const entityHits = qEntities.filter((qe) => memEntitiesLow.includes(qe.toLowerCase()))
+    const memCanonical = new Set(memory.entities.map(canonicalEntity))
+    const entityHits = qEntities.filter((qe) => memCanonical.has(canonicalEntity(qe)))
     if (entityHits.length > 0) {
       entityMatchScore = entityHits.length / qEntities.length
       matchReasons.push(`Entity link: [${entityHits.join(', ')}]`)
@@ -409,6 +434,20 @@ export function scoreMemoryHybrid(
   if (qLower.includes(memory.category) || qLower.includes(memory.subtype)) {
     keywordScore = Math.min(1.0, keywordScore + 0.2)
     matchReasons.push(`Category match on "${memory.category}"`)
+  }
+
+  // Zero-relevance guard: if query is non-empty and there are zero keyword or entity hits, score is 0
+  if (qLower && keywordScore === 0 && entityMatchScore === 0) {
+    return {
+      ...memory,
+      score: 0,
+      matchReasons: [],
+      keywordScore: 0,
+      entityMatchScore: 0,
+      recencyScore: parseFloat(recencyScore.toFixed(3)),
+      importanceScore: parseFloat(importanceScore.toFixed(3)),
+      evidenceExplanation: 'No relevance: query terms do not match memory content',
+    }
   }
 
   // Penalty if superseded

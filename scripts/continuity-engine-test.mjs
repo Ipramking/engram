@@ -1,4 +1,4 @@
-// Engram 2.0 Milestone 3 Continuity & Cross-Agent Engine Automated Test Suite
+// Engram 2.1 Continuity & Cross-Agent Engine Automated Test Suite
 import assert from 'node:assert'
 import {
   getOrCreateProjectContext,
@@ -90,8 +90,8 @@ _resetContinuityTestState()
 // [1] Project Context Management & Architecture Tracking
 console.log('[1] Project Context Management & Architecture Tracking')
 
-test('getOrCreateProjectContext creates and caches structured project context', () => {
-  const ctx = getOrCreateProjectContext({
+await testAsync('getOrCreateProjectContext creates and caches structured project context', async () => {
+  const ctx = await getOrCreateProjectContext({
     projectId: 'proj_alpha_01',
     projectName: 'Alpha Agent Vault',
     userId: 'user_dev_01',
@@ -105,9 +105,10 @@ test('getOrCreateProjectContext creates and caches structured project context', 
   assert.ok(Array.isArray(ctx.preferences))
 })
 
-test('updateProjectContext updates tasks, architecture, and terms cleanly', () => {
-  const updated = updateProjectContext({
+await testAsync('updateProjectContext updates tasks, architecture, and terms cleanly', async () => {
+  const updated = await updateProjectContext({
     projectId: 'proj_alpha_01',
+    userId: 'user_dev_01',
     architecture: {
       framework: 'Next.js 15 + TypeScript',
       database: 'Supabase PostgreSQL',
@@ -141,9 +142,10 @@ test('updateProjectContext updates tasks, architecture, and terms cleanly', () =
 // [2] Cross-Agent Handoff Recording & History
 console.log('\n[2] Cross-Agent Handoff Recording & History')
 
-test('recordAgentHandoff records departing agent notes, task state, and next actions', () => {
-  const handoff = recordAgentHandoff({
+await testAsync('recordAgentHandoff records departing agent notes, task state, and next actions', async () => {
+  const handoff = await recordAgentHandoff({
     projectId: 'proj_alpha_01',
+    userId: 'user_dev_01',
     fromAgent: 'Claude Code',
     toAgent: 'Cursor IDE',
     taskState: 'Milestone 2 complete, starting Milestone 3',
@@ -163,10 +165,10 @@ test('recordAgentHandoff records departing agent notes, task state, and next act
   assert.strictEqual(handoff.nextActions.length, 3)
   assert.strictEqual(handoff.unresolvedQuestions.length, 1)
 
-  const latest = getLatestHandoff('proj_alpha_01')
+  const latest = await getLatestHandoff('proj_alpha_01')
   assert.strictEqual(latest.id, handoff.id)
 
-  const allHandoffs = listProjectHandoffs('proj_alpha_01')
+  const allHandoffs = await listProjectHandoffs('proj_alpha_01')
   assert.strictEqual(allHandoffs.length, 1)
 })
 
@@ -175,8 +177,8 @@ console.log('\n[3] Verifiable Snapshots & Tamper Detection')
 
 let generatedSnapshot = null
 
-test('generateContinuitySnapshot generates schemaVersion 2.0 with sha256 checksum', () => {
-  generatedSnapshot = generateContinuitySnapshot({
+await testAsync('generateContinuitySnapshot generates schemaVersion 2.0 with sha256 checksum', async () => {
+  generatedSnapshot = await generateContinuitySnapshot({
     projectId: 'proj_alpha_01',
     userId: 'user_dev_01',
     scope: 'personal',
@@ -193,19 +195,25 @@ test('generateContinuitySnapshot generates schemaVersion 2.0 with sha256 checksu
   assert.strictEqual(generatedSnapshot.activeMemoriesCount, 2)
 })
 
-test('restoreContinuitySnapshot verifies authentic snapshot successfully', () => {
-  const result = restoreContinuitySnapshot(JSON.stringify(generatedSnapshot))
+await testAsync('restoreContinuitySnapshot verifies authentic snapshot successfully', async () => {
+  const result = await restoreContinuitySnapshot({
+    snapshotJson: JSON.stringify(generatedSnapshot),
+    userId: 'user_dev_01',
+  })
   assert.strictEqual(result.verified, true)
   assert.ok(result.snapshot)
   assert.strictEqual(result.snapshot.snapshotId, generatedSnapshot.snapshotId)
 })
 
-test('restoreContinuitySnapshot detects tampered data and rejects restoration', () => {
+await testAsync('restoreContinuitySnapshot detects tampered data and rejects restoration', async () => {
   // Tamper with context
   const tampered = JSON.parse(JSON.stringify(generatedSnapshot))
   tampered.context.architecture.database = 'Hacked Insecure DB'
 
-  const result = restoreContinuitySnapshot(JSON.stringify(tampered))
+  const result = await restoreContinuitySnapshot({
+    snapshotJson: JSON.stringify(tampered),
+    userId: 'user_dev_01',
+  })
   assert.strictEqual(result.verified, false)
   assert.ok(result.error.includes('Snapshot integrity checksum mismatch'))
 })

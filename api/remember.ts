@@ -1,12 +1,7 @@
 // Manual "pin this" — store a memory the user explicitly chose.
-import { memwalFor, encodeMemory, decodeMemory, MEMORY_TYPES, type Scope } from "./_lib/memwal.js";
-import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
-import { checkAndIncrementUsage, getQuotaResetMetadata, PLAN_LIMITS } from "./_lib/db.js";
-import { getSupabaseAdmin } from "./_lib/supabase.js";
-import { detectAndResolveConflicts } from "./_lib/conflicts.js";
-import { scanForSecrets, sanitizeMemoryText } from "./_lib/security.js";
-import { writeMemoryWithRetry } from "./_lib/storage.js";
-import { executeLifecyclePipeline } from "./_lib/intelligence.js";
+import { getUserFromRequest } from "./_lib/auth.js";
+import { getQuotaResetMetadata, PLAN_LIMITS } from "./_lib/db.js";
+import { executeMemoryCreationLifecycle } from "./_lib/lifecycle.js";
 
 export default async function handler(req: any, res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -25,129 +20,57 @@ export default async function handler(req: any, res: any) {
       : (req.body ?? {});
 
   const { text, type, scope = "personal", teamCode = "default" } = source;
-  if (!text || typeof text !== "string") return res.status(400).json({ error: "text required" });
-
-  // Deterministic server-side secret scanner (Security Audit Finding 4)
-  const secretCheck = scanForSecrets(text);
-  if (secretCheck.hasSecret) {
-    return res.status(400).json({
-      error: secretCheck.reason,
-      code: "SECRET_DETECTED",
-    });
-  }
 
   const user = await getUserFromRequest(req);
   if (!user) {
     return res.status(401).json({ error: "Unauthorized: authentication required to access memory." });
   }
 
-  // Centralized authorization enforcement
-  const authRes = await authorizeMemoryAccess({
+  const lifecycleResult = await executeMemoryCreationLifecycle({
     user,
-    requestedScope: scope,
-    requestedTeamCode: teamCode,
+    text,
+    type,
+    scope,
+    teamCode,
+    source: 'explicit_user',
   });
 
-  if (!authRes.authorized) {
-    return res.status(authRes.statusCode || 403).json({ error: authRes.error });
-  }
-
-  const effectiveScope = authRes.effectiveScope;
-  const effectiveTeamId = authRes.effectiveTeamId;
-  const ns = effectiveScope === "team" ? effectiveTeamId! : `usr_${user.id}`;
-
-  const decoded = decodeMemory(sanitizeMemoryText(text));
-  const t = type && (MEMORY_TYPES as readonly string[]).includes(type)
-    ? type
-    : (decoded.type !== 'note' ? decoded.type : 'decision');
-  const cleanText = decoded.text;
-
-  const { resetAt, secondsUntilReset } = getQuotaResetMetadata();
-  const plan = user.plan_tier || (effectiveScope === 'team' ? 'free_team' : 'free_personal');
-  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free_personal;
-  try {
-    const usageResult = await checkAndIncrementUsage({
-      entityType: effectiveScope === 'team' ? 'team' : 'user',
-      entityId: effectiveScope === 'team' ? effectiveTeamId! : user.id,
-      operation: 'save',
-      planTier: user.plan_tier,
-    });
-
-    res.setHeader('X-RateLimit-Limit', String(usageResult.limit));
-    res.setHeader('X-RateLimit-Remaining', String(usageResult.remaining));
-    res.setHeader('X-RateLimit-Reset', String(resetAt));
-  } catch (quotaErr: any) {
-    res.setHeader('Retry-After', String(secondsUntilReset));
-    res.setHeader('X-RateLimit-Limit', String(limits.dailySaves));
-    res.setHeader('X-RateLimit-Remaining', '0');
-    res.setHeader('X-RateLimit-Reset', String(resetAt));
-    return res.status(429).json({
-      error: quotaErr.message,
-      code: 'DAILY_QUOTA_EXCEEDED',
-      limit: limits.dailySaves,
-      resetAt,
-      secondsUntilReset,
-    });
-  }
-
-  const mem = memwalFor(effectiveScope as Scope, ns);
-  const encoded = encodeMemory(t as any, cleanText);
-
-  // Resilient write-ahead with exponential backoff & idempotency protection
-  const writeRes = await writeMemoryWithRetry({
-    mem,
-    encodedText: encoded,
-    type: t as any,
-    cleanText,
-    userId: user.id,
-    scope: effectiveScope as 'personal' | 'team',
-    teamId: effectiveTeamId,
-  });
-
-  const blobId = writeRes.blobId;
-  const storageState = writeRes.storageState;
-  const contentHash = writeRes.contentHash;
-  const idempotencyKey = writeRes.idempotencyKey;
-  const storageProvider = writeRes.storageProvider;
-
-  // Persist to memories_meta and run smart conflict resolution
-  let superseded: any[] = [];
-  const supabase = getSupabaseAdmin();
-  if (supabase && user) {
-    try {
-      await supabase.from('memories_meta').insert({
-        user_id: user.id,
-        team_id: effectiveScope === 'team' ? effectiveTeamId : null,
-        room: 'my-space',
-        type: t,
-        text: cleanText,
-        blob_id: blobId ?? null,
+  if (!lifecycleResult.ok) {
+    if (lifecycleResult.statusCode === 429) {
+      const { resetAt, secondsUntilReset } = getQuotaResetMetadata();
+      const plan = user.plan_tier || (scope === 'team' ? 'free_team' : 'free_personal');
+      const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free_personal;
+      res.setHeader('Retry-After', String(secondsUntilReset));
+      res.setHeader('X-RateLimit-Limit', String(limits.dailySaves));
+      res.setHeader('X-RateLimit-Remaining', '0');
+      res.setHeader('X-RateLimit-Reset', String(resetAt));
+      return res.status(429).json({
+        error: lifecycleResult.error,
+        code: 'DAILY_QUOTA_EXCEEDED',
+        limit: limits.dailySaves,
+        resetAt,
+        secondsUntilReset,
       });
-
-      const conflictRes = await detectAndResolveConflicts({
-        userId: user.id,
-        teamId: effectiveScope === 'team' ? effectiveTeamId : null,
-        scope: effectiveScope as 'personal' | 'team',
-        newText: cleanText,
-        newType: t,
-        newBlobId: blobId,
-      });
-      superseded = conflictRes.supersededList;
-    } catch (metaErr) {
-      console.error('Failed to update memories_meta or resolve conflicts:', metaErr);
     }
+
+    return res.status(lifecycleResult.statusCode).json({
+      error: lifecycleResult.error,
+      code: lifecycleResult.code,
+    });
   }
 
   const accept = String(req.headers?.accept || "");
   if (req.method === "GET" && accept.includes("text/html") && source.format !== "json") {
-    const safeHtmlText = cleanText
+    const safeHtmlText = lifecycleResult.cleanText
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
-    const isDurable = storageState === 'confirmed_durable' || storageState === 'local_mock';
+    const isDurable =
+      lifecycleResult.storageState === 'confirmed_durable' ||
+      lifecycleResult.storageState === 'local_mock';
     const badgeHtml = isDurable
       ? `<div class="badge" style="display:inline-block;background:rgba(52,211,153,0.15);color:#34d399;border:1px solid rgba(52,211,153,0.35);border-radius:99px;padding:6px 14px;font-size:12px;font-family:monospace;text-transform:uppercase;margin-bottom:16px;">✓ Anchored on Walrus</div>`
-      : `<div class="badge" style="display:inline-block;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.35);border-radius:99px;padding:6px 14px;font-size:12px;font-family:monospace;text-transform:uppercase;margin-bottom:16px;">⚡ Stored in Vault (${storageState === 'recovery_required' ? 'Recovery Queued' : 'Walrus Pending'})</div>`;
+      : `<div class="badge" style="display:inline-block;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.35);border-radius:99px;padding:6px 14px;font-size:12px;font-family:monospace;text-transform:uppercase;margin-bottom:16px;">⚡ Stored in Vault (${lifecycleResult.storageState === 'recovery_required' ? 'Recovery Queued' : 'Walrus Pending'})</div>`;
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(`<!doctype html>
@@ -171,7 +94,7 @@ export default async function handler(req: any, res: any) {
     <h1>Memory Saved!</h1>
     <p style="font-size:13px;color:#9f96b8;margin:0;">This fact is now synced across your phone, laptop, and CLI.</p>
     <div class="mem">
-      <span class="type">[${t}]</span>
+      <span class="type">[${lifecycleResult.type}]</span>
       ${safeHtmlText}
     </div>
     <button class="btn" onclick="if(window.history.length>1){window.history.back()}else{window.close()}">← Return to Chat</button>
@@ -181,34 +104,24 @@ export default async function handler(req: any, res: any) {
 </html>`);
   }
 
-  const pipelineResult = executeLifecyclePipeline({
-    userId: user.id,
-    scope: effectiveScope as 'personal' | 'team',
-    teamId: effectiveTeamId,
-    text: cleanText,
-    type: t,
-    blobId,
-  });
-  const structured = pipelineResult.memory;
-
   res.status(200).json({
     ok: true,
-    type: t,
-    text: cleanText,
-    category: structured.category,
-    subtype: structured.subtype,
-    entities: structured.entities,
-    confidence: structured.confidence,
-    importance: structured.importance,
-    sensitivity: structured.sensitivity,
-    blobId: blobId ?? null,
-    storageState,
-    persistenceState: storageState,
-    contentHash,
-    idempotencyKey,
-    storageProvider,
-    integrityVerified: true,
-    isDuplicate: writeRes.isDuplicate ?? false,
-    superseded,
+    type: lifecycleResult.type,
+    text: lifecycleResult.cleanText,
+    category: lifecycleResult.category,
+    subtype: lifecycleResult.subtype,
+    entities: lifecycleResult.entities,
+    confidence: lifecycleResult.confidence,
+    importance: lifecycleResult.importance,
+    sensitivity: lifecycleResult.sensitivity,
+    blobId: lifecycleResult.blobId,
+    storageState: lifecycleResult.storageState,
+    persistenceState: lifecycleResult.persistenceState,
+    contentHash: lifecycleResult.contentHash,
+    idempotencyKey: lifecycleResult.idempotencyKey,
+    storageProvider: lifecycleResult.storageProvider,
+    integrityVerified: lifecycleResult.integrityVerified,
+    isDuplicate: lifecycleResult.isDuplicate,
+    superseded: lifecycleResult.superseded,
   });
 }

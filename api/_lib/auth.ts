@@ -24,12 +24,16 @@ export async function getUserFromRequest(req: any) {
   const authHeader = req.headers?.authorization || ''
   const rawUrl = req.url || ''
   const urlParams = new URLSearchParams(rawUrl.split('?')[1] || '')
-  const token =
-    authHeader.replace(/^Bearer\s+/i, '').trim() ||
-    req.query?.token ||
-    urlParams.get('token') ||
-    ''
+  const authBearerToken = authHeader.replace(/^Bearer\s+/i, '').trim()
+  const queryToken = req.query?.token || urlParams.get('token') || ''
 
+  if (!authBearerToken && queryToken) {
+    console.warn(
+      '[SECURITY DEPRECATION] Query-string authentication (?token=...) is deprecated and will be removed in Engram 3.0. Use "Authorization: Bearer <token>" header.'
+    )
+  }
+
+  const token = authBearerToken || queryToken
   if (!token) return null
 
   // 1. Try HMAC-signed Engram Session Token (ses1....)
@@ -49,21 +53,22 @@ export async function getUserFromRequest(req: any) {
   // 2. Try Engram Live API Key (eng_live_...)
   if (token.startsWith('eng_live_')) {
     const live = verifyLiveKey(token)
-    if (live?.uid) {
-      if (live.kid) {
-        const active = await isApiKeyActive(live.kid)
-        if (!active) {
-          return null // Revoked API key
-        }
+    if (!live?.uid) {
+      return null
+    }
+    if (live.kid) {
+      const active = await isApiKeyActive(live.kid)
+      if (!active) {
+        return null // Revoked API key
       }
-      const profile = await getProfile(live.uid)
-      return {
-        id: live.uid,
-        email: profile?.email || `${live.scope}-${live.uid.slice(0, 8)}@engram.memory`,
-        name: profile?.name || 'API Client',
-        plan_tier: profile?.plan_tier || 'free_personal',
-        apiKey: { id: live.kid || 'live', user_id: live.uid, scope: live.scope, team_id: live.tid, room: live.room || 'my-space' },
-      }
+    }
+    const profile = await getProfile(live.uid)
+    return {
+      id: live.uid,
+      email: profile?.email || `${live.scope}-${live.uid.slice(0, 8)}@engram.memory`,
+      name: profile?.name || 'API Client',
+      plan_tier: profile?.plan_tier || 'free_personal',
+      apiKey: { id: live.kid || 'live', user_id: live.uid, scope: live.scope, team_id: live.tid, room: live.room || 'my-space' },
     }
   }
 

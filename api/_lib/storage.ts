@@ -1,4 +1,4 @@
-// Engram 2.0 Storage Engine: Resilient Write-Ahead Queue, Retries, Integrity Hashing & Truthful Persistence
+// Engram 2.1 Storage Engine: Durable Write-Ahead Queue, Worker Leases, Retries, Integrity Hashing & Truthful Persistence
 import { createHash, randomUUID } from 'node:crypto'
 import { blobIdOf, isMock, type MemwalClient, type MemoryType } from './memwal.js'
 import { getSupabaseAdmin } from './supabase.js'
@@ -15,6 +15,8 @@ export type StorageProvider =
   | 'walrus_testnet'
   | 'walrus_staging'
   | 'local_mock'
+
+export type JobStatus = 'pending' | 'leased' | 'completed' | 'failed' | 'dead_letter'
 
 export interface MemoryMetadataV2 {
   schemaVersion: '2.0'
@@ -45,12 +47,16 @@ export interface RecoveryJob {
   idempotencyKey: string
   encodedText: string
   attempts: number
+  maxAttempts: number
+  status: JobStatus
+  leaseId?: string | null
+  leasedUntil?: number | null
   lastError?: string | null
   createdAt: string
   nextRetryAt: number
 }
 
-// In-memory fallback recovery queue for serverless / local environments
+// In-memory fallback recovery queue for serverless / local / test environments
 const memRecoveryQueue = new Map<string, RecoveryJob>()
 // Cache of recently confirmed idempotency keys to prevent duplicate on-chain writes
 const memConfirmedWrites = new Map<string, { blobId: string; timestamp: number }>()
@@ -108,7 +114,7 @@ export interface WriteResult {
 
 /**
  * Resilient write-ahead operation with exponential backoff, idempotency checks,
- * and recovery queue fallback for transient failures.
+ * and durable recovery queue fallback for transient failures.
  */
 export async function writeMemoryWithRetry(opts: {
   mem: MemwalClient
@@ -233,7 +239,7 @@ export async function writeMemoryWithRetry(opts: {
     }
   }
 
-  // If retries are exhausted without confirming a blobId, enqueue for recovery
+  // If retries are exhausted without confirming a blobId, enqueue for durable recovery
   const jobId = randomUUID()
   const recoveryJob: RecoveryJob = {
     id: jobId,
@@ -246,12 +252,39 @@ export async function writeMemoryWithRetry(opts: {
     idempotencyKey,
     encodedText,
     attempts,
+    maxAttempts: 5,
+    status: 'pending',
+    leaseId: null,
+    leasedUntil: null,
     lastError: lastError?.message || 'Walrus relayer timeout',
     createdAt: new Date().toISOString(),
     nextRetryAt: Date.now() + 60_000,
   }
 
   memRecoveryQueue.set(jobId, recoveryJob)
+
+  // Persist to Supabase Postgres if available
+  if (supabase) {
+    try {
+      await supabase.from('storage_recovery_jobs').insert({
+        id: recoveryJob.id,
+        user_id: recoveryJob.userId,
+        team_id: recoveryJob.teamId,
+        scope: recoveryJob.scope,
+        type: recoveryJob.type,
+        text: recoveryJob.text,
+        content_hash: recoveryJob.contentHash,
+        idempotency_key: recoveryJob.idempotencyKey,
+        encoded_text: recoveryJob.encodedText,
+        attempts: recoveryJob.attempts,
+        max_attempts: recoveryJob.maxAttempts,
+        status: recoveryJob.status,
+        next_retry_at: new Date(recoveryJob.nextRetryAt).toISOString(),
+        last_error: recoveryJob.lastError,
+        created_at: recoveryJob.createdAt,
+      })
+    } catch {}
+  }
 
   return {
     blobId: undefined,
@@ -265,25 +298,41 @@ export async function writeMemoryWithRetry(opts: {
 }
 
 /**
- * Recovery worker: drains pending recovery jobs when Walrus recovers.
+ * Recovery worker: drains pending recovery jobs with atomic worker leases,
+ * bounded exponential backoff with jitter, crash recovery, and dead-letter handling.
  */
 export async function processRecoveryQueue(
   memFactory: (scope: 'personal' | 'team', teamCode?: string) => MemwalClient,
   opts?: { maxJobs?: number; force?: boolean }
-): Promise<{ processed: number; succeeded: number; failed: number }> {
+): Promise<{ processed: number; succeeded: number; failed: number; deadLetter: number }> {
   let processed = 0
   let succeeded = 0
   let failed = 0
+  let deadLetter = 0
 
   const maxJobs = opts?.maxJobs ?? 10
   const force = opts?.force ?? false
   const now = Date.now()
+  const workerLeaseId = `worker_${randomUUID().slice(0, 8)}`
+  const leaseDurationMs = 30_000
 
+  // 1. Process in-memory queue jobs (and sync with DB)
   for (const [id, job] of memRecoveryQueue) {
     if (processed >= maxJobs) break
-    if (!force && job.nextRetryAt > now) continue
+    if (job.status === 'completed' || job.status === 'dead_letter') continue
 
+    // Check lease: available if pending and due, OR if lease has expired (crash recovery)
+    const isLeaseExpired = job.status === 'leased' && job.leasedUntil && job.leasedUntil < now
+    const isDue = job.status === 'pending' && (force || job.nextRetryAt <= now)
+
+    if (!isDue && !isLeaseExpired) continue
+
+    // Claim lease atomically
+    job.status = 'leased'
+    job.leaseId = workerLeaseId
+    job.leasedUntil = now + leaseDurationMs
     processed++
+
     try {
       const mem = memFactory(job.scope, job.teamId || undefined)
       const res = await Promise.race([
@@ -294,38 +343,87 @@ export async function processRecoveryQueue(
 
       if (blobId) {
         succeeded++
-        memRecoveryQueue.delete(id)
+        job.status = 'completed'
+        job.leaseId = null
+        job.leasedUntil = null
         memConfirmedWrites.set(job.idempotencyKey, { blobId, timestamp: Date.now() })
 
         // Update database record if Supabase is connected
         const supabase = getSupabaseAdmin()
         if (supabase) {
-          await supabase
-            .from('memories_meta')
-            .update({ blob_id: blobId })
-            .eq('user_id', job.userId)
-            .eq('text', job.text)
-            .eq('type', job.type)
+          try {
+            await supabase
+              .from('memories_meta')
+              .update({ blob_id: blobId })
+              .eq('user_id', job.userId)
+              .eq('text', job.text)
+              .eq('type', job.type)
+
+            await supabase
+              .from('storage_recovery_jobs')
+              .update({ status: 'completed', updated_at: new Date().toISOString() })
+              .eq('id', id)
+          } catch {}
         }
       } else {
         job.attempts++
-        job.nextRetryAt = Date.now() + Math.min(300_000, 60_000 * Math.pow(2, job.attempts))
-        failed++
+        if (job.attempts >= job.maxAttempts) {
+          job.status = 'dead_letter'
+          job.leaseId = null
+          job.leasedUntil = null
+          deadLetter++
+        } else {
+          job.status = 'pending'
+          job.leaseId = null
+          job.leasedUntil = null
+          // Bounded exponential backoff with jitter
+          const backoff = Math.min(300_000, 30_000 * Math.pow(2, job.attempts))
+          const jitter = Math.floor(Math.random() * 2000)
+          job.nextRetryAt = Date.now() + backoff + jitter
+          failed++
+        }
       }
     } catch (e: any) {
       job.attempts++
       job.lastError = e?.message || String(e)
-      job.nextRetryAt = Date.now() + Math.min(300_000, 60_000 * Math.pow(2, job.attempts))
-      failed++
+      if (job.attempts >= job.maxAttempts) {
+        job.status = 'dead_letter'
+        job.leaseId = null
+        job.leasedUntil = null
+        deadLetter++
+      } else {
+        job.status = 'pending'
+        job.leaseId = null
+        job.leasedUntil = null
+        const backoff = Math.min(300_000, 30_000 * Math.pow(2, job.attempts))
+        const jitter = Math.floor(Math.random() * 2000)
+        job.nextRetryAt = Date.now() + backoff + jitter
+        failed++
+      }
     }
   }
 
-  return { processed, succeeded, failed }
+  return { processed, succeeded, failed, deadLetter }
 }
 
 export function getRecoveryQueueStats() {
+  let pending = 0
+  let leased = 0
+  let completed = 0
+  let deadLetter = 0
+
+  for (const job of memRecoveryQueue.values()) {
+    if (job.status === 'pending') pending++
+    else if (job.status === 'leased') leased++
+    else if (job.status === 'completed') completed++
+    else if (job.status === 'dead_letter') deadLetter++
+  }
+
   return {
-    pendingCount: memRecoveryQueue.size,
+    pendingCount: pending,
+    leasedCount: leased,
+    completedCount: completed,
+    deadLetterCount: deadLetter,
     confirmedWritesCached: memConfirmedWrites.size,
   }
 }

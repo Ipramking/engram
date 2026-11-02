@@ -3,10 +3,8 @@
 import { randomUUID } from "node:crypto";
 import {
   memwalFor,
-  encodeMemory,
   decodeMemory,
   normalizeRecall,
-  blobIdOf,
   recallMaxDistance,
   MEMORY_TYPES,
   type Scope,
@@ -15,11 +13,11 @@ import { validateApiKey, isApiKeyActive, checkAndIncrementUsage } from "./_lib/d
 import { verify, verifyLiveKey } from "./_lib/token.js";
 import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
-import { detectAndResolveConflicts } from "./_lib/conflicts.js";
-import { scanForSecrets, sanitizeMemoryText } from "./_lib/security.js";
-import { writeMemoryWithRetry, verifyMemoryIntegrity } from "./_lib/storage.js";
+import { sanitizeMemoryText } from "./_lib/security.js";
+import { executeMemoryCreationLifecycle } from "./_lib/lifecycle.js";
 import {
   getOrCreateProjectContext,
+  authorizeProjectAccess,
   recordAgentHandoff,
   getLatestHandoff,
   generateContinuitySnapshot,
@@ -175,9 +173,10 @@ export default async function handler(req: any, res: any) {
   const rawUrl = req.url || "";
   const searchParams = new URLSearchParams(rawUrl.split("?")[1] || "");
   const token =
+    (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim() ||
     (req.query?.token as string) ||
     searchParams.get("token") ||
-    (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+    "";
 
   let userId: string | null = null;
   let teamId: string | null = null;
@@ -320,7 +319,6 @@ export default async function handler(req: any, res: any) {
       try {
         if (toolName === "engram_remember") {
           const rawText = String(args.text || "").trim();
-          const type = MEMORY_TYPES.includes(args.type) ? args.type : "decision";
           if (!rawText) {
             return {
               jsonrpc: "2.0",
@@ -332,68 +330,30 @@ export default async function handler(req: any, res: any) {
             };
           }
 
-          const secretScan = scanForSecrets(rawText);
-          if (secretScan.hasSecret) {
+          const resLifecycle = await executeMemoryCreationLifecycle({
+            user: callerUser,
+            text: rawText,
+            type: args.type,
+            scope,
+            teamCode: activeTeamId,
+            source: 'agent_mcp',
+          });
+
+          if (!resLifecycle.ok) {
             return {
               jsonrpc: "2.0",
               id,
               result: {
-                content: [{ type: "text", text: secretScan.reason! }],
+                content: [{ type: "text", text: `Error: ${resLifecycle.error}` }],
                 isError: true,
               },
             };
           }
 
-          if (userId) {
-            await checkAndIncrementUsage({
-              entityType: scope === "team" ? "team" : "user",
-              entityId: scope === "team" ? activeTeamId : userId,
-              operation: "save",
-            });
-          }
-
-          const cleanText = sanitizeMemoryText(rawText);
-          const mem = memwalFor(scope, ns);
-          const encoded = encodeMemory(type, cleanText);
-
-          const writeRes = await writeMemoryWithRetry({
-            mem,
-            encodedText: encoded,
-            type,
-            cleanText,
-            userId: userId || 'anon',
-            scope,
-            teamId: scope === 'team' && activeTeamId !== 'default' ? activeTeamId : null,
-          });
-
-          const blobId = writeRes.blobId;
-          const storageState = writeRes.storageState;
-
-          let supersededCount = 0;
-          if (supabase && userId) {
-            await supabase.from("memories_meta").insert({
-              user_id: userId,
-              team_id: scope === "team" && activeTeamId !== "default" ? activeTeamId : null,
-              room,
-              type,
-              text: cleanText,
-              blob_id: blobId ?? null,
-            });
-            const conflicts = await detectAndResolveConflicts({
-              userId,
-              teamId: scope === "team" && activeTeamId !== "default" ? activeTeamId : null,
-              scope,
-              newText: cleanText,
-              newType: type,
-              newBlobId: blobId,
-            });
-            supersededCount = conflicts.supersededList.length;
-          }
-
           const suffix = [
-            blobId ? `blob_id=${blobId}` : `storage_state=${storageState}`,
-            supersededCount > 0 ? `superseded=${supersededCount}` : "",
-            writeRes.isDuplicate ? "duplicate=cached" : "",
+            resLifecycle.blobId ? `blob_id=${resLifecycle.blobId}` : `storage_state=${resLifecycle.storageState}`,
+            resLifecycle.superseded.length > 0 ? `superseded=${resLifecycle.superseded.length}` : "",
+            resLifecycle.isDuplicate ? "duplicate=cached" : "",
           ]
             .filter(Boolean)
             .join(", ");
@@ -405,7 +365,7 @@ export default async function handler(req: any, res: any) {
               content: [
                 {
                   type: "text",
-                  text: `Remembered (${type}, ${scope}): ${cleanText} [${suffix}]`,
+                  text: `Remembered (${resLifecycle.type}, ${scope}): ${resLifecycle.cleanText} [${suffix}]`,
                 },
               ],
             },
@@ -552,8 +512,26 @@ export default async function handler(req: any, res: any) {
           const pId = String(args.project_id || (userId ? `proj_${userId.slice(0, 8)}` : "default_proj"));
           const handoffAction = String(args.action || "record");
 
+          const context = await getOrCreateProjectContext({
+            projectId: pId,
+            userId: userId || "mcp_user",
+            scope,
+            teamId: activeTeamId !== 'default' ? activeTeamId : null,
+          });
+          const authCheck = await authorizeProjectAccess({ userId: userId || "mcp_user", context });
+          if (!authCheck.authorized) {
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [{ type: "text", text: `Error: ${authCheck.reason || "Forbidden: unauthorized access to project."}` }],
+                isError: true,
+              },
+            };
+          }
+
           if (handoffAction === "latest") {
-            const latest = getLatestHandoff(pId);
+            const latest = await getLatestHandoff(pId);
             if (!latest) {
               return {
                 jsonrpc: "2.0",
@@ -586,7 +564,7 @@ export default async function handler(req: any, res: any) {
           }
 
           if (handoffAction === "resume_brief") {
-            const snap = generateContinuitySnapshot({
+            const snap = await generateContinuitySnapshot({
               projectId: pId,
               userId: userId || "mcp_user",
               scope,
@@ -615,8 +593,10 @@ export default async function handler(req: any, res: any) {
             };
           }
 
-          const handoff = recordAgentHandoff({
+          const handoff = await recordAgentHandoff({
             projectId: pId,
+            userId: userId || "mcp_user",
+            teamId: context.teamId,
             fromAgent: String(args.from_agent || "Agent"),
             toAgent: String(args.to_agent || "Next Agent"),
             taskState: String(args.task_state || "in_progress"),
@@ -655,7 +635,11 @@ export default async function handler(req: any, res: any) {
                 },
               };
             }
-            const resRestore = restoreContinuitySnapshot(rawJson);
+            const resRestore = await restoreContinuitySnapshot({
+              snapshotJson: rawJson,
+              userId: userId || "mcp_user",
+              targetProjectId: pId,
+            });
             if (!resRestore.verified) {
               return {
                 jsonrpc: "2.0",
@@ -681,7 +665,7 @@ export default async function handler(req: any, res: any) {
           }
 
           // Generate or Brief
-          const snapshot = generateContinuitySnapshot({
+          const snapshot = await generateContinuitySnapshot({
             projectId: pId,
             userId: userId || "mcp_user",
             scope,

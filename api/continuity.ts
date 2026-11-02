@@ -1,9 +1,9 @@
-// Engram 2.0 Continuity & Cross-Agent Handoff REST Endpoint
-import { getUserFromRequest, authorizeMemoryAccess } from './_lib/auth.js'
+// Engram 2.1 Continuity & Cross-Agent Handoff REST Endpoint
+import { getUserFromRequest } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabase.js'
-import { isTeamMember } from './_lib/db.js'
 import {
   getOrCreateProjectContext,
+  authorizeProjectAccess,
   recordAgentHandoff,
   getLatestHandoff,
   listProjectHandoffs,
@@ -34,25 +34,23 @@ export default async function handler(req: any, res: any) {
     const action = req.query.action || 'context'
     const format = req.query.format || 'json'
 
-    const context = getOrCreateProjectContext({
+    const context = await getOrCreateProjectContext({
       projectId,
       userId: user.id,
       scope: req.query.scope === 'team' ? 'team' : 'personal',
       teamId: req.query.teamId || null,
     })
 
-    // IDOR / Team Authorization Check
-    if (context.scope === 'team' && context.teamId) {
-      const authorized = await isTeamMember(user.id, context.teamId)
-      if (!authorized) {
-        return res.status(403).json({ error: 'Forbidden: you are not a member of this project team.' })
-      }
+    // Strict IDOR & Ownership Authorization Check (Workstream B)
+    const authCheck = await authorizeProjectAccess({ userId: user.id, context })
+    if (!authCheck.authorized) {
+      return res.status(403).json({ error: 'Forbidden: unauthorized access to project continuity.' })
     }
 
-    const latestHandoff = getLatestHandoff(projectId)
+    const latestHandoff = await getLatestHandoff(projectId)
 
     if (action === 'resume' || format === 'markdown') {
-      const snapshot = generateContinuitySnapshot({
+      const snapshot = await generateContinuitySnapshot({
         projectId,
         projectName: context.name,
         userId: user.id,
@@ -68,7 +66,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (action === 'history') {
-      const handoffs = listProjectHandoffs(projectId)
+      const handoffs = await listProjectHandoffs(projectId)
       return res.status(200).json({ ok: true, projectId, handoffs })
     }
 
@@ -85,13 +83,16 @@ export default async function handler(req: any, res: any) {
     const action = body.action || req.query.action || 'handoff'
     const projectId = body.projectId || req.query.projectId || `proj_${user.id.slice(0, 8)}`
 
-    // Authorization check
-    if (body.teamId || req.query.teamId) {
-      const tId = body.teamId || req.query.teamId
-      const authorized = await isTeamMember(user.id, tId)
-      if (!authorized) {
-        return res.status(403).json({ error: 'Forbidden: unauthorized access to team continuity.' })
-      }
+    // Verify existing project access if context exists
+    const context = await getOrCreateProjectContext({
+      projectId,
+      userId: user.id,
+      scope: body.scope === 'team' ? 'team' : 'personal',
+      teamId: body.teamId || null,
+    })
+    const authCheck = await authorizeProjectAccess({ userId: user.id, context })
+    if (!authCheck.authorized) {
+      return res.status(403).json({ error: 'Forbidden: unauthorized access to project continuity.' })
     }
 
     // 1. Record Agent Handoff
@@ -110,8 +111,10 @@ export default async function handler(req: any, res: any) {
         return res.status(400).json({ error: 'handoffNotes is required to record a continuity handoff.' })
       }
 
-      const handoff = recordAgentHandoff({
+      const handoff = await recordAgentHandoff({
         projectId,
+        userId: user.id,
+        teamId: context.teamId,
         fromAgent,
         toAgent,
         taskState,
@@ -130,7 +133,7 @@ export default async function handler(req: any, res: any) {
 
     // 2. Export / Create Verifiable Snapshot
     if (action === 'snapshot') {
-      const { projectName, scope = 'personal', teamId = null } = body
+      const { projectName, scope = context.scope, teamId = context.teamId } = body
 
       let activeMemories: Array<{ type: string; text: string; blobId?: string | null }> = []
       if (supabase) {
@@ -156,9 +159,9 @@ export default async function handler(req: any, res: any) {
         }
       }
 
-      const snapshot = generateContinuitySnapshot({
+      const snapshot = await generateContinuitySnapshot({
         projectId,
-        projectName,
+        projectName: projectName || context.name,
         userId: user.id,
         scope,
         teamId,
@@ -175,14 +178,19 @@ export default async function handler(req: any, res: any) {
       })
     }
 
-    // 3. Restore and Verify Snapshot
+    // 3. Restore and Verify Snapshot (with strict authorization & checksum validation)
     if (action === 'restore') {
       const { snapshot } = body
       if (!snapshot) {
         return res.status(400).json({ error: 'snapshot payload is required for restoration.' })
       }
 
-      const outcome = restoreContinuitySnapshot(snapshot)
+      const outcome = await restoreContinuitySnapshot({
+        snapshotJson: snapshot,
+        userId: user.id,
+        targetProjectId: projectId,
+      })
+
       if (!outcome.verified || !outcome.snapshot) {
         return res.status(400).json({
           ok: false,
@@ -201,20 +209,25 @@ export default async function handler(req: any, res: any) {
 
     // 4. Update Context
     if (action === 'update_context' || action === 'update') {
-      const updated = updateProjectContext({
-        projectId,
-        name: body.name,
-        architecture: body.architecture,
-        activeTasks: body.activeTasks,
-        blockers: body.blockers,
-        preferences: body.preferences,
-        keyTerms: body.keyTerms,
-      })
+      try {
+        const updated = await updateProjectContext({
+          projectId,
+          userId: user.id,
+          name: body.name,
+          architecture: body.architecture,
+          activeTasks: body.activeTasks,
+          blockers: body.blockers,
+          preferences: body.preferences,
+          keyTerms: body.keyTerms,
+        })
 
-      return res.status(200).json({
-        ok: true,
-        context: updated,
-      })
+        return res.status(200).json({
+          ok: true,
+          context: updated,
+        })
+      } catch (err: any) {
+        return res.status(403).json({ error: err.message || 'Forbidden: unauthorized project update' })
+      }
     }
 
     return res.status(400).json({ error: `Unknown action: ${action}` })
