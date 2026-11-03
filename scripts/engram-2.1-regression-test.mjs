@@ -29,6 +29,7 @@ import { signSession } from '../api/_lib/token.js'
 import continuityHandler from '../api/continuity.js'
 import mcpHandler from '../api/mcp.js'
 import rememberHandler from '../api/remember.js'
+import { createEngram } from '../packages/engram-mcp/core.mjs'
 
 let totalTests = 0
 let passedTests = 0
@@ -200,6 +201,19 @@ await testAsync('B-04: Non-team member is rejected from team continuity access',
   assert.strictEqual(res.statusCode, 403)
 })
 
+await testAsync('B-05: Project update query enforces ownership and rejects cross-user modification', async () => {
+  await assert.rejects(
+    async () => {
+      await updateProjectContext({
+        projectId: 'proj_alice_alpha',
+        userId: 'usr_bob_02',
+        name: 'Malicious Update',
+      })
+    },
+    (err) => err.message.includes('Forbidden') || err.message.includes('unauthorized')
+  )
+})
+
 // ── Workstream C: Snapshot Integrity & Restoration ──
 console.log('\n[Workstream C] Snapshot Integrity & Verification')
 
@@ -298,6 +312,16 @@ await testAsync('C-05: Authorized restoration is idempotent', async () => {
   assert.strictEqual(res1.snapshot?.checksum, res2.snapshot?.checksum)
 })
 
+await testAsync('C-06: Snapshot restore reports failure when destination context update is unauthorized', async () => {
+  const res = await restoreContinuitySnapshot({
+    snapshotJson: JSON.stringify(aliceSnapshot),
+    userId: 'usr_bob_02',
+    targetProjectId: 'proj_alice_alpha',
+  })
+  assert.strictEqual(res.verified, false)
+  assert.ok(res.error.includes('Forbidden'))
+})
+
 // ── Workstream D: Durable Retries, Worker Leases & Idempotency ──
 console.log('\n[Workstream D] Durable Retries, Worker Leases & Idempotency')
 
@@ -347,6 +371,18 @@ await testAsync('D-02: Worker leases jobs atomically with crash recovery and dea
   assert.strictEqual(drain2.succeeded, 1)
   assert.strictEqual(getRecoveryQueueStats().completedCount, 1)
   assert.strictEqual(getRecoveryQueueStats().pendingCount, 0)
+})
+
+await testAsync('D-03: verifyMemoryIntegrity flags legacy memories without hashes as legacy_unverified', () => {
+  const result = verifyMemoryIntegrity('Some ancient memory text', 'decision', null)
+  assert.strictEqual(result.verified, false, 'Unanchored legacy records must not claim cryptographic verification')
+  assert.strictEqual(result.status, 'legacy_unverified')
+
+  const sampleText = 'Modern anchored memory'
+  const authenticHash = computeContentHash('decision', sampleText)
+  const verifiedResult = verifyMemoryIntegrity(sampleText, 'decision', authenticHash)
+  assert.strictEqual(verifiedResult.verified, true)
+  assert.strictEqual(verifiedResult.status, 'verified')
 })
 
 // ── Workstream E: Shared Memory Lifecycle Parity Across REST, MCP & SDK ──
@@ -416,6 +452,28 @@ await testAsync('E-02: REST (/api/remember) and MCP (engram_remember) invoke sha
   await mcpHandler(mcpReq, mcpRes)
   assert.strictEqual(mcpRes.statusCode, 200)
   assert.ok(mcpRes.body.result.content[0].text.includes('Remembered (decision, personal)'))
+})
+
+await testAsync('E-03: Standalone MCP core rejects memories containing sensitive credentials', async () => {
+  const engramInstance = createEngram({ forceMock: true })
+  await assert.rejects(
+    async () => {
+      await engramInstance.handleTool('engram_remember', {
+        text: 'The production database token is ghp_1234567890abcdef1234567890abcdef1234',
+        type: 'config',
+      })
+    },
+    (err) => err.message.includes('Security rejection')
+  )
+})
+
+await testAsync('E-04: Standalone MCP core explicitly labels mock vs durable storage in tool output', async () => {
+  const engramInstance = createEngram({ forceMock: true })
+  const result = await engramInstance.handleTool('engram_remember', {
+    text: 'Offline mock memory for testing',
+    type: 'decision',
+  })
+  assert.ok(result.includes('[LOCAL MOCK - NOT DURABLY PERSISTED]'), 'Mock MCP must explicitly inform user of non-durable state')
 })
 
 // ── Workstream F: Credentials and Prompt-Injection Boundaries ──

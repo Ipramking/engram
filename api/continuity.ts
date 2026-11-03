@@ -28,8 +28,9 @@ export default async function handler(req: any, res: any) {
 
   const supabase = getSupabaseAdmin()
 
-  // ── GET: Project Context, Quick-Resume Brief, or Handoff History ──
-  if (req.method === 'GET') {
+  try {
+    // ── GET: Project Context, Quick-Resume Brief, or Handoff History ──
+    if (req.method === 'GET') {
     const projectId = req.query.projectId || req.query.project || `proj_${user.id.slice(0, 8)}`
     const action = req.query.action || 'context'
     const format = req.query.format || 'json'
@@ -234,4 +235,9 @@ export default async function handler(req: any, res: any) {
   }
 
   return res.status(405).json({ error: 'Method Not Allowed' })
+  } catch (err: any) {
+    const msg = err.message || 'Internal continuity engine error.'
+    const status = msg.includes('Forbidden') ? 403 : 500
+    return res.status(status).json({ error: msg })
+  }
 }

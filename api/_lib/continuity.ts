@@ -143,35 +143,39 @@ export async function getOrCreateProjectContext(opts: {
   // 1. Check authoritative Supabase Postgres store
   const supabase = getSupabaseAdmin()
   if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('continuity_contexts')
-        .select('*')
-        .eq('id', id)
-        .single()
+    const { data, error } = await supabase
+      .from('continuity_contexts')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-      if (!error && data) {
-        const loaded: ProjectContext = {
-          id: data.id,
-          slug: data.slug,
-          name: data.name,
-          userId: data.user_id,
-          teamId: data.team_id,
-          scope: data.scope,
-          architecture: data.architecture || {},
-          activeTasks: data.active_tasks || [],
-          blockers: data.blockers || [],
-          preferences: data.preferences || [],
-          keyTerms: data.key_terms || {},
-          updatedAt: data.updated_at || data.created_at,
-        }
-        memContexts.set(id, loaded)
-        return loaded
+    if (error) {
+      // Distinguish genuine NOT FOUND (PGRST116) from database failures
+      if (error.code !== 'PGRST116') {
+        throw new Error(`Database error retrieving project context "${id}": ${error.message}`)
       }
-    } catch {}
+      // If code is PGRST116, row genuinely does not exist in database yet
+    } else if (data) {
+      const loaded: ProjectContext = {
+        id: data.id,
+        slug: data.slug,
+        name: data.name,
+        userId: data.user_id,
+        teamId: data.team_id,
+        scope: data.scope,
+        architecture: data.architecture || {},
+        activeTasks: data.active_tasks || [],
+        blockers: data.blockers || [],
+        preferences: data.preferences || [],
+        keyTerms: data.key_terms || {},
+        updatedAt: data.updated_at || data.created_at,
+      }
+      memContexts.set(id, loaded)
+      return loaded
+    }
   }
 
-  // 2. Check local memory cache
+  // 2. Check local memory cache (offline / test mock mode)
   const cached = memContexts.get(id)
   if (cached) return cached
 
@@ -207,22 +211,23 @@ export async function getOrCreateProjectContext(opts: {
 
   // Persist to Supabase if connected
   if (supabase) {
-    try {
-      await supabase.from('continuity_contexts').insert({
-        id: defaultContext.id,
-        slug: defaultContext.slug,
-        name: defaultContext.name,
-        user_id: defaultContext.userId,
-        team_id: defaultContext.teamId,
-        scope: defaultContext.scope,
-        architecture: defaultContext.architecture,
-        active_tasks: defaultContext.activeTasks,
-        blockers: defaultContext.blockers,
-        preferences: defaultContext.preferences,
-        key_terms: defaultContext.keyTerms,
-        updated_at: defaultContext.updatedAt,
-      })
-    } catch {}
+    const { error: insertErr } = await supabase.from('continuity_contexts').insert({
+      id: defaultContext.id,
+      slug: defaultContext.slug,
+      name: defaultContext.name,
+      user_id: defaultContext.userId,
+      team_id: defaultContext.teamId,
+      scope: defaultContext.scope,
+      architecture: defaultContext.architecture,
+      active_tasks: defaultContext.activeTasks,
+      blockers: defaultContext.blockers,
+      preferences: defaultContext.preferences,
+      key_terms: defaultContext.keyTerms,
+      updated_at: defaultContext.updatedAt,
+    })
+    if (insertErr) {
+      throw new Error(`Failed to durably persist new project context "${id}": ${insertErr.message}`)
+    }
   }
 
   return defaultContext
@@ -279,22 +284,23 @@ export async function recordAgentHandoff(opts: {
   // Persist to Supabase Postgres
   const supabase = getSupabaseAdmin()
   if (supabase) {
-    try {
-      await supabase.from('continuity_handoffs').insert({
-        id: handoff.id,
-        project_id: handoff.projectId,
-        user_id: handoff.userId,
-        team_id: handoff.teamId,
-        from_agent: handoff.fromAgent,
-        to_agent: handoff.toAgent,
-        task_state: handoff.taskState,
-        handoff_notes: handoff.handoffNotes,
-        supporting_references: handoff.supportingReferences,
-        unresolved_questions: handoff.unresolvedQuestions,
-        next_actions: handoff.nextActions,
-        created_at: handoff.createdAt,
-      })
-    } catch {}
+    const { error: handoffErr } = await supabase.from('continuity_handoffs').insert({
+      id: handoff.id,
+      project_id: handoff.projectId,
+      user_id: handoff.userId,
+      team_id: handoff.teamId,
+      from_agent: handoff.fromAgent,
+      to_agent: handoff.toAgent,
+      task_state: handoff.taskState,
+      handoff_notes: handoff.handoffNotes,
+      supporting_references: handoff.supportingReferences,
+      unresolved_questions: handoff.unresolvedQuestions,
+      next_actions: handoff.nextActions,
+      created_at: handoff.createdAt,
+    })
+    if (handoffErr) {
+      throw new Error(`Failed to durably persist agent handoff: ${handoffErr.message}`)
+    }
   }
 
   return handoff
@@ -407,20 +413,30 @@ export async function updateProjectContext(opts: {
 
   const supabase = getSupabaseAdmin()
   if (supabase) {
-    try {
-      await supabase
-        .from('continuity_contexts')
-        .update({
-          name: ctx.name,
-          architecture: ctx.architecture,
-          active_tasks: ctx.activeTasks,
-          blockers: ctx.blockers,
-          preferences: ctx.preferences,
-          key_terms: ctx.keyTerms,
-          updated_at: ctx.updatedAt,
-        })
-        .eq('id', ctx.id)
-    } catch {}
+    let updateQuery = supabase
+      .from('continuity_contexts')
+      .update({
+        name: ctx.name,
+        architecture: ctx.architecture,
+        active_tasks: ctx.activeTasks,
+        blockers: ctx.blockers,
+        preferences: ctx.preferences,
+        key_terms: ctx.keyTerms,
+        updated_at: ctx.updatedAt,
+      })
+      .eq('id', ctx.id)
+
+    // Enforce ownership directly in persistent update query
+    if (ctx.scope === 'team' && ctx.teamId) {
+      updateQuery = updateQuery.eq('team_id', ctx.teamId)
+    } else {
+      updateQuery = updateQuery.eq('user_id', ctx.userId)
+    }
+
+    const { error: updateErr } = await updateQuery
+    if (updateErr) {
+      throw new Error(`Failed to durably update project context: ${updateErr.message}`)
+    }
   }
 
   return ctx
@@ -465,22 +481,23 @@ export async function generateContinuitySnapshot(opts: {
 
   const supabase = getSupabaseAdmin()
   if (supabase) {
-    try {
-      await supabase.from('continuity_snapshots').insert({
-        id: fullSnapshot.snapshotId,
-        project_id: fullSnapshot.projectId,
-        user_id: userId,
-        team_id: teamId,
-        project_name: fullSnapshot.projectName,
-        schema_version: fullSnapshot.schemaVersion,
-        checksum: fullSnapshot.checksum,
-        context_payload: fullSnapshot.context,
-        latest_handoff_payload: fullSnapshot.latestHandoff,
-        active_memories_count: fullSnapshot.activeMemoriesCount,
-        active_memories_sample: fullSnapshot.activeMemoriesSample,
-        created_at: fullSnapshot.createdAt,
-      })
-    } catch {}
+    const { error: snapErr } = await supabase.from('continuity_snapshots').insert({
+      id: fullSnapshot.snapshotId,
+      project_id: fullSnapshot.projectId,
+      user_id: userId,
+      team_id: teamId,
+      project_name: fullSnapshot.projectName,
+      schema_version: fullSnapshot.schemaVersion,
+      checksum: fullSnapshot.checksum,
+      context_payload: fullSnapshot.context,
+      latest_handoff_payload: fullSnapshot.latestHandoff,
+      active_memories_count: fullSnapshot.activeMemoriesCount,
+      active_memories_sample: fullSnapshot.activeMemoriesSample,
+      created_at: fullSnapshot.createdAt,
+    })
+    if (snapErr) {
+      throw new Error(`Failed to durably persist continuity snapshot: ${snapErr.message}`)
+    }
   }
 
   return fullSnapshot
@@ -552,20 +569,33 @@ export async function restoreContinuitySnapshot(opts: {
     // Persist to Supabase if connected
     const supabase = getSupabaseAdmin()
     if (supabase) {
-      try {
-        await supabase
-          .from('continuity_contexts')
-          .update({
-            name: restoredContext.name,
-            architecture: restoredContext.architecture,
-            active_tasks: restoredContext.activeTasks,
-            blockers: restoredContext.blockers,
-            preferences: restoredContext.preferences,
-            key_terms: restoredContext.keyTerms,
-            updated_at: restoredContext.updatedAt,
-          })
-          .eq('id', destinationProjectId)
-      } catch {}
+      let updateQuery = supabase
+        .from('continuity_contexts')
+        .update({
+          name: restoredContext.name,
+          architecture: restoredContext.architecture,
+          active_tasks: restoredContext.activeTasks,
+          blockers: restoredContext.blockers,
+          preferences: restoredContext.preferences,
+          key_terms: restoredContext.keyTerms,
+          updated_at: restoredContext.updatedAt,
+        })
+        .eq('id', destinationProjectId)
+
+      if (existingCtx.scope === 'team' && existingCtx.teamId) {
+        updateQuery = updateQuery.eq('team_id', existingCtx.teamId)
+      } else {
+        updateQuery = updateQuery.eq('user_id', existingCtx.userId)
+      }
+
+      const { error: restoreErr } = await updateQuery
+      if (restoreErr) {
+        return {
+          verified: false,
+          snapshot: null,
+          error: `Database persistence failed during snapshot restore: ${restoreErr.message}`,
+        }
+      }
     }
 
     return { verified: true, snapshot: parsed }

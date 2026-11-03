@@ -148,9 +148,14 @@ export function createEngram({ backend = pickBackend(), lockNamespace = null } =
     const ns = lockNamespace ?? nsFor(args.scope, args.team_code);
     const scopeLabel = scoped ? 'team' : args.scope || 'personal';
     if (name === 'engram_remember') {
+      if (/(?:ghp_[A-Za-z0-9_]{36}|sk-[A-Za-z0-9_-]{32,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}|(?:xoxb|xoxp)-[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/.test(String(args.text))) {
+        throw new Error('Security rejection: memory contains sensitive credential or private key.');
+      }
+      const isMock = backend.kind === 'mock';
       const blobId = await backend.remember(ns, enc(args.type, args.text));
       note(ns, { type: args.type, text: String(args.text).trim(), blobId });
-      return `Remembered (${args.type}, scope=${scopeLabel}). Walrus blob: ${blobId ?? '(pending)'}`;
+      const mockTag = isMock ? ' [LOCAL MOCK - NOT DURABLY PERSISTED]' : '';
+      return `Remembered (${args.type}, scope=${scopeLabel})${mockTag}. Walrus blob: ${blobId ?? '(pending)'}`;
     }
     if (name === 'engram_recall') {
       const rows = await backend.recall(ns, args.query);

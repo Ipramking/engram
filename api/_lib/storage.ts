@@ -92,13 +92,14 @@ export function verifyMemoryIntegrity(
   text: string,
   type: string,
   expectedHash?: string | null
-): { verified: boolean; actualHash: string } {
+): { verified: boolean; status: 'verified' | 'tampered' | 'legacy_unverified'; actualHash: string } {
   const actualHash = computeContentHash(type, text)
   if (!expectedHash) {
-    // Legacy record without stored hash: considered valid by default
-    return { verified: true, actualHash }
+    // Explicitly flag legacy record without stored hash as legacy_unverified
+    return { verified: false, status: 'legacy_unverified', actualHash }
   }
-  return { verified: expectedHash === actualHash, actualHash }
+  const isMatch = expectedHash === actualHash
+  return { verified: isMatch, status: isMatch ? 'verified' : 'tampered', actualHash }
 }
 
 export interface WriteResult {
@@ -266,7 +267,7 @@ export async function writeMemoryWithRetry(opts: {
   // Persist to Supabase Postgres if available
   if (supabase) {
     try {
-      await supabase.from('storage_recovery_jobs').insert({
+      const { error: dbError } = await supabase.from('storage_recovery_jobs').insert({
         id: recoveryJob.id,
         user_id: recoveryJob.userId,
         team_id: recoveryJob.teamId,
@@ -283,7 +284,40 @@ export async function writeMemoryWithRetry(opts: {
         last_error: recoveryJob.lastError,
         created_at: recoveryJob.createdAt,
       })
-    } catch {}
+
+      if (dbError) {
+        // Durability Guarantee: If database insert fails, fail honestly instead of claiming recovery_required
+        return {
+          blobId: undefined,
+          storageState: 'failed',
+          storageProvider: provider,
+          contentHash,
+          idempotencyKey,
+          attempts,
+          error: `Failed to persist durable recovery job to database: ${dbError.message}`,
+        }
+      }
+    } catch (err: any) {
+      return {
+        blobId: undefined,
+        storageState: 'failed',
+        storageProvider: provider,
+        contentHash,
+        idempotencyKey,
+        attempts,
+        error: `Database exception during recovery job persistence: ${err.message}`,
+      }
+    }
+  } else if (provider !== 'local_mock') {
+    return {
+      blobId: undefined,
+      storageState: 'failed',
+      storageProvider: provider,
+      contentHash,
+      idempotencyKey,
+      attempts,
+      error: 'Storage failure and no durable persistence provider is configured for recovery.',
+    }
   }
 
   return {
@@ -300,6 +334,7 @@ export async function writeMemoryWithRetry(opts: {
 /**
  * Recovery worker: drains pending recovery jobs with atomic worker leases,
  * bounded exponential backoff with jitter, crash recovery, and dead-letter handling.
+ * Queries Supabase Postgres first for cross-instance durability, then in-memory fallback.
  */
 export async function processRecoveryQueue(
   memFactory: (scope: 'personal' | 'team', teamCode?: string) => MemwalClient,
@@ -315,8 +350,157 @@ export async function processRecoveryQueue(
   const now = Date.now()
   const workerLeaseId = `worker_${randomUUID().slice(0, 8)}`
   const leaseDurationMs = 30_000
+  const supabase = getSupabaseAdmin()
 
-  // 1. Process in-memory queue jobs (and sync with DB)
+  // 1. Durably query and atomically lease jobs from Supabase PostgreSQL
+  if (supabase) {
+    try {
+      const nowIso = new Date(now).toISOString()
+      let query = supabase
+        .from('storage_recovery_jobs')
+        .select('*')
+        .or(`status.eq.pending,and(status.eq.leased,leased_until.lt.${nowIso})`)
+        .order('created_at', { ascending: true })
+        .limit(maxJobs)
+
+      if (!force) {
+        query = query.lte('next_retry_at', nowIso)
+      }
+
+      const { data: dbJobs, error: selectErr } = await query
+      if (!selectErr && dbJobs && dbJobs.length > 0) {
+        for (const raw of dbJobs) {
+          if (processed >= maxJobs) break
+
+          // Atomic conditional lease in PostgreSQL
+          const leasedUntilIso = new Date(Date.now() + leaseDurationMs).toISOString()
+          const { data: claimedRows, error: claimErr } = await supabase
+            .from('storage_recovery_jobs')
+            .update({
+              status: 'leased',
+              lease_id: workerLeaseId,
+              leased_until: leasedUntilIso,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', raw.id)
+            .or(`status.eq.pending,and(status.eq.leased,leased_until.lt.${nowIso})`)
+            .select()
+
+          if (claimErr || !claimedRows || claimedRows.length === 0) {
+            // Another worker claimed this job concurrently
+            continue
+          }
+
+          processed++
+          const jobRecord = claimedRows[0]
+
+          try {
+            const mem = memFactory(jobRecord.scope, jobRecord.team_id || undefined)
+            const res = await Promise.race([
+              mem.rememberAndWait(jobRecord.encoded_text, undefined, { timeoutMs: 5000 }),
+              new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+            ])
+            const blobId = blobIdOf(res)
+
+            if (blobId) {
+              succeeded++
+              memConfirmedWrites.set(jobRecord.idempotency_key, { blobId, timestamp: Date.now() })
+
+              await supabase
+                .from('memories_meta')
+                .update({ blob_id: blobId })
+                .eq('user_id', jobRecord.user_id)
+                .eq('text', jobRecord.text)
+                .eq('type', jobRecord.type)
+
+              await supabase
+                .from('storage_recovery_jobs')
+                .update({
+                  status: 'completed',
+                  lease_id: null,
+                  leased_until: null,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', jobRecord.id)
+            } else {
+              const newAttempts = (jobRecord.attempts || 0) + 1
+              if (newAttempts >= (jobRecord.max_attempts || 5)) {
+                deadLetter++
+                await supabase
+                  .from('storage_recovery_jobs')
+                  .update({
+                    status: 'dead_letter',
+                    attempts: newAttempts,
+                    lease_id: null,
+                    leased_until: null,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', jobRecord.id)
+              } else {
+                failed++
+                const backoff = Math.min(300_000, 30_000 * Math.pow(2, newAttempts))
+                const jitter = Math.floor(Math.random() * 2000)
+                const nextRetryIso = new Date(Date.now() + backoff + jitter).toISOString()
+                await supabase
+                  .from('storage_recovery_jobs')
+                  .update({
+                    status: 'pending',
+                    attempts: newAttempts,
+                    next_retry_at: nextRetryIso,
+                    lease_id: null,
+                    leased_until: null,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', jobRecord.id)
+              }
+            }
+          } catch (e: any) {
+            const newAttempts = (jobRecord.attempts || 0) + 1
+            const lastErrorMsg = e?.message || String(e)
+            if (newAttempts >= (jobRecord.max_attempts || 5)) {
+              deadLetter++
+              await supabase
+                .from('storage_recovery_jobs')
+                .update({
+                  status: 'dead_letter',
+                  attempts: newAttempts,
+                  last_error: lastErrorMsg,
+                  lease_id: null,
+                  leased_until: null,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', jobRecord.id)
+            } else {
+              failed++
+              const backoff = Math.min(300_000, 30_000 * Math.pow(2, newAttempts))
+              const jitter = Math.floor(Math.random() * 2000)
+              const nextRetryIso = new Date(Date.now() + backoff + jitter).toISOString()
+              await supabase
+                .from('storage_recovery_jobs')
+                .update({
+                  status: 'pending',
+                  attempts: newAttempts,
+                  last_error: lastErrorMsg,
+                  next_retry_at: nextRetryIso,
+                  lease_id: null,
+                  leased_until: null,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', jobRecord.id)
+            }
+          }
+        }
+
+        if (processed > 0) {
+          return { processed, succeeded, failed, deadLetter }
+        }
+      }
+    } catch (dbErr) {
+      console.error('[storage:processRecoveryQueue] database worker error:', dbErr)
+    }
+  }
+
+  // 2. Fallback for in-memory queue (local mock/offline)
   for (const [id, job] of memRecoveryQueue) {
     if (processed >= maxJobs) break
     if (job.status === 'completed' || job.status === 'dead_letter') continue

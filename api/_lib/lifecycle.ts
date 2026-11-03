@@ -170,10 +170,11 @@ export async function executeMemoryCreationLifecycle(
 
   // 7. Database Persistence & Smart Conflict Resolution
   let superseded: any[] = []
+  let metadataError: string | null = null
   const supabase = getSupabaseAdmin()
   if (supabase && user) {
     try {
-      await supabase.from('memories_meta').insert({
+      const { error: metaErr } = await supabase.from('memories_meta').insert({
         user_id: user.id,
         team_id: effectiveScope === 'team' ? effectiveTeamId : null,
         room: 'my-space',
@@ -181,18 +182,23 @@ export async function executeMemoryCreationLifecycle(
         text: cleanText,
         blob_id: blobId,
       })
-
-      const conflictRes = await detectAndResolveConflicts({
-        userId: user.id,
-        teamId: effectiveScope === 'team' ? effectiveTeamId : null,
-        scope: effectiveScope as 'personal' | 'team',
-        newText: cleanText,
-        newType: t,
-        newBlobId: blobId || undefined,
-      })
-      superseded = conflictRes.supersededList
-    } catch (metaErr) {
-      console.error('[lifecycle] metadata persistence/conflict resolution warning:', metaErr)
+      if (metaErr) {
+        metadataError = metaErr.message
+        console.error('[lifecycle] metadata persistence failed:', metaErr.message)
+      } else {
+        const conflictRes = await detectAndResolveConflicts({
+          userId: user.id,
+          teamId: effectiveScope === 'team' ? effectiveTeamId : null,
+          scope: effectiveScope as 'personal' | 'team',
+          newText: cleanText,
+          newType: t,
+          newBlobId: blobId || undefined,
+        })
+        superseded = conflictRes.supersededList
+      }
+    } catch (metaErr: any) {
+      metadataError = metaErr?.message || String(metaErr)
+      console.error('[lifecycle] metadata persistence/conflict resolution warning:', metadataError)
     }
   }
 
@@ -228,6 +234,7 @@ export async function executeMemoryCreationLifecycle(
     idempotencyKey,
     storageProvider,
     integrityVerified: true,
+    metadataError: metadataError || undefined,
     isDuplicate: writeRes.isDuplicate ?? false,
     superseded,
   }

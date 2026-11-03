@@ -108,7 +108,7 @@ pnpm run build
 
 ## 🧪 Comprehensive Automated Test Suites
 
-Engram 2.1 maintains 100% passing test coverage across 73 automated tests and benchmarks:
+Engram 2.1 maintains 100% passing test coverage across 78 automated tests and benchmarks:
 
 ```bash
 pnpm run test:all
@@ -124,9 +124,9 @@ pnpm run test:all
 | `scripts/intelligence-engine-test.mjs` | 5 Categories, Lifecycle, Hybrid Scoring, Conflict | **10 / 10** |
 | `scripts/continuity-engine-test.mjs` | Context Tracking, Handoffs, Snapshots, REST/MCP | **13 / 13** |
 | `scripts/retrieval-quality-eval.mjs` | Scientific Retrieval Benchmark (Recall@k, MRR, nDCG) | **PASS (MRR 1.000)** |
-| `scripts/engram-2.1-regression-test.mjs` | Workstreams A–F: Continuity, Leases, Parity, Security | **15 / 15** |
+| `scripts/engram-2.1-regression-test.mjs` | Workstreams A–F: Continuity, Leases, Parity, Security | **20 / 20** |
 | `packages/engram-py/tests/test_sdk.py` | Python SDK Models, Fallback, Provenance | **5 / 5** |
-| **Total Test Suite** | **All Core Verification Suites & Evaluation Benchmarks** | **73 / 73 PASS** |
+| **Total Test Suite** | **All Core Verification Suites & Evaluation Benchmarks** | **78 / 78 PASS** |
 
 ---
 
