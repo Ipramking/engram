@@ -23,7 +23,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test:integration": "tsx scripts/phase5-test.mjs && tsx scripts/phase6-test.mjs",
-    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc --ignoreConfig --noEmit --skipLibCheck --target es2022 --module nodenext --moduleResolution nodenext --types node api/*.ts api/_lib/*.ts",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p api/tsconfig.json",
     "test:package": "node packages/engram-mcp/test.mjs"
   },
   "dependencies": {
