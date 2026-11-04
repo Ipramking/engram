@@ -174,14 +174,14 @@ export async function executeMemoryCreationLifecycle(
   const supabase = getSupabaseAdmin()
   if (supabase && user) {
     try {
-      const { error: metaErr } = await supabase.from('memories_meta').insert({
+      const { data: inserted, error: metaErr } = await supabase.from('memories_meta').insert({
         user_id: user.id,
         team_id: effectiveScope === 'team' ? effectiveTeamId : null,
         room: 'my-space',
         type: t,
         text: cleanText,
         blob_id: blobId,
-      })
+      }).select('id').single()
       if (metaErr) {
         metadataError = metaErr.message
         console.error('[lifecycle] metadata persistence failed:', metaErr.message)
@@ -193,6 +193,7 @@ export async function executeMemoryCreationLifecycle(
           newText: cleanText,
           newType: t,
           newBlobId: blobId || undefined,
+          excludeId: inserted?.id,
         })
         superseded = conflictRes.supersededList
       }

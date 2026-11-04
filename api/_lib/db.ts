@@ -203,6 +203,10 @@ export async function isApiKeyActive(keyId: string): Promise<boolean> {
       .eq('id', keyId)
       .maybeSingle()
     if (!error && data) {
+      if (data.is_active) {
+        // Live keys never pass through validateApiKey, so record usage here for the dashboard's "last used".
+        supabase.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyId).then()
+      }
       return Boolean(data.is_active)
     }
   }

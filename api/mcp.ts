@@ -151,6 +151,10 @@ export default async function handler(req: any, res: any) {
   res.setHeader("Mcp-Session-Id", sessionId);
 
   if (req.method === "GET") {
+    // No server-initiated SSE stream: the MCP spec says to answer a stream request with 405.
+    if (String(req.headers.accept || "").includes("text/event-stream")) {
+      return res.status(405).json({ error: "SSE stream not supported; use POST" });
+    }
     return res.status(200).json({
       ok: true,
       name: "engram-mcp",

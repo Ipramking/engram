@@ -117,12 +117,15 @@ export async function detectAndResolveConflicts({
   newText,
   newType,
   newBlobId,
+  excludeId,
 }: {
   userId?: string | null
   teamId?: string | null
   scope: 'personal' | 'team'
   newText: string
   newType: string
+  /** Id of the row just inserted for this memory, which must never supersede itself. */
+  excludeId?: string | null
   newBlobId?: string
 }): Promise<{
   supersededList: Array<{
@@ -145,8 +148,9 @@ export async function detectAndResolveConflicts({
     if (scope === 'team' && teamId) {
       query = query.eq('team_id', teamId)
     } else if (userId) {
-      query = query.eq('user_id', userId)
+      query = query.eq('user_id', userId).is('team_id', null)
     }
+    if (excludeId) query = query.neq('id', excludeId)
 
     const { data: existingRows, error } = await query
     if (error || !existingRows || existingRows.length === 0) {
@@ -163,6 +167,7 @@ export async function detectAndResolveConflicts({
     for (const row of existingRows) {
       // Skip if already superseded
       if (row.room && row.room.startsWith('superseded_by:')) continue
+      if (row.id === excludeId || row.text === newText) continue
 
       const evalResult = evaluateContradiction(newText, newType, row.text, row.type)
       if (evalResult.isContradiction) {
