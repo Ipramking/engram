@@ -39,7 +39,8 @@ export async function startDeviceLogin(body: any, host: string) {
     public_key: publicKey,
     device_name: cleanName(body?.deviceName),
   })
-  if (error) return error.code === '42P01' ? unavailable() : { status: 500, body: { error: 'Could not start device login.' } }
+  // 42P01 (Postgres) or PGRST205 (PostgREST): the migration hasn't been applied yet.
+  if (error) return ['42P01', 'PGRST205'].includes(error.code) ? unavailable() : { status: 500, body: { error: 'Could not start device login.' } }
   return {
     status: 200,
     body: { ok: true, code, pollId, interval: 3, expiresIn: 600, verifyUrl: `${host}/dashboard?device=${code}` },
