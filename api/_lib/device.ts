@@ -2,7 +2,7 @@
 // short code; the signed-in user approves the code in the dashboard; the server creates a
 // permanent key, encrypts it to the CLI's public key, and hands it over exactly once.
 // The database only ever holds RSA-OAEP ciphertext, cleared as soon as the CLI collects it.
-import { createHash, publicEncrypt, randomBytes, randomInt, constants } from 'node:crypto'
+import { createHash, createPublicKey, publicEncrypt, randomBytes, randomInt, constants } from 'node:crypto'
 import { getSupabaseAdmin } from './supabase.js'
 import { createApiKey } from './db.js'
 
@@ -26,8 +26,16 @@ export async function startDeviceLogin(body: any, host: string) {
   const supabase = getSupabaseAdmin()
   if (!supabase) return unavailable()
   const publicKey = String(body?.publicKey || '')
-  if (!publicKey.includes('BEGIN PUBLIC KEY') || publicKey.length > 2000) {
-    return { status: 400, body: { error: 'publicKey (PEM) is required.' } }
+  // Must be a real RSA key of at least 2048 bits, or approval could never encrypt to it.
+  let valid = false
+  try {
+    const k = createPublicKey(publicKey)
+    valid = k.asymmetricKeyType === 'rsa' && (k.asymmetricKeyDetails?.modulusLength ?? 0) >= 2048
+  } catch {
+    valid = false
+  }
+  if (!valid || publicKey.length > 2000) {
+    return { status: 400, body: { error: 'publicKey must be an RSA public key (PEM, 2048 bits or more).' } }
   }
   // Opportunistic cleanup so abandoned requests don't pile up.
   await supabase.from('device_logins').delete().lt('expires_at', new Date(Date.now() - 86400000).toISOString())
