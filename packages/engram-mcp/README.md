@@ -1,13 +1,32 @@
-# engram-walrus (v0.2.1)
+# engram-walrus (v0.3.0)
 
 [![npm version](https://img.shields.io/npm/v/engram-walrus.svg)](https://www.npmjs.com/package/engram-walrus)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 **Portable, verifiable memory for AI agents — on [Walrus](https://walrus.xyz).**  
-An official Model Context Protocol (MCP) server that gives any AI agent persistent, cross-client memory on Walrus decentralized storage. Store an architectural decision or gotcha in Cursor, recall it in Claude Desktop, verify it on Walrus Explorer.
+A Model Context Protocol (MCP) server that gives any AI agent persistent, cross-client memory on Walrus decentralized storage. Store an architectural decision or gotcha in Cursor, recall it in Claude Desktop, verify it on Walrus Explorer.
 
 ▶ Web Dashboard & Docs: **[https://engram-pearl.vercel.app](https://engram-pearl.vercel.app)**  
 ▶ GitHub Repository: **[https://github.com/Ipramking/engram](https://github.com/Ipramking/engram)**
+
+---
+
+## Quick start (30 seconds)
+
+```bash
+npx engram-walrus login     # opens your browser; approve the code and a key is saved for this device
+npx engram-walrus doctor    # confirms the key, server, scope and today's usage
+```
+
+Then add Engram to any MCP client. No key goes in the config:
+
+```json
+{ "mcpServers": { "engram": { "command": "npx", "args": ["-y", "engram-walrus"] } } }
+```
+
+The key is saved in `~/.engram/credentials.json`. `npx engram-walrus logout` removes it, and you can revoke it any time on the dashboard Keys page.
+With a cloud key the CLI forwards to the hosted endpoint, so it always has the server's current tools:
+`engram_remember`, `engram_recall`, `engram_recent`, `engram_get`, `engram_whoami`, `engram_tidy`, `engram_handoff`, `engram_snapshot`.
 
 ---
 

@@ -1,4 +1,4 @@
-// Automated test suite for engram-walrus package (v0.2.1)
+// Automated test suite for engram-walrus package (v0.3.0)
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -196,7 +196,7 @@ async function runTests() {
   const initResp = responses.find((r) => r.id === 1)
   assert(initResp, 'Received initialize response')
   assert(initResp.result.serverInfo.name === 'engram-walrus', 'Server name matches engram-walrus')
-  assert(initResp.result.serverInfo.version === '0.2.1', 'Server version is 0.2.1')
+  assert(initResp.result.serverInfo.version === '0.3.0', 'Server version is 0.3.0')
 
   const toolsListResp = responses.find((r) => r.id === 3)
   assert(toolsListResp && toolsListResp.result.tools.length === 3, 'Received 3 tools via stdio')
@@ -213,7 +213,7 @@ async function runTests() {
   helpChild.stderr.on('data', (d) => { helpStderr += d.toString() })
   const helpExitCode = await new Promise((resolve) => helpChild.on('exit', resolve))
   assert(helpExitCode === 0, '--help exited with 0')
-  assert(helpStderr.includes('Engram Walrus MCP Server v0.2.1'), '--help prints v0.2.1')
+  assert(helpStderr.includes('Engram Walrus MCP Server v0.3.0'), '--help prints v0.3.0')
   assert(helpStderr.includes('--key=<eng_...>'), '--help documents --key flag')
   assert(helpStderr.includes('--mock'), '--help documents --mock flag')
 

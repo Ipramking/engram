@@ -1,3 +1,4 @@
+import { getUserFromRequest, isMachineToken } from './_lib/auth.js'
 import { newTid, sign } from './_lib/token.js'
 
 const env = ((globalThis as any).process?.env ?? {}) as Record<string, string | undefined>
@@ -49,6 +50,15 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method Not Allowed: use POST' })
   }
 
+  // Space links write real memory, so only signed-in people may create them.
+  if (isMachineToken(req)) {
+    return res.status(403).json({ error: 'API keys cannot create space links. Sign in to the dashboard instead.' })
+  }
+  const user = await getUserFromRequest(req)
+  if (!user) {
+    return res.status(401).json({ error: 'Sign in to create a space link.' })
+  }
+
   const ip =
     req.headers['x-forwarded-for']?.toString().split(',')[0].trim() ||
     req.socket?.remoteAddress ||
@@ -81,6 +91,7 @@ export default async function handler(req: any, res: any) {
       tid,
     })
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Failed to provision space token' })
+    console.error('[api/provision] failed:', err?.message || err)
+    return res.status(500).json({ error: 'Could not create a space link. Try again.' })
   }
 }

@@ -84,17 +84,21 @@ export default async function handler(req: any, res: any) {
         isAuthorized = await isTeamMember(user.id, record.team_id)
       }
 
+      // An API key may only delete inside its own scope: team keys their team, personal keys personal rows.
+      const key = (user as any).apiKey
+      if (isAuthorized && key) {
+        isAuthorized = key.scope === 'team' ? Boolean(key.team_id) && record.team_id === key.team_id : !record.team_id && isOwner
+      }
+
       if (!isAuthorized) {
         return res.status(403).json({ error: 'Forbidden: you do not have permission to delete this memory' })
       }
 
-      let query = supabase.from('memories_meta').delete()
-      if (id) query = query.eq('id', id)
-      else if (blobId) query = query.eq('blob_id', blobId)
-
-      const { error } = await query
+      // Delete exactly the row that was authorized, never every row sharing a blob id.
+      const { error } = await supabase.from('memories_meta').delete().eq('id', record.id)
       if (error) {
-        return res.status(500).json({ error: error.message })
+        console.error('[api/memories] delete failed:', error.message)
+        return res.status(500).json({ error: 'Could not delete the memory. Try again.' })
       }
       const retentionInfo = formatRetentionContract(record.blob_id || blobId)
       return res.status(200).json({

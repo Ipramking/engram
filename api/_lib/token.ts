@@ -30,7 +30,9 @@ export function newTid(): string {
 
 export function sign(tid: string, secretOverride?: string): string {
   const secret = getSigningSecret(secretOverride)
-  const payload = b64u(JSON.stringify({ tid, iat: Math.floor(Date.now() / 1000) }))
+  const iat = Math.floor(Date.now() / 1000)
+  // Space tokens expire after 90 days; older tokens without exp keep working until rotated.
+  const payload = b64u(JSON.stringify({ tid, iat, exp: iat + 90 * 86400 }))
   const mac = b64u(createHmac('sha256', secret).update('v1.' + payload).digest())
   return `v1.${payload}.${mac}`
 }
@@ -65,7 +67,7 @@ function verifyHmacWithRotation(
   return false
 }
 
-export function verify(token: string, secretOverride?: string): { tid: string; iat: number } | null {
+export function verify(token: string, secretOverride?: string): { tid: string; iat: number; exp?: number } | null {
   if (typeof token !== 'string') return null
   const parts = token.split('.')
   if (parts.length !== 3 || parts[0] !== 'v1') return null
@@ -75,7 +77,9 @@ export function verify(token: string, secretOverride?: string): { tid: string; i
   }
 
   try {
-    return JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'))
+    const parsed = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'))
+    if (typeof parsed?.exp === 'number' && Math.floor(Date.now() / 1000) > parsed.exp) return null
+    return parsed
   } catch {
     return null
   }

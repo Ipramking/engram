@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 // Engram MCP — give any AI a portable memory on Walrus.
-//   npx engram-walrus                    # run local or offline demo store
-//   npx engram-walrus --key=eng_usr_...  # connect with your Engram cloud API key
-//   npx engram-walrus --mock             # force local in-memory mock store
-//   npx engram-walrus login              # one-time browser sign-in (your own account)
-//   npx engram-walrus logout             # sign out of MemWal
+//   npx engram-walrus login              # sign in once in the browser; saves a key for this device
+//   npx engram-walrus                    # run the MCP server (uses the saved key or ENGRAM_API_KEY)
+//   npx engram-walrus doctor             # check the key, server and today's usage
+//   npx engram-walrus logout             # forget the saved key
+//   npx engram-walrus --mock             # in-memory store for offline testing
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { createEngram, memwalBinUrl, loggedIn, hostedProxy } from './core.mjs'
+import { readCredentials, clearCredentials, deviceLogin, doctor, CREDENTIALS } from './cli-auth.mjs'
 
-const VERSION = '0.2.1'
+const VERSION = '0.3.0'
 
 const rawArgs = process.argv.slice(2)
 let apiKey = process.env.ENGRAM_API_KEY
+let keySource = apiKey ? 'ENGRAM_API_KEY' : 'none'
 let hostUrl = process.env.ENGRAM_HOST || 'https://engram-pearl.vercel.app'
 let room = process.env.ENGRAM_ROOM || 'my-space'
 let forceMock = false
@@ -20,6 +22,7 @@ let forceMock = false
 for (const a of rawArgs) {
   if (a.startsWith('--key=')) {
     apiKey = a.slice(6)
+    keySource = '--key flag'
     process.stderr.write('[engram-walrus] tip: set ENGRAM_API_KEY in the client config instead of --key so the key stays out of process lists and shell history\n')
   }
   else if (a.startsWith('--url=')) hostUrl = a.slice(6)
@@ -28,11 +31,12 @@ for (const a of rawArgs) {
   else if (a === '--help' || a === '-h') {
     process.stderr.write(`Engram Walrus MCP Server v${VERSION}
 Usage:
-  npx engram-walrus                    # Run local or offline memory server
-  npx engram-walrus --key=eng_...      # Connect with your Engram cloud API key
-  npx engram-walrus --mock             # Force in-memory mock store for local testing
-  npx engram-walrus login              # MemWal login for direct Walrus mainnet
-  npx engram-walrus logout             # MemWal sign out
+  npx engram-walrus login              # Sign in in the browser; saves a key for this device
+  npx engram-walrus                    # Run the MCP server (saved key or ENGRAM_API_KEY)
+  npx engram-walrus doctor             # Check key, server, scope and today's usage
+  npx engram-walrus logout             # Forget the saved key
+  npx engram-walrus --mock             # In-memory store for offline testing
+  npx engram-walrus login --walrus     # Advanced: MemWal login for direct Walrus mainnet
 
 Options:
   --key=<eng_...>   Engram cloud API key (or set ENGRAM_API_KEY)
@@ -45,15 +49,47 @@ Options:
 }
 
 const firstArg = rawArgs[0]
+const walrus = rawArgs.includes('--walrus')
 
-if (firstArg === 'login' || firstArg === '--login') {
+// A key saved by `login` is used when no flag or env var is given.
+if (!apiKey && !forceMock) {
+  const saved = readCredentials()
+  if (saved?.apiKey) {
+    apiKey = saved.apiKey
+    keySource = `saved login (${CREDENTIALS})`
+    if (!process.env.ENGRAM_HOST && saved.host) hostUrl = saved.host
+  }
+}
+
+if ((firstArg === 'login' || firstArg === '--login') && walrus) {
   const bin = fileURLToPath(memwalBinUrl())
   const child = spawn(process.execPath, [bin, 'login', '--prod'], { stdio: 'inherit' })
   child.on('exit', (c) => process.exit(c ?? 0))
-} else if (firstArg === 'logout') {
+} else if (firstArg === 'logout' && walrus) {
   const bin = fileURLToPath(memwalBinUrl())
   const child = spawn(process.execPath, [bin, '--logout'], { stdio: 'inherit' })
   child.on('exit', (c) => process.exit(c ?? 0))
+} else if (firstArg === 'login' || firstArg === '--login') {
+  deviceLogin({ hostUrl, noBrowser: rawArgs.includes('--no-browser') })
+    .then(({ deviceName, path }) => {
+      process.stderr.write(`
+  Signed in as "${deviceName}". Key saved to ${path}
+  Add Engram to a client with: { "command": "npx", "args": ["-y", "engram-walrus"] }
+`)
+      process.exitCode = 0
+    })
+    .catch((e) => {
+      process.stderr.write(`
+  Sign-in failed: ${e.message}
+`)
+      process.exitCode = 1
+    })
+} else if (firstArg === 'logout') {
+  clearCredentials()
+  process.stderr.write('Removed the saved key from this device. Revoke it on the dashboard Keys page if it may have leaked.\n')
+  process.exit(0)
+} else if (firstArg === 'doctor') {
+  doctor({ apiKey, hostUrl, keySource, version: VERSION }).then((code) => { process.exitCode = code })
 } else {
   const { TOOLS, handleTool, backend } = createEngram({ apiKey, hostUrl, room, forceMock })
   // Cloud mode forwards to the hosted endpoint so tools never drift from the server.
@@ -121,7 +157,7 @@ if (firstArg === 'login' || firstArg === '--login') {
     const keyPreview = apiKey ? `…${apiKey.slice(-4)}` : 'configured'
     process.stderr.write(`[engram-walrus v${VERSION}] ready (backend=cloud, key=${keyPreview}, host=${hostUrl})\n`)
   } else if (backend.kind === 'mock') {
-    const hint = !loggedIn() ? ' — pass `--key=eng_...` or run `npx engram-walrus login` for persistent Walrus storage' : ''
+    const hint = !loggedIn() ? ' — run `npx engram-walrus login` to connect your Engram memory' : ''
     process.stderr.write(`[engram-walrus v${VERSION}] ready (backend=mock${hint})\n`)
   } else {
     process.stderr.write(`[engram-walrus v${VERSION}] ready (backend=${backend.kind})\n`)

@@ -185,6 +185,17 @@ export function useDashboard(authToken: string | null) {
     return { ok: false as const, error: r.data?.error || 'Could not delete the memory.' }
   }
 
+  async function deviceInfo(code: string) {
+    const r = await call(`/api/keys/device?code=${encodeURIComponent(code)}`)
+    return r.ok ? { ok: true as const, deviceName: r.data.deviceName as string, status: r.data.status as string } : { ok: false as const, error: r.data?.error || 'Login request not found.' }
+  }
+
+  async function decideDevice(code: string, approve: boolean) {
+    const r = await call('/api/keys/device/approve', { method: 'POST', body: JSON.stringify({ code, approve }) })
+    if (r.ok) refresh()
+    return r.ok ? { ok: true as const, keyName: r.data.keyName as string | undefined } : { ok: false as const, error: r.data?.error || 'Could not complete the request.' }
+  }
+
   /** Calls the hosted MCP endpoint exactly like a client would, to prove the link works. */
   async function testConnection(url: string) {
     const started = performance.now()
@@ -228,6 +239,8 @@ export function useDashboard(authToken: string | null) {
     saveMemory,
     deleteMemory,
     testConnection,
+    deviceInfo,
+    decideDevice,
   }
 }
 

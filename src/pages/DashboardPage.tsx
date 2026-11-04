@@ -16,6 +16,9 @@ import { Keys, CreateKeySheet } from './dashboard/Keys'
 import { Teams } from './dashboard/Teams'
 import { Usage } from './dashboard/Usage'
 import { Guide } from './dashboard/Guide'
+import { DeviceApproval } from './dashboard/DeviceApproval'
+
+const DEVICE_KEY = 'engram.pendingDevice'
 
 const NAV: Array<{ id: TabId; label: string; hint: string; icon: typeof House; mobile?: boolean }> = [
   { id: 'home', label: 'Home', hint: 'Start here', icon: House, mobile: true },
@@ -46,10 +49,36 @@ function Dashboard() {
   const [moreOpen, setMoreOpen] = useState(false)
   const [keySheet, setKeySheet] = useState(false)
   const d = useDashboard(token)
+  const deviceParam = params.get('device')
+  const [deviceCode, setDeviceCode] = useState<string | null>(() => {
+    try {
+      return deviceParam || sessionStorage.getItem(DEVICE_KEY)
+    } catch {
+      return deviceParam
+    }
+  })
 
   useEffect(() => {
+    // Keep a terminal's login code across the sign-in redirect.
+    if (deviceParam) {
+      try {
+        sessionStorage.setItem(DEVICE_KEY, deviceParam)
+      } catch {
+        /* private mode */
+      }
+    }
     if (!authLoading && !user) navigate('/login')
-  }, [authLoading, user, navigate])
+  }, [authLoading, user, navigate, deviceParam])
+
+  function closeDevice() {
+    try {
+      sessionStorage.removeItem(DEVICE_KEY)
+    } catch {
+      /* private mode */
+    }
+    setDeviceCode(null)
+    if (deviceParam) setParams(tab === 'home' ? {} : { tab })
+  }
 
   function go(t: TabId) {
     setParams(t === 'home' ? {} : { tab: t })
@@ -257,6 +286,7 @@ function Dashboard() {
       </Sheet>
 
       <CreateKeySheet open={keySheet} onClose={() => setKeySheet(false)} d={d} />
+      {deviceCode && !d.sessionExpired && <DeviceApproval d={d} code={deviceCode} onDone={closeDevice} />}
     </div>
   )
 }

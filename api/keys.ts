@@ -1,6 +1,7 @@
 import { getUserFromRequest, isMachineToken } from './_lib/auth.js'
 import { createApiKey, listApiKeys, revokeApiKey } from './_lib/db.js'
 import { signLiveKey } from './_lib/token.js'
+import { startDeviceLogin, pollDeviceLogin, describeDeviceLogin, decideDeviceLogin } from './_lib/device.js'
 
 const HOST = process.env.ENGRAM_MCP_HOST || 'https://engram-pearl.vercel.app'
 
@@ -18,12 +19,32 @@ export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
   if (method === 'OPTIONS') return res.status(200).end()
 
+  // CLI device login: start and poll run before the CLI has any key.
+  if (method === 'POST' && path.endsWith('/device/start')) {
+    const r = await startDeviceLogin(req.body, HOST)
+    return res.status(r.status).json(r.body)
+  }
+  if (method === 'POST' && path.endsWith('/device/poll')) {
+    const r = await pollDeviceLogin(req.body)
+    return res.status(r.status).json(r.body)
+  }
+
   if (isMachineToken(req)) {
     return res.status(403).json({ error: 'API keys cannot manage keys. Sign in to the dashboard instead.' })
   }
   const user = await getUserFromRequest(req)
   if (!user) {
     return res.status(401).json({ error: 'Unauthorized: please sign in to manage API keys.' })
+  }
+
+  // Dashboard side of device login (signed-in session only, enforced above).
+  if (method === 'GET' && path.endsWith('/device')) {
+    const r = await describeDeviceLogin(String(req.query?.code || searchParams.get('code') || ''))
+    return res.status(r.status).json(r.body)
+  }
+  if (method === 'POST' && path.endsWith('/device/approve')) {
+    const r = await decideDeviceLogin(user.id, req.body)
+    return res.status(r.status).json(r.body)
   }
 
   try {

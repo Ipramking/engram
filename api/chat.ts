@@ -5,17 +5,22 @@ import {
   memwalFor,
   normalizeRecall,
   decodeMemory,
-  encodeMemory,
-  blobIdOf,
   recallMaxDistance,
   type Scope,
 } from "./_lib/memwal.js";
 import { buildSystemPrompt } from "./_lib/prompt.js";
 import { generateReply, extractFacts, type ChatMsg } from "./_lib/llm.js";
-import { getUserFromRequest } from "./_lib/auth.js";
-import { isTeamMember } from "./_lib/db.js";
+import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
+import { checkAndIncrementUsage, getUsage } from "./_lib/db.js";
+import { executeMemoryCreationLifecycle } from "./_lib/lifecycle.js";
+
+// Chat spends the server's LLM key, so the model is never client-controlled and inputs are capped.
+const MAX_MESSAGES = 30;
+const MAX_MESSAGE_CHARS = 4000;
+const MAX_TOTAL_CHARS = 40000;
+const CHAT_DAILY_LIMIT = 100;
 import { getSupabaseAdmin } from "./_lib/supabase.js";
-import { scanForSecrets, sanitizeMemoryText } from "./_lib/security.js";
+import { sanitizeMemoryText } from "./_lib/security.js";
 
 function scoreQueryMatch(query: string, text: string): number {
   const q = query.trim().toLowerCase();
@@ -38,22 +43,35 @@ export default async function handler(req: any, res: any) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
-  const { messages = [], scope = "personal", teamCode = "default", model } = req.body ?? {};
+  const { messages: rawMessages = [], scope: requestedScope = "personal", teamCode: requestedTeamCode = "default" } = req.body ?? {};
+  const model = undefined;
+  if (!Array.isArray(rawMessages) || rawMessages.length === 0 || rawMessages.length > MAX_MESSAGES) {
+    return res.status(400).json({ error: `Send between 1 and ${MAX_MESSAGES} messages.` });
+  }
+  const messages: ChatMsg[] = rawMessages
+    .filter((m: any) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+    .map((m: any) => ({ role: m.role, content: m.content.slice(0, MAX_MESSAGE_CHARS) }));
+  if (messages.reduce((n, m) => n + m.content.length, 0) > MAX_TOTAL_CHARS) {
+    return res.status(413).json({ error: "Conversation too long. Start a new chat." });
+  }
 
   const user = await getUserFromRequest(req);
   if (!user) {
     return res.status(401).json({ error: "Unauthorized: authentication required to access chat agent." });
   }
 
-  if (scope === "team") {
-    if (!teamCode || teamCode === "default") {
-      return res.status(400).json({ error: "teamCode (team ID) is required for team scope." });
-    }
-    const isMember = await isTeamMember(user.id, teamCode);
-    if (!isMember) {
-      return res.status(403).json({ error: "Forbidden: you are not an active member of this team." });
-    }
+  const auth = await authorizeMemoryAccess({ user, requestedScope, requestedTeamCode });
+  if (!auth.authorized) return res.status(auth.statusCode || 403).json({ error: auth.error });
+  const scope = auth.effectiveScope as Scope;
+  const teamCode = auth.effectiveTeamId || "default";
+  // Each chat turn spends LLM budget; cap turns per person/team per UTC day.
+  const entityType = scope === "team" ? "team" : "user";
+  const entityId = scope === "team" ? teamCode : user.id;
+  const today = await getUsage(entityType, entityId).catch(() => null);
+  if ((today?.recalls_count ?? 0) >= CHAT_DAILY_LIMIT) {
+    return res.status(429).json({ error: `Daily chat limit (${CHAT_DAILY_LIMIT}) reached. It resets at midnight UTC.` });
   }
+  await checkAndIncrementUsage({ entityType, entityId, operation: "recall" }).catch(() => {});
 
   const ns = scope === "team" ? teamCode : `usr_${user.id}`;
   const mem = memwalFor(scope as Scope, ns);
@@ -123,35 +141,30 @@ export default async function handler(req: any, res: any) {
 
   // 2. ANSWER
   const system = buildSystemPrompt(recalled, scope);
-  const reply = await generateReply(system, messages, model);
+  let reply: string;
+  try {
+    reply = await generateReply(system, messages, model);
+  } catch (e: any) {
+    console.error("[api/chat] LLM failed:", e?.message || e);
+    return res.status(502).json({ error: "The assistant is unavailable right now. Try again shortly.", recalled });
+  }
 
   // 3. REMEMBER (auto-capture per the rules)
   const remembered: { type: string; text: string; blobId?: string }[] = [];
   try {
     const facts = await extractFacts(lastUser, reply, model);
-    for (const f of facts) {
-      if (scanForSecrets(f.text).hasSecret) continue;
-      const cleanFact = sanitizeMemoryText(f.text);
-      let blobId: string | undefined;
-      try {
-        const job = await mem.rememberAndWait(encodeMemory(f.type, cleanFact), undefined, {
-          timeoutMs: 30_000,
-        });
-        blobId = blobIdOf(job);
-      } catch (e) {
-        console.warn("walrus auto-remember warning:", e);
-      }
-      if (supabase) {
-        await supabase.from("memories_meta").insert({
-          user_id: user.id,
-          team_id: scope === "team" ? (teamCode !== "default" ? teamCode : null) : null,
-          room: "my-space",
-          type: f.type,
-          text: cleanFact,
-          blob_id: blobId ?? null,
-        });
-      }
-      remembered.push({ type: f.type, text: cleanFact, blobId });
+    // Same path as every other write: quota, secret scan, dedupe and conflict handling.
+    for (const f of facts.slice(0, 5)) {
+      const r = await executeMemoryCreationLifecycle({
+        user,
+        text: f.text,
+        type: f.type,
+        scope,
+        teamCode,
+        source: "conversation_extraction",
+      });
+      if (r.ok) remembered.push({ type: r.type, text: r.cleanText, blobId: r.blobId || undefined });
+      else if (r.statusCode === 429) break;
     }
   } catch (e) {
     console.error("remember failed", e);

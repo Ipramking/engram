@@ -138,7 +138,8 @@ export async function executeMemoryCreationLifecycle(
       entityType: effectiveScope === 'team' ? 'team' : 'user',
       entityId: effectiveScope === 'team' ? effectiveTeamId! : user.id,
       operation: 'save',
-      planTier: user.plan_tier,
+      // Team saves draw on the team's pool, not the saver's personal plan.
+      planTier: effectiveScope === 'team' ? 'free_team' : user.plan_tier,
     })
   } catch (quotaErr: any) {
     return {

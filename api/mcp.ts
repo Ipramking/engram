@@ -260,7 +260,7 @@ export default async function handler(req: any, res: any) {
     if (!apiKey) {
       return res.status(401).json({
         jsonrpc: "2.0",
-        error: { code: -32001, message: "Unauthorized: invalid or revoked Engram API key" },
+        error: { code: -32001, message: `Unauthorized: this Engram key is invalid or was revoked. Create a new key at ${KEYS_URL}` },
         id: null,
       });
     }

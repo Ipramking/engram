@@ -394,19 +394,42 @@ export async function checkAndIncrementUsage(opts: {
   const tier = opts.planTier || (opts.entityType === 'user' ? 'free_personal' : 'free_team')
   const limits = PLAN_LIMITS[tier] || PLAN_LIMITS.free_personal
   const dateStr = getTodayStr()
-  const current = await getUsage(opts.entityType, opts.entityId, dateStr)
   const { resetAt, secondsUntilReset } = getQuotaResetMetadata()
-
-  if (opts.operation === 'save' && current.saves_count >= limits.dailySaves) {
+  const quotaError = (current: number) => {
     const err: any = new Error(
       `Daily memory save limit (${limits.dailySaves} saves/day) reached for this ${opts.entityType}. Quota resets at midnight UTC.`
     )
     err.code = 'DAILY_QUOTA_EXCEEDED'
     err.limit = limits.dailySaves
-    err.current = current.saves_count
+    err.current = current
     err.resetAt = resetAt
     err.secondsUntilReset = secondsUntilReset
-    throw err
+    return err
+  }
+
+  // Atomic path (migration 20261104): one locked UPDATE, so concurrent saves can't overshoot.
+  const admin = getSupabaseAdmin()
+  if (admin) {
+    const { data, error } = await admin.rpc('increment_usage', {
+      p_entity_type: opts.entityType,
+      p_entity_id: opts.entityId,
+      p_date: dateStr,
+      p_saves: opts.operation === 'save' ? 1 : 0,
+      p_recalls: opts.operation === 'recall' ? 1 : 0,
+      p_save_limit: limits.dailySaves,
+    })
+    const row = Array.isArray(data) ? data[0] : data
+    if (!error && row) {
+      if (!row.allowed) throw quotaError(row.saves_count)
+      return
+    }
+    // Function not installed yet: fall through to the read-then-write path below.
+  }
+
+  const current = await getUsage(opts.entityType, opts.entityId, dateStr)
+
+  if (opts.operation === 'save' && current.saves_count >= limits.dailySaves) {
+    throw quotaError(current.saves_count)
   }
 
   const newSaves = current.saves_count + (opts.operation === 'save' ? 1 : 0)

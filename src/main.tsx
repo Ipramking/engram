@@ -1,30 +1,37 @@
-import { StrictMode } from 'react'
+import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
-import DocsPage from './pages/DocsPage.tsx'
-import SetupPage from './pages/SetupPage.tsx'
-import TokenPage from './pages/TokenPage.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import RegisterPage from './pages/RegisterPage.tsx'
-import DashboardPage from './pages/DashboardPage.tsx'
 import { AuthProvider } from './context/AuthContext.tsx'
+
+// Heavy pages load on demand so the landing page stays light.
+const DocsPage = lazy(() => import('./pages/DocsPage.tsx'))
+const SetupPage = lazy(() => import('./pages/SetupPage.tsx'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage.tsx'))
+
+const Loading = () => <div className="min-h-dvh bg-bg" aria-busy="true" />
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<App />} />
-          <Route path="/docs" element={<DocsPage />} />
-          <Route path="/setup" element={<DocsPage />} />
-          <Route path="/setup/wizard" element={<SetupPage />} />
-          <Route path="/setup/token" element={<TokenPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-        </Routes>
+        <Suspense fallback={<Loading />}>
+          <Routes>
+            <Route path="/" element={<App />} />
+            <Route path="/docs" element={<DocsPage />} />
+            <Route path="/setup" element={<DocsPage />} />
+            <Route path="/setup/wizard" element={<SetupPage />} />
+            {/* Anonymous space links were retired; keys live in the dashboard now. */}
+            <Route path="/setup/token" element={<Navigate to="/dashboard?tab=keys" replace />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthProvider>
   </StrictMode>,
