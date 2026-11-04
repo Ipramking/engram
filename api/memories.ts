@@ -157,7 +157,7 @@ export default async function handler(req: any, res: any) {
 
     const { data, error } = await q
     if (!error && data && data.length > 0) {
-      items = data.map((row) => {
+      items = data.map((row: any) => {
         const isSuperseded = Boolean(row.room && row.room.startsWith('superseded_by:'))
         const supersededBy = isSuperseded ? row.room.replace('superseded_by:', '') : null
         return {

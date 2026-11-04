@@ -123,8 +123,8 @@ export default async function handler(req: any, res: any) {
               score: scoreQueryMatch(lastUser, `${r.type || ""} ${dec.text}`),
             };
           })
-          .filter((r) => r.score > 0)
-          .sort((a, b) => b.score - a.score);
+          .filter((r: any) => r.score > 0)
+          .sort((a: any, b: any) => b.score - a.score);
 
         for (const r of activeRows) {
           const key = r.text.toLowerCase();

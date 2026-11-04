@@ -23,6 +23,17 @@ export function getSupabaseAdmin(): SupabaseClient | null {
   return adminClient
 }
 
+/**
+ * The Supabase auth methods Engram calls. Vercel's per-function type check can't always resolve
+ * @supabase/auth-js through supabase-js, which made these methods look missing in build logs.
+ */
+export interface AuthApi {
+  admin: { createUser(attrs: Record<string, unknown>): Promise<{ data: any; error: any }> }
+  signInWithPassword(creds: { email: string; password: string }): Promise<{ data: any; error: any }>
+  getUser(jwt?: string): Promise<{ data: any; error: any }>
+}
+export const authApi = (client: SupabaseClient) => client.auth as unknown as AuthApi
+
 // Client for user-facing auth (sign in, sign up, token validation)
 let authClient: SupabaseClient | null = null
 export function getSupabaseAuth(): SupabaseClient | null {

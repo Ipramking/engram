@@ -1,4 +1,4 @@
-import { getSupabaseAuth, getSupabaseAdmin } from './_lib/supabase.js'
+import { getSupabaseAuth, getSupabaseAdmin, authApi } from './_lib/supabase.js'
 import { createProfile, getProfile } from './_lib/db.js'
 import { getUserFromRequest } from './_lib/auth.js'
 import { signSession } from './_lib/token.js'
@@ -37,7 +37,7 @@ export default async function handler(req: any, res: any) {
       const supabaseAuth = getSupabaseAuth()
 
       if (supabaseAdmin && supabaseAuth) {
-        const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        const { data: createData, error: createError } = await authApi(supabaseAdmin).admin.createUser({
           email: email.trim(),
           password,
           email_confirm: true,
@@ -57,7 +57,7 @@ export default async function handler(req: any, res: any) {
           profile = await createProfile(newUser.id, newUser.email!, name, 'free_personal')
         }
 
-        const { data: signData, error: signError } = await supabaseAuth.auth.signInWithPassword({
+        const { data: signData, error: signError } = await authApi(supabaseAuth).signInWithPassword({
           email: email.trim(),
           password,
         })
@@ -105,7 +105,7 @@ export default async function handler(req: any, res: any) {
 
       const supabaseAuth = getSupabaseAuth()
       if (supabaseAuth) {
-        const { data, error } = await supabaseAuth.auth.signInWithPassword({
+        const { data, error } = await authApi(supabaseAuth).signInWithPassword({
           email: email.trim(),
           password,
         })

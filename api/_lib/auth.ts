@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from './supabase.js'
+import { getSupabaseAdmin, authApi } from './supabase.js'
 import { getProfile, isApiKeyActive, isTeamMember } from './db.js'
 import { verify, verifySession, verifyLiveKey } from './token.js'
 
@@ -86,7 +86,7 @@ export async function getUserFromRequest(req: any) {
   const supabaseAdmin = getSupabaseAdmin()
   if (supabaseAdmin) {
     try {
-      const { data: { user }, error } = await supabaseAdmin.auth.getUser(token)
+      const { data: { user }, error } = await authApi(supabaseAdmin).getUser(token)
       if (!error && user) {
         const profile = await getProfile(user.id)
         return {
