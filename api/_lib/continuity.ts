@@ -455,6 +455,8 @@ export async function generateContinuitySnapshot(opts: {
 }): Promise<ContinuitySnapshot> {
   const { projectId, projectName, userId, scope, teamId, activeMemories = [] } = opts
   const context = await getOrCreateProjectContext({ projectId, projectName, userId, scope, teamId })
+  const access = await authorizeProjectAccess({ userId, context })
+  if (!access.authorized) throw new Error(access.reason || 'Forbidden: no access to this project')
   const latestHandoff = await getLatestHandoff(projectId)
 
   const now = new Date().toISOString()

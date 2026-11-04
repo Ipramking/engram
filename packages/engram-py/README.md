@@ -7,7 +7,7 @@ Engram gives autonomous agents (Claude, Cursor, AutoGen, CrewAI, LangChain, Gemi
 ## Installation
 
 ```bash
-pip install engram-memory
+pip install "git+https://github.com/Ipramking/engram#subdirectory=packages/engram-py"
 ```
 
 ## Quick Start

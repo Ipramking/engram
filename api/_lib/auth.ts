@@ -20,6 +20,14 @@ export function verifyPassword(password: string, combinedHash: string): boolean 
   }
 }
 
+/** API keys and space tokens may read and write memory, but must never manage keys or teams. */
+export function isMachineToken(req: any): boolean {
+  const header = String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '').trim()
+  const query = String(req.query?.token || new URLSearchParams(String(req.url || '').split('?')[1] || '').get('token') || '')
+  const token = header || query
+  return token.startsWith('eng_') || token.startsWith('v1.')
+}
+
 export async function getUserFromRequest(req: any) {
   const authHeader = req.headers?.authorization || ''
   const rawUrl = req.url || ''

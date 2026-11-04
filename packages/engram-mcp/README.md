@@ -22,7 +22,7 @@ Grab your API key from the [Engram Web Dashboard](https://engram-pearl.vercel.ap
   "mcpServers": {
     "engram": {
       "command": "npx",
-      "args": ["-y", "engram-walrus@^0.2.0", "--key=eng_usr_YOUR_KEY"]
+      "args": ["-y", "engram-walrus@0.2"], "env": { "ENGRAM_API_KEY": "eng_usr_YOUR_KEY" }
     }
   }
 }
@@ -40,7 +40,7 @@ npx engram-walrus login
   "mcpServers": {
     "engram": {
       "command": "npx",
-      "args": ["-y", "engram-walrus@^0.2.0"]
+      "args": ["-y", "engram-walrus@0.2"]
     }
   }
 }
@@ -64,7 +64,7 @@ Add to `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/App
   "mcpServers": {
     "engram": {
       "command": "npx",
-      "args": ["-y", "engram-walrus", "--key=eng_usr_YOUR_KEY"]
+      "args": ["-y", "engram-walrus@0.2"], "env": { "ENGRAM_API_KEY": "eng_usr_YOUR_KEY" }
     }
   }
 }
@@ -77,7 +77,7 @@ Add to `.cursor/mcp.json` in your workspace or global settings:
   "mcpServers": {
     "engram": {
       "command": "npx",
-      "args": ["-y", "engram-walrus", "--key=eng_usr_YOUR_KEY"]
+      "args": ["-y", "engram-walrus@0.2"], "env": { "ENGRAM_API_KEY": "eng_usr_YOUR_KEY" }
     }
   }
 }
@@ -89,7 +89,7 @@ Add to `~/.gemini/antigravity-cli/mcp_servers.json`:
 {
   "engram": {
     "command": "npx",
-    "args": ["-y", "engram-walrus", "--key=eng_usr_YOUR_KEY"]
+    "args": ["-y", "engram-walrus@0.2"], "env": { "ENGRAM_API_KEY": "eng_usr_YOUR_KEY" }
   }
 }
 ```
@@ -101,7 +101,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
   "mcpServers": {
     "engram": {
       "command": "npx",
-      "args": ["-y", "engram-walrus", "--key=eng_usr_YOUR_KEY"]
+      "args": ["-y", "engram-walrus@0.2"], "env": { "ENGRAM_API_KEY": "eng_usr_YOUR_KEY" }
     }
   }
 }
@@ -135,7 +135,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 
 | Flag | Default | Description |
 |---|---|---|
-| `--key=<key>` | `$ENGRAM_API_KEY` | Your Engram API key (`eng_usr_...` or `eng_team_...`). |
+| `--key=<key>` | `$ENGRAM_API_KEY` | Your Engram API key. Prefer the env var: `--key` is visible in process lists. |
 | `--url=<url>` | `https://engram-pearl.vercel.app` | Custom Engram backend endpoint URL. |
 | `--room=<name>` | `my-space` | Space or workspace identifier. |
 | `--mock` | `false` | Run an isolated in-memory store for unit tests or offline demos. |

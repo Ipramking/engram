@@ -134,7 +134,10 @@ export default async function handler(req: any, res: any) {
 
     // 2. Export / Create Verifiable Snapshot
     if (action === 'snapshot') {
-      const { projectName, scope = context.scope, teamId = context.teamId } = body
+      // Scope and team come from the authorized project, never from the request body.
+      const { projectName } = body
+      const scope = context.scope
+      const teamId = context.teamId
 
       let activeMemories: Array<{ type: string; text: string; blobId?: string | null }> = []
       if (supabase) {

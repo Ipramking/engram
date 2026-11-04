@@ -16,7 +16,10 @@ let room = process.env.ENGRAM_ROOM || 'my-space'
 let forceMock = false
 
 for (const a of rawArgs) {
-  if (a.startsWith('--key=')) apiKey = a.slice(6)
+  if (a.startsWith('--key=')) {
+    apiKey = a.slice(6)
+    process.stderr.write('[engram-walrus] tip: set ENGRAM_API_KEY in the client config instead of --key so the key stays out of process lists and shell history\n')
+  }
   else if (a.startsWith('--url=')) hostUrl = a.slice(6)
   else if (a.startsWith('--room=')) room = a.slice(7)
   else if (a === '--mock') forceMock = true
@@ -94,7 +97,7 @@ if (firstArg === 'login' || firstArg === '--login') {
   })
 
   if (backend.kind === 'cloud') {
-    const keyPreview = apiKey ? `${apiKey.slice(0, 11)}…` : 'configured'
+    const keyPreview = apiKey ? `…${apiKey.slice(-4)}` : 'configured'
     process.stderr.write(`[engram-walrus v0.2.0] ready (backend=cloud, key=${keyPreview}, host=${hostUrl})\n`)
   } else if (backend.kind === 'mock') {
     const hint = !loggedIn() ? ' — pass `--key=eng_...` or run `npx engram-walrus login` for persistent Walrus storage' : ''

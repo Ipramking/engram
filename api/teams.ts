@@ -1,4 +1,4 @@
-import { getUserFromRequest } from './_lib/auth.js'
+import { getUserFromRequest, isMachineToken } from './_lib/auth.js'
 import { createTeam, listTeams, listTeamMembers, isTeamMember, addTeamMember } from './_lib/db.js'
 
 export default async function handler(req: any, res: any) {
@@ -17,6 +17,9 @@ export default async function handler(req: any, res: any) {
   const user = await getUserFromRequest(req)
   if (!user) {
     return res.status(401).json({ error: 'Unauthorized: please sign in to manage teams.' })
+  }
+  if (isMachineToken(req)) {
+    return res.status(403).json({ error: 'API keys cannot manage teams. Sign in to the dashboard instead.' })
   }
 
   try {

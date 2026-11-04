@@ -26,12 +26,18 @@ export function loggedIn() {
   return existsSync(join(homedir(), '.memwal', 'credentials.json'))
 }
 
+function authHint(status, msg, base) {
+  if (status !== 401 && status !== 403) return msg
+  return `${msg} (backend=cloud host=${base}). Get a fresh key at ${base}/dashboard?tab=keys and set ENGRAM_API_KEY.`
+}
+
 export function cloudBackend({ apiKey, hostUrl = 'https://engram-pearl.vercel.app', room = 'my-space' }) {
   const base = (hostUrl || 'https://engram-pearl.vercel.app').replace(/\/$/, '')
   return {
     kind: 'cloud',
     async remember(ns, text) {
-      const scope = ns.startsWith('team:') ? 'team' : 'personal'
+      // '*' = caller gave no scope: let the server use the key's own scope (team keys).
+      const scope = ns.startsWith('team:') ? 'team' : ns === '*' ? undefined : 'personal'
       const teamCode = scope === 'team' ? ns.replace('team:', '') : undefined
       const { type, text: cleanText } = dec(text)
       const res = await fetch(`${base}/api/remember`, {
@@ -50,13 +56,14 @@ export function cloudBackend({ apiKey, hostUrl = 'https://engram-pearl.vercel.ap
             : ''
           throw new Error(`Daily quota exceeded (${err.limit || 50} memories/day).${resetMsg}`)
         }
-        throw new Error(err.error || `Engram cloud remember failed (${res.status})`)
+        throw new Error(authHint(res.status, err.error || `Engram cloud remember failed (${res.status})`, base))
       }
       const data = await res.json()
       return data.blobId
     },
     async recall(ns, query) {
-      const scope = ns.startsWith('team:') ? 'team' : 'personal'
+      // '*' = caller gave no scope: let the server use the key's own scope (team keys).
+      const scope = ns.startsWith('team:') ? 'team' : ns === '*' ? undefined : 'personal'
       const teamCode = scope === 'team' ? ns.replace('team:', '') : undefined
       const res = await fetch(`${base}/api/recall`, {
         method: 'POST',
@@ -68,13 +75,14 @@ export function cloudBackend({ apiKey, hostUrl = 'https://engram-pearl.vercel.ap
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `Engram cloud recall failed (${res.status})`)
+        throw new Error(authHint(res.status, err.error || `Engram cloud recall failed (${res.status})`, base))
       }
       const data = await res.json()
       return (data.results || []).map((r) => ({
         type: r.type,
         text: r.text,
         blobId: r.blobId,
+        createdAt: r.createdAt,
       }))
     },
   }
@@ -197,7 +205,7 @@ export function createEngram({ backend, lockNamespace = null, apiKey, hostUrl, r
   ]
 
   async function handleTool(name, args = {}) {
-    const ns = lockNamespace ?? nsFor(args.scope, args.team_code)
+    const ns = lockNamespace ?? (!args.scope && activeBackend.kind === 'cloud' ? '*' : nsFor(args.scope, args.team_code))
     const scopeLabel = scoped ? 'team' : args.scope || 'personal'
     if (name === 'engram_remember') {
       // Local secret scanning defense
@@ -218,7 +226,8 @@ export function createEngram({ backend, lockNamespace = null, apiKey, hostUrl, r
         const type = r.type || decoded.type
         const text = r.type ? (r.text || '') : decoded.text
         const blob = r.blobId ? `  [blob ${r.blobId}]` : ''
-        return `• (${type}) ${text}${blob}`
+        const when = r.createdAt ? ` [saved ${String(r.createdAt).slice(0, 10)}]` : ''
+        return `• (${type}) ${text}${when}${blob}`
       }).join('\n')
     }
     if (name === 'engram_tidy') {

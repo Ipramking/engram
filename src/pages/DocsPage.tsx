@@ -446,7 +446,8 @@ export default function DocsPage() {
   "mcpServers": {
     "engram": {
       "command": "npx",
-      "args": ["-y", "engram-walrus", "--key=YOUR_API_KEY"]
+      "args": ["-y", "engram-walrus@0.2"],
+      "env": { "ENGRAM_API_KEY": "YOUR_API_KEY" }
     }
   }
 }`}
@@ -482,7 +483,7 @@ export default function DocsPage() {
             </h3>
             <pre className="overflow-x-auto rounded-2xl border border-line bg-bg/80 p-3 font-mono text-xs text-txt leading-relaxed">
 {`# Connect local terminal agent to cloud account
-npx engram-walrus --key=eng_usr_YOUR_KEY
+ENGRAM_API_KEY=eng_usr_YOUR_KEY npx -y engram-walrus@0.2
 
 # Direct Walrus account browser sign-in
 npx engram-walrus login

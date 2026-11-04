@@ -267,9 +267,20 @@ export async function createTeam(name: string, ownerId: string, ownerEmail: stri
   return team
 }
 
+/** Invites are stored by email; attach them to the account the first time that person shows up. */
+export async function linkInvites(userId: string) {
+  const supabase = getSupabaseAdmin()
+  if (!supabase || !userId) return
+  const profile = await getProfile(userId)
+  const email = profile?.email?.toLowerCase()
+  if (!email) return
+  await supabase.from('team_members').update({ user_id: userId, status: 'active' }).eq('email', email).is('user_id', null)
+}
+
 export async function listTeams(userId: string) {
   const supabase = getSupabaseAdmin()
   if (supabase) {
+    await linkInvites(userId).catch(() => {})
     const { data } = await supabase
       .from('team_members')
       .select('team_id, role, teams(id, name, owner_id, plan_tier, created_at)')
@@ -297,8 +308,10 @@ export async function listTeamMembers(teamId: string) {
 
 export async function isTeamMember(userId: string, teamId: string): Promise<boolean> {
   if (!userId || !teamId) return false
-  const members = await listTeamMembers(teamId)
-  return members.some((m: any) => m.user_id === userId && m.status === 'active')
+  const isActive = (ms: any[]) => ms.some((m: any) => m.user_id === userId && m.status === 'active')
+  if (isActive(await listTeamMembers(teamId))) return true
+  await linkInvites(userId).catch(() => {})
+  return isActive(await listTeamMembers(teamId))
 }
 
 export async function addTeamMember(opts: {
@@ -319,14 +332,18 @@ export async function addTeamMember(opts: {
     throw new Error('The Free Team Plan is limited to a maximum of 3 members. Please upgrade to Pro to add more members.')
   }
 
+  // Invites can never create owners, and only an owner can appoint an admin.
+  const role = opts.role === 'admin' && requester.role === 'owner' ? 'admin' : 'member'
   const memberId = randomUUID()
   const supabase = getSupabaseAdmin()
   if (supabase) {
+    const { data: invitee } = await supabase.from('profiles').select('id').eq('email', opts.email.toLowerCase()).maybeSingle()
     const { data, error } = await supabase.from('team_members').insert({
       id: memberId,
       team_id: opts.teamId,
+      user_id: invitee?.id || null,
       email: opts.email.toLowerCase(),
-      role: opts.role || 'member',
+      role,
       status: 'active',
     }).select().single()
     if (!error && data) return data
@@ -335,7 +352,7 @@ export async function addTeamMember(opts: {
     id: memberId,
     team_id: opts.teamId,
     email: opts.email.toLowerCase(),
-    role: opts.role || 'member',
+    role,
     status: 'active',
   }
   const list = memTeamMembers.get(opts.teamId) || []

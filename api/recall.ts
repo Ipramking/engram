@@ -49,7 +49,7 @@ export default async function handler(req: any, res: any) {
   const source = req.method === "GET" ? { ...Object.fromEntries(searchParams.entries()), ...(req.query || {}) } : (req.body ?? {});
 
   const query = String(source.query ?? "");
-  const scope = (source.scope === "team" ? "team" : "personal") as Scope;
+  let scope = (source.scope === "team" ? "team" : "personal") as Scope;
   const teamCode = String(source.teamCode ?? "default");
   const topK = Number(source.topK ?? 10) || 10;
   const includeSuperseded = source.includeSuperseded === true || source.includeSuperseded === "true";
@@ -57,8 +57,9 @@ export default async function handler(req: any, res: any) {
 
   const user = await getUserFromRequest(req);
   if (!user) {
-    return res.status(401).json({ error: "Unauthorized: authentication required to access memory." });
+    return res.status(401).json({ error: "Unauthorized: this Engram key is missing, expired or revoked. Create a new key at https://engram-pearl.vercel.app/dashboard?tab=keys and update your app.", code: "KEY_INVALID" });
   }
+  if (!source.scope && (user as any).apiKey?.scope === "team") scope = "team";
 
   // Centralized authorization enforcement
   const authRes = await authorizeMemoryAccess({

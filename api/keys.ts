@@ -1,4 +1,4 @@
-import { getUserFromRequest } from './_lib/auth.js'
+import { getUserFromRequest, isMachineToken } from './_lib/auth.js'
 import { createApiKey, listApiKeys, revokeApiKey } from './_lib/db.js'
 import { signLiveKey } from './_lib/token.js'
 
@@ -18,6 +18,9 @@ export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
   if (method === 'OPTIONS') return res.status(200).end()
 
+  if (isMachineToken(req)) {
+    return res.status(403).json({ error: 'API keys cannot manage keys. Sign in to the dashboard instead.' })
+  }
   const user = await getUserFromRequest(req)
   if (!user) {
     return res.status(401).json({ error: 'Unauthorized: please sign in to manage API keys.' })

@@ -435,22 +435,26 @@ function QuickConnectPreview() {
   "mcpServers": {
     "engram": {
       "command": "npx",
-      "args": ["-y", "engram-walrus", "--key=YOUR_API_KEY", "--room=my-space"]
+      "args": ["-y", "mcp-remote", "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"]
     }
   }
 }`,
-    gemini: `# Google Gemini CLI & Antigravity (MCP)
-mcp_servers:
-  engram:
-    url: "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"
+    gemini: `// ~/.gemini/settings.json (Gemini CLI)
+{
+  "mcpServers": {
+    "engram": { "httpUrl": "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space" }
+  }
+}
 
 # Or create a custom Gem at gemini.google.com/gems for 1-tap memory sync!`,
-    antigravity: `# Antigravity IDE & Gemini CLI Configuration
-mcp_servers:
-  engram:
-    url: "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"`,
+    antigravity: `// Antigravity: Agent panel → MCP Servers → View raw config
+{
+  "mcpServers": {
+    "engram": { "command": "npx", "args": ["-y", "mcp-remote", "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"] }
+  }
+}`,
     cli: `# Direct terminal execution (or CI/CD pipelines)
-npx engram-walrus --key=YOUR_API_KEY --room=my-space`,
+ENGRAM_API_KEY=YOUR_API_KEY npx -y engram-walrus@0.2`,
   }
 
   const handleCopy = () => {

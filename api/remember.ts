@@ -19,12 +19,14 @@ export default async function handler(req: any, res: any) {
       ? { ...Object.fromEntries(searchParams.entries()), ...(req.query || {}) }
       : (req.body ?? {});
 
-  const { text, type, scope = "personal", teamCode = "default" } = source;
+  const { text, type, scope: requestedScope, teamCode = "default" } = source;
 
   const user = await getUserFromRequest(req);
   if (!user) {
-    return res.status(401).json({ error: "Unauthorized: authentication required to access memory." });
+    return res.status(401).json({ error: "Unauthorized: this Engram key is missing, expired or revoked. Create a new key at https://engram-pearl.vercel.app/dashboard?tab=keys and update your app.", code: "KEY_INVALID" });
   }
+  // No explicit scope: use the key's own scope so team keys work without extra arguments.
+  const scope = requestedScope || (user as any).apiKey?.scope || "personal";
 
   const lifecycleResult = await executeMemoryCreationLifecycle({
     user,

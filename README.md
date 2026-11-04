@@ -47,7 +47,7 @@ The user never has to repeatedly explain who they are, their technology stack, p
 ### 1. Python SDK
 
 ```bash
-pip install engram-memory
+pip install "git+https://github.com/Ipramking/engram#subdirectory=packages/engram-py"
 ```
 
 ```python
@@ -89,7 +89,7 @@ Add to your MCP client config (`~/.cursor/mcp.json` or `claude_desktop_config.js
 Or run via the official npm CLI package:
 
 ```bash
-npx -y engram-walrus --key=YOUR_ENGRAM_API_KEY
+ENGRAM_API_KEY=YOUR_ENGRAM_API_KEY npx -y engram-walrus@0.2
 ```
 
 ### 3. Local Development & Web Dashboard

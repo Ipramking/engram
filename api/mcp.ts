@@ -572,7 +572,7 @@ export default async function handler(req: any, res: any) {
               projectId: pId,
               userId: userId || "mcp_user",
               scope,
-              teamId: activeTeamId,
+              teamId: scope === "team" ? activeTeamId : null,
             });
             const brief = formatQuickResumeBrief(snap);
             return {
@@ -673,7 +673,7 @@ export default async function handler(req: any, res: any) {
             projectId: pId,
             userId: userId || "mcp_user",
             scope,
-            teamId: activeTeamId,
+            teamId: scope === "team" ? activeTeamId : null,
           });
 
           if (snapAction === "generate") {
