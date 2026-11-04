@@ -81,7 +81,7 @@ export default async function handler(req: any, res: any) {
           ok: true,
           user: {
             ...signData.user,
-            name: name?.trim() || signData.user.email?.split('@')[0],
+            name: name?.trim() || (signData.user?.email || email).split('@')[0],
             plan_tier: 'free_personal',
           },
           session: signData.session,

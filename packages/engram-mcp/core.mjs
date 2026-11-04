@@ -28,7 +28,48 @@ export function loggedIn() {
 
 function authHint(status, msg, base) {
   if (status !== 401 && status !== 403) return msg
+  // The server already says where to get a key; only add what it can't know.
+  if (msg.includes('dashboard?tab=keys')) return `${msg} (backend=cloud host=${base})`
   return `${msg} (backend=cloud host=${base}). Get a fresh key at ${base}/dashboard?tab=keys and set ENGRAM_API_KEY.`
+}
+
+/** fetch with a timeout and one retry on network errors or 5xx, for flaky connections. */
+export async function fetchRetry(url, init = {}, { timeoutMs = 20000, retries = 1 } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) })
+      if (res.status >= 500 && attempt < retries) throw new Error(`HTTP ${res.status}`)
+      return res
+    } catch (e) {
+      if (attempt >= retries) {
+        const why = e?.name === 'TimeoutError' ? `timed out after ${timeoutMs / 1000}s` : e?.cause?.code || e?.message || 'network error'
+        throw new Error(`Could not reach Engram at ${new URL(url).origin} (${why}). Check your connection and try again.`)
+      }
+      await new Promise((r) => setTimeout(r, 1500))
+    }
+  }
+}
+
+/**
+ * Forwards MCP calls to the hosted endpoint so the local CLI always exposes exactly the
+ * server's tools (recall, recent, get, whoami, handoff…) instead of a drifting copy.
+ */
+export function hostedProxy({ apiKey, hostUrl = 'https://engram-pearl.vercel.app' }) {
+  const base = (hostUrl || 'https://engram-pearl.vercel.app').replace(/\/$/, '')
+  let n = 0
+  return {
+    async rpc(method, params) {
+      const res = await fetchRetry(`${base}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ jsonrpc: '2.0', id: ++n, method, params }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (body?.error) throw new Error(authHint(res.status, body.error.message || `Engram error (${res.status})`, base))
+      if (!res.ok) throw new Error(authHint(res.status, `Engram request failed (${res.status})`, base))
+      return body.result
+    },
+  }
 }
 
 export function cloudBackend({ apiKey, hostUrl = 'https://engram-pearl.vercel.app', room = 'my-space' }) {
@@ -40,7 +81,7 @@ export function cloudBackend({ apiKey, hostUrl = 'https://engram-pearl.vercel.ap
       const scope = ns.startsWith('team:') ? 'team' : ns === '*' ? undefined : 'personal'
       const teamCode = scope === 'team' ? ns.replace('team:', '') : undefined
       const { type, text: cleanText } = dec(text)
-      const res = await fetch(`${base}/api/remember`, {
+      const res = await fetchRetry(`${base}/api/remember`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -65,7 +106,7 @@ export function cloudBackend({ apiKey, hostUrl = 'https://engram-pearl.vercel.ap
       // '*' = caller gave no scope: let the server use the key's own scope (team keys).
       const scope = ns.startsWith('team:') ? 'team' : ns === '*' ? undefined : 'personal'
       const teamCode = scope === 'team' ? ns.replace('team:', '') : undefined
-      const res = await fetch(`${base}/api/recall`, {
+      const res = await fetchRetry(`${base}/api/recall`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

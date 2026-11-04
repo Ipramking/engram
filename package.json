@@ -19,16 +19,18 @@
     "test:eval": "tsx scripts/retrieval-quality-eval.mjs",
     "test:hardening": "tsx scripts/engram-2.1-regression-test.mjs",
     "test:python": "py packages/engram-py/tests/test_sdk.py",
-    "test:all": "node packages/engram-mcp/test.mjs && tsx scripts/phase5-test.mjs && tsx scripts/phase6-test.mjs && tsx scripts/security-regression-test.mjs && tsx scripts/storage-reliability-test.mjs && tsx scripts/intelligence-engine-test.mjs && tsx scripts/continuity-engine-test.mjs && tsx scripts/retrieval-quality-eval.mjs && tsx scripts/engram-2.1-regression-test.mjs && py packages/engram-py/tests/test_sdk.py",
+    "test:all": "node packages/engram-mcp/test.mjs && tsx scripts/security-regression-test.mjs && tsx scripts/storage-reliability-test.mjs && tsx scripts/intelligence-engine-test.mjs && tsx scripts/continuity-engine-test.mjs && tsx scripts/retrieval-quality-eval.mjs && tsx scripts/engram-2.1-regression-test.mjs && py packages/engram-py/tests/test_sdk.py",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:integration": "tsx scripts/phase5-test.mjs && tsx scripts/phase6-test.mjs",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc --ignoreConfig --noEmit --skipLibCheck --target es2022 --module nodenext --moduleResolution nodenext --types node api/*.ts api/_lib/*.ts",
+    "test:package": "node packages/engram-mcp/test.mjs"
   },
   "dependencies": {
     "@ai-sdk/groq": "^4.0.33",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@mysten-incubation/memwal": "^0.1.5",
     "@mysten-incubation/memwal-mcp": "^0.0.11",
-    "@openrouter/ai-sdk-provider": "^3.0.0",
     "@supabase/supabase-js": "^2.118.0",
     "ai": "^7.0.83",
     "cors": "^2.8.6",
@@ -54,5 +56,8 @@
     "tsx": "^4.23.12",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

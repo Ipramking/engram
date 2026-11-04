@@ -36,7 +36,7 @@ async function seed() {
       console.log(`Creating demo user ${u.email}...`)
       const { data, error } = await admin.auth.admin.createUser({
         email: u.email,
-        password: 'EngramDemo2026!',
+        password: process.env.DEMO_PASSWORD, // set DEMO_PASSWORD; never commit it
         email_confirm: true,
         user_metadata: { name: u.name }
       })

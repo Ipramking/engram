@@ -7,15 +7,68 @@
     }
   },
   "rewrites": [
-    { "source": "/mcp", "destination": "/api/mcp" },
-    { "source": "/api/health", "destination": "/api/auth?subpath=health" },
-    { "source": "/api/storage", "destination": "/api/memories?subpath=storage" },
-    { "source": "/api/storage/:path*", "destination": "/api/memories?subpath=storage" },
-    { "source": "/api/auth/:path*", "destination": "/api/auth?subpath=:path*" },
-    { "source": "/api/keys/:path*", "destination": "/api/keys?subpath=:path*" },
-    { "source": "/api/teams/:path*", "destination": "/api/teams?subpath=:path*" },
-    { "source": "/api/usage/:path*", "destination": "/api/usage?subpath=:path*" },
-    { "source": "/api/memories/:path*", "destination": "/api/memories?subpath=:path*" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/mcp",
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/api/health",
+      "destination": "/api/auth?subpath=health"
+    },
+    {
+      "source": "/api/storage",
+      "destination": "/api/memories?subpath=storage"
+    },
+    {
+      "source": "/api/storage/:path*",
+      "destination": "/api/memories?subpath=storage"
+    },
+    {
+      "source": "/api/auth/:path*",
+      "destination": "/api/auth?subpath=:path*"
+    },
+    {
+      "source": "/api/keys/:path*",
+      "destination": "/api/keys?subpath=:path*"
+    },
+    {
+      "source": "/api/teams/:path*",
+      "destination": "/api/teams?subpath=:path*"
+    },
+    {
+      "source": "/api/usage/:path*",
+      "destination": "/api/usage?subpath=:path*"
+    },
+    {
+      "source": "/api/memories/:path*",
+      "destination": "/api/memories?subpath=:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    }
   ]
 }

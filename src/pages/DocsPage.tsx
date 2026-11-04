@@ -1,14 +1,11 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Brain, BookOpen, Terminal, Laptop, Smartphone, Users, Lock, Key, Shield,
-  Check, Copy, ExternalLink, ArrowRight, ArrowLeft, Sparkles, Download, Layers,
-  AlertCircle, FileText, Code2, Server, HelpCircle, ChevronRight, Search,
-  Database, Network, Zap, Cpu, Hash, ShieldCheck, Flame, GitBranch, RefreshCw
+  Terminal, Laptop, Smartphone, Shield, Check, Copy, ExternalLink, ArrowRight, ArrowLeft,
+  Sparkles, Download, ChevronRight, Search, Database, ShieldCheck
 } from 'lucide-react'
-import { Wordmark, Nav, Footer } from '../components/Chrome'
+import { Nav, Footer } from '../components/Chrome'
 import { ENGRAM_PROMPT, downloadText } from '../lib/promptText'
-import { useAuth } from '../context/AuthContext'
 
 interface DocArticle {
   id: string
@@ -21,7 +18,6 @@ interface DocArticle {
 }
 
 export default function DocsPage() {
-  const { user } = useAuth()
   const [activeArticleId, setActiveArticleId] = useState('intro')
   const [searchQuery, setSearchQuery] = useState('')
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null)

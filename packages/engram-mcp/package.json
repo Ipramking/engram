@@ -1,6 +1,6 @@
 {
   "name": "engram-walrus",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Portable, verifiable memory for AI agents — an MCP server on Walrus. Personal & team scope, typed capture. Connect it to any AI: store a fact in one, recall it in another.",
   "type": "module",
   "bin": {

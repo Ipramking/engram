@@ -37,6 +37,7 @@ export interface LifecycleExecutionResult {
   ok: boolean
   statusCode: number
   error?: string
+  metadataError?: string | null
   code?: string
   type: string
   cleanText: string

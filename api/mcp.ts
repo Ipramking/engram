@@ -9,7 +9,8 @@ import {
   MEMORY_TYPES,
   type Scope,
 } from "./_lib/memwal.js";
-import { validateApiKey, isApiKeyActive, checkAndIncrementUsage } from "./_lib/db.js";
+import { validateApiKey, isApiKeyActive, checkAndIncrementUsage, getProfile, getUsage, PLAN_LIMITS } from "./_lib/db.js";
+import { fetchScopeRows, rank, isSupersededRoom, formatMemoryLine } from "./_lib/search.js";
 import { verify, verifyLiveKey } from "./_lib/token.js";
 import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
@@ -24,6 +25,19 @@ import {
   restoreContinuitySnapshot,
   formatQuickResumeBrief,
 } from "./_lib/continuity.js";
+
+const KEYS_URL = "https://engram-pearl.vercel.app/dashboard?tab=keys";
+
+/** Reads the exp claim of an eng_live_ token without trusting it, to explain expiry. */
+function liveKeyExp(token: string): number | null {
+  try {
+    const encoded = token.slice("eng_live_".length).split(".")[0];
+    const exp = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"))?.exp;
+    return typeof exp === "number" ? exp : null;
+  } catch {
+    return null;
+  }
+}
 
 const TOOLS = [
   {
@@ -123,21 +137,43 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: "engram_recent",
+    description:
+      "List the most recently saved memories, newest first, with dates and ids. " +
+      "Use when the user asks what was saved lately, or to find something whose wording you don't know.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "How many to return (1-50, default 10)" },
+        type: { type: "string", enum: MEMORY_TYPES, description: "Only this memory type" },
+        include_replaced: { type: "boolean", description: "Also list memories replaced by newer ones" },
+        scope: { type: "string", enum: ["personal", "team"], default: "personal" },
+        team_code: { type: "string", description: "Shared team ID or code (when scope is team)" },
+      },
+    },
+  },
+  {
+    name: "engram_get",
+    description: "Fetch one memory by the id shown in engram_recall or engram_recent results.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Memory id" },
+        scope: { type: "string", enum: ["personal", "team"], default: "personal" },
+        team_code: { type: "string", description: "Shared team ID or code (when scope is team)" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "engram_whoami",
+    description:
+      "Show which Engram account, key and scope this connection uses, when the key expires, and today's usage. " +
+      "Use to diagnose missing memories or authorization errors.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
-
-function scoreMatch(query: string, text: string): number {
-  const q = query.trim().toLowerCase();
-  if (!q) return 1;
-  const words = q.replace(/[^a-z0-9\s_-]/g, " ").split(/\s+/).filter((w) => w.length > 1);
-  if (words.length === 0) return 1;
-  const lower = text.toLowerCase();
-  let score = 0;
-  if (lower.includes(q)) score += 5;
-  for (const w of words) {
-    if (lower.includes(w)) score += 1;
-  }
-  return score;
-}
 
 export default async function handler(req: any, res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -188,26 +224,30 @@ export default async function handler(req: any, res: any) {
   const room = (req.query?.room as string) || searchParams.get("room") || "my-space";
 
   let callerUser: any = null;
+  // What kind of credential this is, for engram_whoami.
+  let keyMeta: { kind: string; kid?: string; exp?: number } = { kind: "none" };
 
   if (token && token.startsWith("eng_live_")) {
     const live = verifyLiveKey(token);
     if (!live?.uid) {
-      return res.status(401).json({
-        jsonrpc: "2.0",
-        error: { code: -32001, message: "Unauthorized: invalid Engram live API key" },
-        id: null,
-      });
+      const exp = liveKeyExp(token);
+      const message =
+        exp && exp * 1000 < Date.now()
+          ? `Unauthorized: this Engram key expired on ${new Date(exp * 1000).toISOString().slice(0, 10)}. Create a new key at ${KEYS_URL}`
+          : `Unauthorized: invalid Engram key. Create a new key at ${KEYS_URL}`;
+      return res.status(401).json({ jsonrpc: "2.0", error: { code: -32001, message }, id: null });
     }
     if (live.kid) {
       const active = await isApiKeyActive(live.kid);
       if (!active) {
         return res.status(401).json({
           jsonrpc: "2.0",
-          error: { code: -32001, message: "Unauthorized: invalid or revoked Engram API key" },
+          error: { code: -32001, message: `Unauthorized: this Engram key was revoked. Create a new key at ${KEYS_URL}` },
           id: null,
         });
       }
     }
+    keyMeta = { kind: "link key (30-day)", kid: live.kid, exp: live.exp };
     userId = live.uid;
     teamId = live.tid || null;
     defaultScope = live.scope || "personal";
@@ -224,6 +264,7 @@ export default async function handler(req: any, res: any) {
         id: null,
       });
     }
+    keyMeta = { kind: "permanent key", kid: apiKey.id };
     userId = apiKey.user_id;
     teamId = apiKey.team_id || null;
     defaultScope = (apiKey.scope as Scope) || "personal";
@@ -234,6 +275,7 @@ export default async function handler(req: any, res: any) {
   } else if (token) {
     const verifiedTid = verify(token);
     if (verifiedTid?.tid) {
+      keyMeta = { kind: "space token" };
       userId = verifiedTid.tid;
       callerUser = { id: userId };
     } else {
@@ -407,54 +449,37 @@ export default async function handler(req: any, res: any) {
             console.warn("[api/mcp] Walrus recall fallback:", e);
           }
 
+          // Database matches come first: they carry dates and ids. Walrus vector hits fill in after.
+          const dbResults: Array<{ type: string; text: string; created_at?: string; id?: string }> = [];
+          const dbSeen = new Set<string>();
           if (supabase && userId) {
-            let dbQuery = supabase
-              .from("memories_meta")
-              .select("*")
-              .order("created_at", { ascending: false })
-              .limit(100);
-
-            if (scope === "team" && activeTeamId !== "default") {
-              dbQuery = dbQuery.eq("team_id", activeTeamId);
-            } else {
-              dbQuery = dbQuery.eq("user_id", userId).is("team_id", null);
-            }
-
-            const { data: rows } = await dbQuery;
-            if (rows && rows.length > 0) {
-              const scored = rows
-                .filter((r: any) => !(r.room || "").startsWith("superseded_by:"))
-                .map((r: any) => {
-                  const dec = decodeMemory(sanitizeMemoryText(r.text));
-                  return {
-                    type: r.type || dec.type || "decision",
-                    text: dec.text,
-                    blobId: r.blob_id || undefined,
-                    score: scoreMatch(query, `${r.type || ""} ${dec.text}`),
-                  };
-                })
-                .filter((r) => r.score > 0)
-                .sort((a, b) => b.score - a.score);
-
-              for (const s of scored) {
-                const k = s.text.toLowerCase();
-                if (!seen.has(k) && results.length < 10) {
-                  seen.add(k);
-                  results.push({ type: s.type, text: s.text, blobId: s.blobId });
-                }
-              }
+            const rows = await fetchScopeRows(supabase, {
+              scope,
+              userId,
+              teamId: scope === "team" && activeTeamId !== "default" ? activeTeamId : null,
+            });
+            const live = rows
+              .filter((r) => !isSupersededRoom(r.room))
+              .map((r) => ({ ...r, text: decodeMemory(sanitizeMemoryText(r.text)).text }));
+            for (const { row } of rank(live, query, (r) => r.text, (r) => r.type)) {
+              const k = row.text.toLowerCase();
+              if (dbResults.length >= 10 || dbSeen.has(k)) continue;
+              dbSeen.add(k);
+              dbResults.push({ type: row.type || "decision", text: row.text, created_at: row.created_at, id: row.id });
             }
           }
+          const walrusOnly = results.filter((r) => !dbResults.some((d) => d.text.toLowerCase() === r.text.toLowerCase()));
+          const lines = [
+            ...dbResults.map((m, i) => formatMemoryLine(i, m)),
+            ...walrusOnly.slice(0, Math.max(0, 10 - dbResults.length)).map(
+              (m, i) => `${dbResults.length + i + 1}. [${m.type}] ${m.text} (from Walrus${m.blobId ? `, blob ${m.blobId}` : ""})`
+            ),
+          ];
 
           const formatted =
-            results.length > 0
-              ? results
-                  .map(
-                    (m, i) =>
-                      `${i + 1}. [${m.type}] ${m.text}${m.blobId ? ` (blob: ${m.blobId})` : ""}`
-                  )
-                  .join("\n")
-              : `No matching memories found in ${scope} scope for "${query}".`;
+            lines.length > 0
+              ? lines.join("\n")
+              : `No memories in ${scope} scope match "${query}". Try engram_recent to see what is saved, or different wording.`;
 
           return {
             jsonrpc: "2.0",
@@ -463,6 +488,61 @@ export default async function handler(req: any, res: any) {
               content: [{ type: "text", text: formatted }],
             },
           };
+        }
+
+        if (toolName === "engram_recent" || toolName === "engram_get") {
+          if (!supabase || !userId) {
+            return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: "Error: memory database unavailable." }], isError: true } };
+          }
+          const isGet = toolName === "engram_get";
+          const memoryId = String(args.id || "").trim();
+          if (isGet && !memoryId) {
+            return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: "Error: id is required." }], isError: true } };
+          }
+          const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
+          const rows = await fetchScopeRows(supabase, {
+            scope,
+            userId,
+            teamId: scope === "team" && activeTeamId !== "default" ? activeTeamId : null,
+            limit: isGet ? 1 : args.include_replaced ? limit : limit + 50,
+            type: isGet ? undefined : args.type,
+            id: isGet ? memoryId : undefined,
+          });
+          const list = rows
+            .filter((r) => isGet || args.include_replaced || !isSupersededRoom(r.room))
+            .slice(0, isGet ? 1 : limit)
+            .map((r) => ({
+              type: r.type || "decision",
+              text: decodeMemory(sanitizeMemoryText(r.text)).text,
+              created_at: r.created_at,
+              id: r.id,
+              replaced: isSupersededRoom(r.room),
+            }));
+          const text = list.length
+            ? list.map((m, i) => formatMemoryLine(i, m)).join("\n")
+            : isGet
+              ? `No memory with id ${memoryId} in ${scope} scope.`
+              : `No memories saved in ${scope} scope yet.`;
+          return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } };
+        }
+
+        if (toolName === "engram_whoami") {
+          const profile = userId ? await getProfile(userId).catch(() => null) : null;
+          const plan = profile?.plan_tier || "free_personal";
+          const usage = userId
+            ? await getUsage(scope === "team" ? "team" : "user", scope === "team" ? activeTeamId : userId).catch(() => null)
+            : null;
+          const daily = (PLAN_LIMITS as any)[plan]?.dailySaves ?? (PLAN_LIMITS as any).free_personal?.dailySaves;
+          const lines = [
+            `Endpoint: https://${req.headers.host || "engram-pearl.vercel.app"}/mcp (hosted, cloud memory)`,
+            `Account: ${profile?.email || userId || "unknown"} · plan ${plan}`,
+            `Credential: ${keyMeta.kind}${keyMeta.kid ? ` (key id ${keyMeta.kid})` : ""}`,
+            keyMeta.exp ? `Key expires: ${new Date(keyMeta.exp * 1000).toISOString().slice(0, 10)}` : "Key expires: never (until revoked)",
+            `Default scope: ${defaultScope}${teamId ? ` · team ${teamId}` : ""}`,
+            usage ? `Today: ${usage.saves_count ?? 0}${daily ? `/${daily}` : ""} saves, ${usage.recalls_count ?? 0} recalls` : "",
+            `Manage keys: ${KEYS_URL}`,
+          ].filter(Boolean);
+          return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: lines.join("\n") }] } };
         }
 
         if (toolName === "engram_tidy") {

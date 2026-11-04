@@ -7,7 +7,9 @@
 //   npx engram-walrus logout             # sign out of MemWal
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { createEngram, memwalBinUrl, loggedIn } from './core.mjs'
+import { createEngram, memwalBinUrl, loggedIn, hostedProxy } from './core.mjs'
+
+const VERSION = '0.2.1'
 
 const rawArgs = process.argv.slice(2)
 let apiKey = process.env.ENGRAM_API_KEY
@@ -24,7 +26,7 @@ for (const a of rawArgs) {
   else if (a.startsWith('--room=')) room = a.slice(7)
   else if (a === '--mock') forceMock = true
   else if (a === '--help' || a === '-h') {
-    process.stderr.write(`Engram Walrus MCP Server v0.2.0
+    process.stderr.write(`Engram Walrus MCP Server v${VERSION}
 Usage:
   npx engram-walrus                    # Run local or offline memory server
   npx engram-walrus --key=eng_...      # Connect with your Engram cloud API key
@@ -54,6 +56,11 @@ if (firstArg === 'login' || firstArg === '--login') {
   child.on('exit', (c) => process.exit(c ?? 0))
 } else {
   const { TOOLS, handleTool, backend } = createEngram({ apiKey, hostUrl, room, forceMock })
+  // Cloud mode forwards to the hosted endpoint so tools never drift from the server.
+  const proxy = backend.kind === 'cloud' ? hostedProxy({ apiKey, hostUrl }) : null
+  let pending = 0
+  let ended = false
+  const maybeExit = () => { if (ended && pending === 0) process.exit(0) }
   const reply = (id, result) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n')
   const replyErr = (id, code, message) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } }) + '\n')
 
@@ -72,37 +79,51 @@ if (firstArg === 'login' || firstArg === '--login') {
         reply(id, {
           protocolVersion: params?.protocolVersion || '2025-06-18',
           capabilities: { tools: {} },
-          serverInfo: { name: 'engram-walrus', version: '0.2.0' },
+          serverInfo: { name: 'engram-walrus', version: VERSION },
         })
         continue
       }
       if (method === 'notifications/initialized') continue
       if (method === 'ping') { reply(id, {}); continue }
-      if (method === 'tools/list') { reply(id, { tools: TOOLS }); continue }
-      if (method === 'tools/call') {
+      if (method === 'tools/list') {
+        if (!proxy) { reply(id, { tools: TOOLS }); continue }
+        pending++
         try {
-          const text = await handleTool(params?.name, params?.arguments || {})
-          reply(id, { content: [{ type: 'text', text }] })
+          reply(id, await proxy.rpc('tools/list'))
+        } catch (e) {
+          process.stderr.write(`[engram-walrus] ${e.message}; offering local tools
+`)
+          reply(id, { tools: TOOLS })
+        } finally { pending--; maybeExit() }
+        continue
+      }
+      if (method === 'tools/call') {
+        pending++
+        try {
+          if (proxy) reply(id, await proxy.rpc('tools/call', params))
+          else reply(id, { content: [{ type: 'text', text: await handleTool(params?.name, params?.arguments || {}) }] })
         } catch (e) {
           reply(id, { content: [{ type: 'text', text: `Engram error: ${e.message}` }], isError: true })
-        }
+        } finally { pending--; maybeExit() }
         continue
       }
       if (id !== undefined) replyErr(id, -32601, `method not found: ${method}`)
     }
   })
 
+  // Let in-flight calls answer before exiting when the client closes stdin.
   process.stdin.on('end', () => {
-    process.exit(0)
+    ended = true
+    maybeExit()
   })
 
   if (backend.kind === 'cloud') {
     const keyPreview = apiKey ? `…${apiKey.slice(-4)}` : 'configured'
-    process.stderr.write(`[engram-walrus v0.2.0] ready (backend=cloud, key=${keyPreview}, host=${hostUrl})\n`)
+    process.stderr.write(`[engram-walrus v${VERSION}] ready (backend=cloud, key=${keyPreview}, host=${hostUrl})\n`)
   } else if (backend.kind === 'mock') {
     const hint = !loggedIn() ? ' — pass `--key=eng_...` or run `npx engram-walrus login` for persistent Walrus storage' : ''
-    process.stderr.write(`[engram-walrus v0.2.0] ready (backend=mock${hint})\n`)
+    process.stderr.write(`[engram-walrus v${VERSION}] ready (backend=mock${hint})\n`)
   } else {
-    process.stderr.write(`[engram-walrus v0.2.0] ready (backend=${backend.kind})\n`)
+    process.stderr.write(`[engram-walrus v${VERSION}] ready (backend=${backend.kind})\n`)
   }
 }

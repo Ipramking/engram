@@ -68,7 +68,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (supabase) {
-      let checkQuery = supabase.from('memories_meta').select('id, user_id, team_id').limit(1)
+      let checkQuery = supabase.from('memories_meta').select('id, user_id, team_id, blob_id').limit(1)
       if (id) checkQuery = checkQuery.eq('id', id)
       else if (blobId) checkQuery = checkQuery.eq('blob_id', blobId)
 

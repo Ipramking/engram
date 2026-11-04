@@ -1,4 +1,4 @@
-# engram-walrus (v0.2.0)
+# engram-walrus (v0.2.1)
 
 [![npm version](https://img.shields.io/npm/v/engram-walrus.svg)](https://www.npmjs.com/package/engram-walrus)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)

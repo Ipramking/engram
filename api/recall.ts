@@ -8,6 +8,7 @@ import {
 } from "./_lib/memwal.js";
 import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
 import { checkAndIncrementUsage } from "./_lib/db.js";
+import { scoreText, minCoverage } from "./_lib/search.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
 import { verifyMemoryIntegrity } from "./_lib/storage.js";
 import {
@@ -16,24 +17,6 @@ import {
   extractEntities,
   type StructuredMemory,
 } from "./_lib/intelligence.js";
-
-function scoreMemoryMatch(text: string, type: string, query: string): number {
-  const q = query.trim().toLowerCase();
-  if (!q) return 1;
-  const hay = `${type} ${text}`.toLowerCase();
-  if (hay.includes(q)) return 10;
-
-  const words = q
-    .split(/[^a-z0-9_]+/)
-    .filter((w) => w.length >= 2 && !["the", "and", "for", "with", "what", "how", "our", "are", "was"].includes(w));
-  if (words.length === 0) return 1;
-
-  let hits = 0;
-  for (const w of words) {
-    if (hay.includes(w)) hits += 1;
-  }
-  return hits / words.length;
-}
 
 export default async function handler(req: any, res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -94,7 +77,7 @@ export default async function handler(req: any, res: any) {
         .from("memories_meta")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(500);
 
       if (effectiveScope === "team" && effectiveTeamId) {
         q = q.eq("team_id", effectiveTeamId);
@@ -205,7 +188,7 @@ export default async function handler(req: any, res: any) {
   let results = combined
     .filter((m) => includeSuperseded || (!m.isSuperseded && m.status !== 'superseded'))
     .filter((m) => !categoryFilter || categoryFilter === 'all' || m.category === categoryFilter || m.subtype === categoryFilter)
-    .filter((m) => (query ? m.score > 0.05 : true))
+    .filter((m) => !query || scoreText(query, m.text, m.type).coverage >= minCoverage(query))
     .sort((a, b) => b.score - a.score)
     .slice(0, Number(topK) || 50);
 
