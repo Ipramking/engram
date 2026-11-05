@@ -4,7 +4,7 @@ import { ArrowUpRight, BookOpenCheck, Eye, PenLine } from 'lucide-react'
 import { ENGRAM_PROMPT } from '../../lib/promptText'
 import type { Dashboard } from './data'
 import { maskSecret, maskUrl } from './data'
-import { CLIENTS, GROUPS } from './clients'
+import { CLIENTS, GROUPS, SIGN_IN_CONFIG } from './clients'
 import type { ClientGroup, ConnectCtx } from './clients'
 import { ConnectionCard } from './ConnectionCard'
 import { Callout, CodeBlock, CopyButton, PageHeader, Panel, Segmented, Steps } from './ui'
@@ -148,8 +148,28 @@ export function Connect({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => v
               <Capability on={client.writes} icon={<PenLine size={13} />} label="Saves new memories" />
             </div>
 
+            {SIGN_IN_CONFIG[client.id] && (
+              <div className="mt-6 rounded-2xl border border-rose/30 bg-rose/[0.04] p-4 sm:p-5">
+                <p className="eyebrow mb-3 !text-rose">Recommended · no key to paste</p>
+                <Steps
+                  items={[
+                    <>In a terminal, run <code>npx engram-walrus login</code> and approve the code in your browser. This device gets its own key, saved locally.</>,
+                    <>Add Engram to {client.name} with the config below. It contains no secret.</>,
+                    <>Restart {client.name}. To check the connection any time, run <code>npx engram-walrus doctor</code>.</>,
+                  ]}
+                />
+                <div className="mt-4">
+                  <CodeBlock
+                    label={SIGN_IN_CONFIG[client.id].label}
+                    display={SIGN_IN_CONFIG[client.id].display}
+                    value={SIGN_IN_CONFIG[client.id].value}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="mt-6">
-              <p className="eyebrow mb-3">Steps</p>
+              <p className="eyebrow mb-3">{SIGN_IN_CONFIG[client.id] ? 'Or connect with your link' : 'Steps'}</p>
               {ctx ? (
                 <Steps items={client.steps(ctx)} />
               ) : (

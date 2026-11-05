@@ -20,7 +20,7 @@ Only the latest release and active commits on the `main` branch receive active s
 If you discover a security vulnerability in Engram (including MCP server endpoints, Walrus blob encryption, multi-tenant team isolation, or Supabase Row-Level Security):
 
 1. **Do not open a public GitHub issue.**
-2. Send an email directly to the maintainers at **security@engram.dev** (or open a **Private Vulnerability Report** via GitHub Security Advisories at https://github.com/ipramking/engram/security/advisories/new).
+2. Report it privately at https://github.com/Ipramking/engram/security/advisories/new (GitHub private vulnerability reporting).
 3. Include detailed steps to reproduce the vulnerability, including:
    - Impacted endpoints or MCP tools (e.g., `remember`, `recall`, `tidy`, `teams`, `keys`)
    - Reproduction script or curl commands
@@ -43,7 +43,8 @@ If you discover a security vulnerability in Engram (including MCP server endpoin
 
 ### 2. Walrus Blob Storage & Encryption
 - Every memory blob written to Walrus storage includes on-chain transaction metadata.
-- For private and team memories, payloads are encrypted before dispatching to Walrus storage nodes, ensuring that knowledge of a Walrus `blobId` alone cannot yield plaintext without the proper cryptographic keys.
+- Memory text is stored in Engram's Supabase Postgres database, which is encrypted at rest by Supabase, and is only reachable through the authenticated API.
+- Memories written through the Walrus path go via the MemWal SDK, which handles encryption of Walrus blobs; Engram itself does not add a separate encryption layer.
 
 ### 3. Agent Prompt Injection Defense
 - Retrieved memories are treated as untrusted data inputs.

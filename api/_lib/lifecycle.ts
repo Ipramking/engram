@@ -33,6 +33,8 @@ export interface CreateMemoryParams {
   importance?: number
 }
 
+export const MAX_MEMORY_CHARS = 4000
+
 export interface LifecycleExecutionResult {
   ok: boolean
   statusCode: number
@@ -82,6 +84,15 @@ export async function executeMemoryCreationLifecycle(
       statusCode: 400,
       error: 'text required',
       code: 'INVALID_INPUT',
+    } as LifecycleExecutionResult
+  }
+  // Memories are single facts; a cap keeps recall fast and stops one call from storing a whole document.
+  if (text.length > MAX_MEMORY_CHARS) {
+    return {
+      ok: false,
+      statusCode: 413,
+      error: `Memory too long (${text.length} characters, max ${MAX_MEMORY_CHARS}). Save one fact at a time.`,
+      code: 'TOO_LONG',
     } as LifecycleExecutionResult
   }
 

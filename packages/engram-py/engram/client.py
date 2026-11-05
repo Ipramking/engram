@@ -36,7 +36,7 @@ class Engram:
         host: Optional[str] = None,
         default_scope: str = "personal",
         default_team: Optional[str] = None,
-        offline_fallback: bool = True,
+        offline_fallback: bool = False,
     ):
         self.api_key = api_key or os.getenv("ENGRAM_API_KEY") or os.getenv("ENGRAM_TOKEN") or ""
         self.host = (host or os.getenv("ENGRAM_HOST") or DEFAULT_HOST).rstrip("/")
@@ -74,6 +74,8 @@ class Engram:
             if e.code in (401, 403):
                 raise EngramAuthError(f"Engram [{e.code}]: {msg}")
             raise EngramError(f"Engram [{e.code}]: {msg}")
+        except TimeoutError as e:
+            raise EngramError(f"Engram request timed out: {e}")
         except urllib.error.URLError as e:
             if self.offline_fallback:
                 return {"_offline": True, "error": str(e.reason)}
@@ -96,6 +98,8 @@ class Engram:
             if e.code in (401, 403):
                 raise EngramAuthError(f"Engram [{e.code}]: {err_body}")
             raise EngramError(f"Engram [{e.code}]: {err_body}")
+        except TimeoutError as e:
+            raise EngramError(f"Engram request timed out: {e}")
         except urllib.error.URLError as e:
             if self.offline_fallback:
                 return {"_offline": True, "error": str(e.reason)}
@@ -121,7 +125,7 @@ class Engram:
             "text": text.strip(),
             "type": type,
             "scope": resolved_scope,
-            "team_code": resolved_team,
+            "teamCode": resolved_team,
             "source_agent": source_agent,
             "model": model,
             "confidence": confidence,
@@ -151,7 +155,7 @@ class Engram:
             sensitivity=resp.get("sensitivity", "public"),
             source_agent=source_agent,
             model=model,
-            created_at=mem.get("created_at"),
+            created_at=mem.get("createdAt") or mem.get("created_at"),
         )
 
     def recall(
@@ -171,9 +175,9 @@ class Engram:
         payload = {
             "query": query.strip(),
             "scope": resolved_scope,
-            "team_code": resolved_team,
+            "teamCode": resolved_team,
             "category": category,
-            "limit": limit,
+            "topK": limit,
         }
 
         resp = self._post("/api/recall", payload)
@@ -194,7 +198,7 @@ class Engram:
                     confidence=m.get("confidence", 1.0),
                     importance=m.get("importance", "normal"),
                     sensitivity=m.get("sensitivity", "public"),
-                    created_at=m.get("created_at"),
+                    created_at=m.get("createdAt") or m.get("created_at"),
                 )
             )
         return records

@@ -3,6 +3,35 @@ import { getUserFromRequest } from "./_lib/auth.js";
 import { getQuotaResetMetadata, PLAN_LIMITS } from "./_lib/db.js";
 import { executeMemoryCreationLifecycle } from "./_lib/lifecycle.js";
 
+const esc = (v: unknown) =>
+  String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** Confirmation page for save links: opening a link never writes, the button does. */
+function confirmPage(fields: { text: string; type: string; scope?: string; teamCode?: string }) {
+  const hidden = Object.entries(fields)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `<input type="hidden" name="${esc(k)}" value="${esc(v)}">`)
+    .join("");
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><title>Save to Engram?</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0e0910;color:#f3eef5;font-family:system-ui,-apple-system,sans-serif;padding:20px;box-sizing:border-box}
+.card{max-width:440px;width:100%;background:#1a1220;border:1px solid #3a2a44;border-radius:22px;padding:26px}
+.t{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a99ab0;margin:0 0 6px}
+h1{font-family:Georgia,serif;font-weight:400;font-size:24px;margin:0 0 14px}
+blockquote{margin:0 0 16px;padding:14px;border:1px solid #2e2036;border-radius:14px;background:#0e0910;line-height:1.5;font-size:15px}
+.k{display:inline-block;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#e4a79c;border:1px solid rgba(228,167,156,.4);border-radius:8px;padding:2px 8px;margin-bottom:16px}
+button{width:100%;border:0;border-radius:14px;padding:13px;font-size:15px;font-weight:600;color:#0e0910;background:linear-gradient(90deg,#e4a79c,#cfa1d8);cursor:pointer}
+p.n{font-size:12px;color:#6f6178;margin:14px 0 0;line-height:1.5}
+</style></head><body><form class="card" method="POST">
+<p class="t">Engram</p><h1>Save this memory?</h1><span class="k">${esc(fields.type || "decision")}</span>
+<blockquote>${esc(fields.text)}</blockquote>${hidden}
+<button type="submit">Save to Engram</button>
+<p class="n">Nothing is saved until you press the button. Close this page to cancel.</p>
+</form></body></html>`;
+}
+
 export default async function handler(req: any, res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -25,6 +54,18 @@ export default async function handler(req: any, res: any) {
   if (!user) {
     return res.status(401).json({ error: "Unauthorized: this Engram key is missing, expired or revoked. Create a new key at https://engram-pearl.vercel.app/dashboard?tab=keys and update your app.", code: "KEY_INVALID" });
   }
+  // Opening a link must never write: link previews and prefetchers follow GETs.
+  if (req.method === "GET") {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    if (!String(req.headers?.accept || "").includes("text/html")) {
+      return res.status(405).json({ error: "Use POST to save a memory. GET only shows a confirmation page in a browser." });
+    }
+    if (!text || !String(text).trim()) return res.status(400).json({ error: "Nothing to save: the link has no text." });
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(confirmPage({ text: String(text), type: String(type || "decision"), scope: requestedScope, teamCode }));
+  }
+
   // No explicit scope: use the key's own scope so team keys work without extra arguments.
   const scope = requestedScope || (user as any).apiKey?.scope || "personal";
 
@@ -62,7 +103,7 @@ export default async function handler(req: any, res: any) {
   }
 
   const accept = String(req.headers?.accept || "");
-  if (req.method === "GET" && accept.includes("text/html") && source.format !== "json") {
+  if (accept.includes("text/html") && source.format !== "json") {
     const safeHtmlText = lifecycleResult.cleanText
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")

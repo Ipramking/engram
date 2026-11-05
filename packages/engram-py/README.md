@@ -1,4 +1,4 @@
-# engram-memory (Python SDK)
+# engram-walrus (Python SDK)
 
 The universal, portable memory layer for AI agents.
 

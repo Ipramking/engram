@@ -2,6 +2,9 @@ import { getSupabaseAuth, getSupabaseAdmin, authApi } from './_lib/supabase.js'
 import { createProfile, getProfile } from './_lib/db.js'
 import { getUserFromRequest } from './_lib/auth.js'
 import { signSession } from './_lib/token.js'
+import { allow, clientIp } from './_lib/ratelimit.js'
+
+const EMAIL_RE = /^[^s@]+@[^s@]+.[^s@]{2,}$/
 
 export default async function handler(req: any, res: any) {
   const rawUrl = req.url || ''
@@ -31,6 +34,15 @@ export default async function handler(req: any, res: any) {
       const { email, password, name } = req.body || {}
       if (!email || !password) {
         return res.status(400).json({ error: 'Email and password are required.' })
+      }
+      if (typeof email !== 'string' || !EMAIL_RE.test(email.trim()) || email.length > 254) {
+        return res.status(400).json({ error: 'Enter a valid email address.' })
+      }
+      if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+        return res.status(400).json({ error: 'Use a password of at least 8 characters.' })
+      }
+      if (!allow(`register:${clientIp(req)}`, 10, 60 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many sign-ups from this network. Try again in an hour.' })
       }
 
       const supabaseAdmin = getSupabaseAdmin()
@@ -101,6 +113,11 @@ export default async function handler(req: any, res: any) {
       const { email, password } = req.body || {}
       if (!email || !password) {
         return res.status(400).json({ error: 'Email and password are required.' })
+      }
+      // Slow down password guessing: per IP and per account.
+      const ip = clientIp(req)
+      if (!allow(`login:${ip}`, 30, 15 * 60 * 1000) || !allow(`login:${String(email).toLowerCase()}`, 10, 15 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many sign-in attempts. Wait 15 minutes and try again.' })
       }
 
       const supabaseAuth = getSupabaseAuth()

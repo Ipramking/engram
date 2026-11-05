@@ -96,7 +96,7 @@ export const CLIENTS: Client[] = [
     steps: () => [
       <><b>Paid plans on the web:</b> open <b>Settings → Apps &amp; Connectors → Advanced</b>, turn on <b>Developer mode</b>, then <b>Create</b> a connector named Engram with your connection link and <b>No authentication</b>.</>,
       <>In a chat, pick <b>Developer mode</b> from the <b>+</b> menu and enable Engram. ChatGPT can then save and recall directly.</>,
-      <><b>Free plan or phone only:</b> copy the <b>custom instructions</b> below into <b>Settings → Personalization → Custom instructions</b>. ChatGPT will add a “Save to Engram” link when you say something worth keeping. Tap it to save.</>,
+      <><b>Free plan or phone only:</b> copy the <b>custom instructions</b> below into <b>Settings → Personalization → Custom instructions</b>. ChatGPT will add a “Save to Engram” link when you say something worth keeping. Tap it, check the text, and press Save.</>,
       <>Starting a long chat? Paste the <b>memory pack</b> as your first message so ChatGPT knows your context.</>,
     ],
     snippets: (c) => [
@@ -118,7 +118,7 @@ export const CLIENTS: Client[] = [
     steps: () => [
       <>Open <b>gemini.google.com/gems</b> (or the Gemini app → Gems) and create a new Gem named <b>Engram Brain</b>.</>,
       <>Paste the <b>instructions</b> below into the Gem's Instructions box and save. The Gem then appears in your Gemini app on every device.</>,
-      <>The Gem reads a snapshot of your memory. When you tell it something new, it replies with a save link. Tap it to store the fact.</>,
+      <>The Gem reads a snapshot of your memory. When you tell it something new, it replies with a save link. Tap it and press Save.</>,
       <>Come back and copy fresh instructions now and then so the snapshot stays current.</>,
     ],
     snippets: (c) => [{ label: 'Gem instructions', display: c.maskedChatInstructions, value: c.chatInstructions, wrap: true }],
@@ -138,7 +138,7 @@ export const CLIENTS: Client[] = [
     steps: () => [
       <>Copy the <b>memory pack</b>: your active memories plus a rule for tap-to-save links.</>,
       <>Paste it as the first message of a new chat.</>,
-      <>Whenever the assistant offers a save link, tap it. The fact goes straight to your Engram memory.</>,
+      <>Whenever the assistant offers a save link, tap it and press Save. Nothing is stored until you confirm.</>,
     ],
     snippets: (c) => [{ label: 'Memory pack', display: c.pack.replace(c.token, '••••••'), value: c.pack, wrap: true }],
     verify: <>The assistant should answer questions about your projects without you re-explaining them.</>,
@@ -255,7 +255,7 @@ export const CLIENTS: Client[] = [
       },
     ],
     verify: <>Inside a session run <code>/mcp</code>. Engram is listed with its tools.</>,
-    note: <>Earlier guides used <code>npx engram-walrus --key=…</code>. That npm release (0.1.0) talks to a different store, so remove it with <code>claude mcp remove engram</code> before adding this.</>,
+    note: <>Set up Engram before November 2026 with <code>--key=…</code>? Remove that entry first (<code>claude mcp remove engram</code>): version 0.1.0 of the package read a different store.</>,
   },
   {
     id: 'gemini-cli',
@@ -392,3 +392,22 @@ export const CLIENTS: Client[] = [
     verify: <>The recall call returns the memory you saved.</>,
   },
 ]
+
+/**
+ * Key-free setup for apps that can run a local command: `npx engram-walrus login` saves a
+ * per-device key once, so these configs contain no secret at all.
+ */
+const npxServer = { command: 'npx', args: ['-y', 'engram-walrus'] }
+const plain = (label: string, text: string): Snippet => ({ label, display: text, value: text })
+
+export const SIGN_IN_CONFIG: Record<string, Snippet> = {
+  'claude-code': plain('Terminal', 'claude mcp add engram -s user -- npx -y engram-walrus'),
+  'claude-desktop': plain('claude_desktop_config.json', json({ mcpServers: { engram: npxServer } })),
+  cursor: plain('~/.cursor/mcp.json', json({ mcpServers: { engram: npxServer } })),
+  vscode: plain('.vscode/mcp.json', json({ servers: { engram: { type: 'stdio', ...npxServer } } })),
+  windsurf: plain('mcp_config.json', json({ mcpServers: { engram: npxServer } })),
+  antigravity: plain('mcp_config.json', json({ mcpServers: { engram: npxServer } })),
+  'gemini-cli': plain('~/.gemini/settings.json', json({ mcpServers: { engram: npxServer } })),
+  codex: plain('~/.codex/config.toml', '[mcp_servers.engram]\ncommand = "npx"\nargs = ["-y", "engram-walrus"]'),
+  'any-mcp': plain('Local command (stdio)', 'npx -y engram-walrus'),
+}

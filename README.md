@@ -36,7 +36,7 @@ The user never has to repeatedly explain who they are, their technology stack, p
 * **Quick-Resume Brief:** Generates concise, agent-ready Markdown injected directly into any fresh agent session.
 
 ### 5. Multi-Language SDK & Agent Integrations
-* **Python SDK (`engram-memory`):** Clean, standard-library Python SDK (`from engram import remember, recall, handoff`) with offline caching and provenance tracking.
+* **Python SDK (`engram-walrus`, install from this repo):** standard-library Python client (`from engram import remember, recall, handoff`) with provenance tracking.
 * **Model Context Protocol (MCP):** Serverless HTTP endpoint (`/api/mcp`) and stdio CLI package (`engram-walrus`) exposing `engram_remember`, `engram_recall`, `engram_tidy`, `engram_handoff`, and `engram_snapshot`.
 * **Cross-Platform:** Works with Claude Desktop, Cursor IDE, Google Antigravity, Gemini CLI, Windsurf, ChatGPT, and iOS/Android workflows.
 
@@ -74,23 +74,18 @@ handoff(
 
 ### 2. Model Context Protocol (MCP) Setup
 
-Add to your MCP client config (`~/.cursor/mcp.json` or `claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "engram": {
-      "url": "https://engram-pearl.vercel.app/mcp?token=YOUR_ENGRAM_API_KEY"
-    }
-  }
-}
-```
-
-Or run via the official npm CLI package:
+**Desktop and terminal apps (Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Gemini CLI, Codex):** sign in once, then add a config with no key in it.
 
 ```bash
-ENGRAM_API_KEY=YOUR_ENGRAM_API_KEY npx -y engram-walrus@0.2
+npx engram-walrus login     # approve the code in your browser; a key is saved for this device
+npx engram-walrus doctor    # optional: confirms key, server and usage
 ```
+
+```json
+{ "mcpServers": { "engram": { "command": "npx", "args": ["-y", "engram-walrus"] } } }
+```
+
+**Web and phone apps (Claude connectors, ChatGPT developer mode):** paste your connection link from the dashboard's Connect page, `https://engram-pearl.vercel.app/mcp?token=YOUR_KEY`. Apps that accept a remote URL (Cursor `url`, VS Code `type: http`, Windsurf `serverUrl`, Gemini CLI `httpUrl`) can use the same link.
 
 ### 3. Local Development & Web Dashboard
 
@@ -149,7 +144,7 @@ engram/
 │   └── mcp.ts                 # Streamable HTTP MCP server (5 registered tools)
 ├── packages/
 │   ├── engram-mcp/            # engram-walrus v0.2.0 NPM package
-│   └── engram-py/             # engram-memory v2.0.0 Python SDK
+│   └── engram-py/             # engram-walrus Python SDK
 ├── scripts/                   # Automated regression test harnesses
 ├── src/                       # React 19 + Tailwind v4 Web Application
 └── server/                    # Local Express development server

@@ -262,14 +262,15 @@ export async function recordAgentHandoff(opts: {
   } = opts
 
   const handoff: AgentHandoff = {
-    id: `handoff_${randomUUID().slice(0, 8)}`,
+    id: `handoff_${randomUUID()}`,
     projectId,
     userId,
     teamId,
-    fromAgent: fromAgent.trim(),
-    toAgent: toAgent.trim(),
-    taskState: taskState.trim(),
-    handoffNotes: handoffNotes.trim(),
+    // Caps keep one handoff from storing a whole transcript.
+    fromAgent: fromAgent.trim().slice(0, 100),
+    toAgent: toAgent.trim().slice(0, 100),
+    taskState: taskState.trim().slice(0, 2000),
+    handoffNotes: handoffNotes.trim().slice(0, 8000),
     supportingReferences,
     unresolvedQuestions,
     nextActions,
@@ -462,7 +463,7 @@ export async function generateContinuitySnapshot(opts: {
   const now = new Date().toISOString()
   const rawPayload: Omit<ContinuitySnapshot, 'checksum'> = {
     schemaVersion: '2.0',
-    snapshotId: `snap_${randomUUID().slice(0, 8)}`,
+    snapshotId: `snap_${randomUUID()}`,
     projectId,
     projectName: context.name,
     createdAt: now,
