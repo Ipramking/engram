@@ -1,4 +1,4 @@
-import { getUserFromRequest, authorizeMemoryAccess } from './_lib/auth.js'
+import { getUserFromRequest, authorizeMemoryAccess, keyCan, permissionError } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabase.js'
 import { isTeamMember } from './_lib/db.js'
 import { memwalFor, normalizeRecall, decodeMemory, recallMaxDistance, type Scope } from './_lib/memwal.js'
@@ -62,6 +62,9 @@ export default async function handler(req: any, res: any) {
 
   // ── DELETE: Remove memory record (with IDOR protection) ──
   if (req.method === 'DELETE') {
+    if (!keyCan(user, 'manage')) {
+      return res.status(403).json({ error: permissionError('manage'), code: 'KEY_PERMISSION' });
+    }
     const { id, blobId } = req.query || {}
     if (!id && !blobId) {
       return res.status(400).json({ error: 'id or blobId required for deletion' })
@@ -121,6 +124,9 @@ export default async function handler(req: any, res: any) {
   }
 
   const scope: Scope = (req.query?.scope as Scope) || 'personal'
+  if (!keyCan(user, 'read')) {
+    return res.status(403).json({ error: permissionError('read'), code: 'KEY_PERMISSION' });
+  }
   const teamCode = req.query?.teamCode || 'default'
   const typeFilter = req.query?.type
   const searchQuery = (req.query?.search as string) || ''

@@ -6,7 +6,7 @@ import {
   recallMaxDistance,
   type Scope,
 } from "./_lib/memwal.js";
-import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
+import { getUserFromRequest, authorizeMemoryAccess, keyCan, permissionError } from "./_lib/auth.js";
 import { checkAndIncrementUsage } from "./_lib/db.js";
 import { scoreText, minCoverage } from "./_lib/search.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
@@ -43,6 +43,9 @@ export default async function handler(req: any, res: any) {
     return res.status(401).json({ error: "Unauthorized: this Engram key is missing, expired or revoked. Create a new key at https://engram-pearl.vercel.app/dashboard?tab=keys and update your app.", code: "KEY_INVALID" });
   }
   if (!source.scope && (user as any).apiKey?.scope === "team") scope = "team";
+  if (!keyCan(user, "read")) {
+    return res.status(403).json({ error: permissionError("read"), code: "KEY_PERMISSION" });
+  }
 
   // Centralized authorization enforcement
   const authRes = await authorizeMemoryAccess({

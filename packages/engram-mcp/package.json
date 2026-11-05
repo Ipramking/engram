@@ -1,6 +1,6 @@
 {
   "name": "engram-walrus",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Portable, verifiable memory for AI agents — an MCP server on Walrus. Personal & team scope, typed capture. Connect it to any AI: store a fact in one, recall it in another.",
   "type": "module",
   "bin": {
@@ -11,7 +11,8 @@
     "core.mjs",
     "PROMPT.md",
     "README.md",
-    "cli-auth.mjs"
+    "cli-auth.mjs",
+    "cli-init.mjs"
   ],
   "scripts": {
     "test": "node test.mjs"

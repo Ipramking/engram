@@ -1,17 +1,26 @@
 {
-  "name": "Engram — Decentralized Agent Memory",
+  "id": "/dashboard",
+  "name": "Engram — one memory for every AI",
   "short_name": "Engram",
-  "description": "Portable, verifiable memory for AI agents, backed by Walrus.",
+  "description": "Save and recall your AI memory from any app on your phone.",
   "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#09070f",
-  "theme_color": "#09070f",
+  "background_color": "#0e0910",
+  "theme_color": "#0e0910",
   "icons": [
-    {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  },
+  "shortcuts": [
+    { "name": "Save a memory", "url": "/share", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "My memories", "url": "/dashboard?tab=memories", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
   ]
 }

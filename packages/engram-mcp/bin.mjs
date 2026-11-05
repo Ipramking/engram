@@ -9,8 +9,9 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { createEngram, memwalBinUrl, loggedIn, hostedProxy } from './core.mjs'
 import { readCredentials, clearCredentials, deviceLogin, doctor, CREDENTIALS } from './cli-auth.mjs'
+import { init, brief } from './cli-init.mjs'
 
-const VERSION = '0.3.0'
+const VERSION = '0.4.0'
 
 const rawArgs = process.argv.slice(2)
 let apiKey = process.env.ENGRAM_API_KEY
@@ -33,6 +34,7 @@ for (const a of rawArgs) {
 Usage:
   npx engram-walrus login              # Sign in in the browser; saves a key for this device
   npx engram-walrus                    # Run the MCP server (saved key or ENGRAM_API_KEY)
+  npx engram-walrus init               # Add Engram to the AI apps on this computer (asks first)
   npx engram-walrus doctor             # Check key, server, scope and today's usage
   npx engram-walrus logout             # Forget the saved key
   npx engram-walrus --mock             # In-memory store for offline testing
@@ -88,6 +90,10 @@ if ((firstArg === 'login' || firstArg === '--login') && walrus) {
   clearCredentials()
   process.stderr.write('Removed the saved key from this device. Revoke it on the dashboard Keys page if it may have leaked.\n')
   process.exit(0)
+} else if (firstArg === 'init') {
+  init({ yes: rawArgs.includes('--yes'), dryRun: rawArgs.includes('--dry-run'), signedIn: Boolean(apiKey) }).then((code) => { process.exitCode = code })
+} else if (firstArg === 'brief') {
+  brief({ apiKey, hostUrl }).then((code) => { process.exitCode = code })
 } else if (firstArg === 'doctor') {
   doctor({ apiKey, hostUrl, keySource, version: VERSION }).then((code) => { process.exitCode = code })
 } else {

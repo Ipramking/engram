@@ -17,6 +17,7 @@ import { Teams } from './dashboard/Teams'
 import { Usage } from './dashboard/Usage'
 import { Guide } from './dashboard/Guide'
 import { DeviceApproval } from './dashboard/DeviceApproval'
+import { TelegramApproval } from './dashboard/TelegramApproval'
 
 const DEVICE_KEY = 'engram.pendingDevice'
 
@@ -69,6 +70,33 @@ function Dashboard() {
     }
     if (!authLoading && !user) navigate('/login')
   }, [authLoading, user, navigate, deviceParam])
+
+  const telegramParam = params.get('telegram')
+  const [telegramCode, setTelegramCode] = useState<string | null>(() => {
+    try {
+      return telegramParam || sessionStorage.getItem('engram.pendingTelegram')
+    } catch {
+      return telegramParam
+    }
+  })
+  useEffect(() => {
+    if (!telegramParam) return
+    try {
+      sessionStorage.setItem('engram.pendingTelegram', telegramParam)
+    } catch {
+      /* private mode */
+    }
+  }, [telegramParam])
+
+  function closeTelegram() {
+    try {
+      sessionStorage.removeItem('engram.pendingTelegram')
+    } catch {
+      /* private mode */
+    }
+    setTelegramCode(null)
+    if (telegramParam) setParams(tab === 'home' ? {} : { tab })
+  }
 
   function closeDevice() {
     try {
@@ -287,6 +315,7 @@ function Dashboard() {
 
       <CreateKeySheet open={keySheet} onClose={() => setKeySheet(false)} d={d} />
       {deviceCode && !d.sessionExpired && <DeviceApproval d={d} code={deviceCode} onDone={closeDevice} />}
+      {telegramCode && !deviceCode && !d.sessionExpired && <TelegramApproval d={d} code={telegramCode} onDone={closeTelegram} />}
     </div>
   )
 }

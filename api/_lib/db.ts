@@ -86,6 +86,7 @@ export async function createApiKey(opts: {
   scope: string
   teamId?: string
   room?: string
+  permissions?: KeyPermissions
 }) {
   if (opts.scope === 'team') {
     if (!opts.teamId) throw new Error('teamId is required for team scope keys.')
@@ -111,8 +112,13 @@ export async function createApiKey(opts: {
       scope: opts.scope,
       room,
       is_active: true,
+      // Only sent when narrowed, so this keeps working before the permissions column exists.
+      ...(opts.permissions && opts.permissions !== 'read_write' ? { permissions: opts.permissions } : {}),
     }).select().single()
     if (!error && data) return { ...data, rawKey }
+    // Never fall back to memory in production: a key that isn't stored would die on the next cold start.
+    console.error('[db] createApiKey failed:', error?.message)
+    throw new Error('Could not save the key. Try again in a moment.')
   }
 
   const record = {
@@ -185,6 +191,21 @@ export async function validateApiKey(rawKey: string) {
     }
   }
   return null
+}
+
+export type KeyPermissions = 'read_write' | 'read' | 'save'
+
+/** The key row for a live key's id (or null), recording usage like isApiKeyActive. */
+export async function getApiKeyRow(keyId: string): Promise<any | null> {
+  if (!keyId) return null
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return null
+  const { data, error } = await supabase.from('api_keys').select('*').eq('id', keyId).maybeSingle()
+  if (error || !data) return null
+  if (data.is_active) {
+    supabase.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyId).then()
+  }
+  return data
 }
 
 export async function isApiKeyActive(keyId: string): Promise<boolean> {

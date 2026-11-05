@@ -42,6 +42,18 @@ export default async function handler(req: any, res: any) {
     const r = await describeDeviceLogin(String(req.query?.code || searchParams.get('code') || ''))
     return res.status(r.status).json(r.body)
   }
+  // Connection links are minted one key at a time, only when the dashboard asks for one.
+  if (method === 'POST' && path.endsWith('/link')) {
+    const keyId = String(req.body?.keyId || '')
+    const k = (await listApiKeys(user.id)).find((x: any) => x.id === keyId && x.is_active !== false)
+    if (!k) return res.status(404).json({ error: 'Key not found.' })
+    const liveKey = signLiveKey({ uid: user.id, kid: k.id, scope: k.scope || 'personal', tid: k.team_id || undefined, room: k.room || 'my-space' })
+    return res.status(200).json({
+      ok: true,
+      liveKey,
+      connectorUrl: `${HOST}/mcp?token=${encodeURIComponent(liveKey)}&room=${encodeURIComponent(k.room || 'my-space')}`,
+    })
+  }
   if (method === 'POST' && path.endsWith('/device/approve')) {
     const r = await decideDeviceLogin(user.id, req.body)
     return res.status(r.status).json(r.body)
@@ -50,7 +62,10 @@ export default async function handler(req: any, res: any) {
   try {
     // ── Create Key ──
     if (method === 'POST' && req.body?.action !== 'revoke' && (path.endsWith('/create') || !path.includes('/revoke'))) {
-      const { name, scope = 'personal', teamId, room = 'my-space' } = req.body || {}
+      const { name, scope = 'personal', teamId, room = 'my-space', permissions = 'read_write' } = req.body || {}
+      if (!['read_write', 'read', 'save'].includes(permissions)) {
+        return res.status(400).json({ error: 'permissions must be read_write, read or save.' })
+      }
       if (!name) {
         return res.status(400).json({ error: 'Key name is required (e.g. "Work Laptop Cursor", "iPhone Claude").' })
       }
@@ -65,6 +80,7 @@ export default async function handler(req: any, res: any) {
         scope,
         teamId,
         room: room.trim() || 'my-space',
+        permissions,
       })
 
       // Generate pre-formatted connector URLs
@@ -101,23 +117,8 @@ export default async function handler(req: any, res: any) {
           keys = await listApiKeys(user.id)
         } catch {}
       }
-      return res.status(200).json({
-        ok: true,
-        keys: keys.map((k: any) => {
-          const liveKey = signLiveKey({
-            uid: user.id,
-            kid: k.id,
-            scope: k.scope || 'personal',
-            tid: k.team_id || undefined,
-            room: k.room || 'my-space',
-          })
-          return {
-            ...k,
-            liveKey,
-            connectorUrl: `${HOST}/mcp?token=${encodeURIComponent(liveKey)}&room=${encodeURIComponent(k.room || 'my-space')}`,
-          }
-        }),
-      })
+      // No secrets in the list: links come from POST /api/keys/link on demand.
+      return res.status(200).json({ ok: true, keys })
     }
 
     // ── Revoke Key ──

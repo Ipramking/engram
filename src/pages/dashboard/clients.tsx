@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react'
 
 export interface ConnectCtx {
+  /** Hosted MCP endpoint without a key, for "Sign in with Engram" (OAuth) connectors. */
+  mcpUrl: string
+  telegramBot: string | null
   url: string
   maskedUrl: string
   token: string
@@ -69,42 +72,40 @@ export const CLIENTS: Client[] = [
     group: 'chat',
     tagline: 'claude.ai, desktop app, iPhone & Android',
     platforms: ['Web', 'iOS', 'Android', 'Desktop'],
-    method: 'Custom connector',
+    method: 'Sign in with Engram',
     reads: true,
     writes: true,
     steps: () => [
-      <>Copy your <b>connection link</b> below.</>,
       <>On a computer, open <b>claude.ai → Settings → Connectors</b> and choose <b>Add custom connector</b>.</>,
-      <>Name it <b>Engram</b>, paste the link as the server URL, and save. Leave the advanced OAuth fields empty — the key is already inside the link.</>,
-      <>Start a chat, open the <b>tools</b> menu under the message box and switch <b>Engram</b> on.</>,
-      <>Connectors you add on claude.ai appear automatically in the Claude desktop and phone apps signed in to the same account.</>,
+      <>Name it <b>Engram</b> and paste the server URL below. It has no key in it.</>,
+      <>Click <b>Connect</b>. Claude sends you to Engram: sign in if asked and press <b>Allow</b>.</>,
+      <>In a chat, open the <b>tools</b> menu and switch <b>Engram</b> on. Connectors added on claude.ai also work in the Claude phone and desktop apps.</>,
     ],
-    snippets: (c) => [{ label: 'Connection link', display: c.maskedUrl, value: c.url, wrap: true }],
+    snippets: (c) => [{ label: 'Server URL', display: c.mcpUrl, value: c.mcpUrl, wrap: true }],
     links: [{ label: 'Open Claude connectors', href: 'https://claude.ai/settings/connectors' }],
-    verify: <>Ask Claude: <i>“Use Engram to recall what you know about my projects.”</i> It should call <code>engram_recall</code>.</>,
-    note: <>Custom connectors depend on your Claude plan. If you can't add one, use the <b>Claude Desktop</b> config instead.</>,
+    verify: <>Ask Claude: <i>“Use Engram to recall what you know about my projects.”</i> The connection appears on your Keys page as “Claude (connector)”.</>,
+    note: <>Custom connectors depend on your Claude plan. If you can't add one, use the <b>Claude Desktop</b> guide instead.</>,
   },
   {
     id: 'chatgpt',
     name: 'ChatGPT',
     group: 'chat',
-    tagline: 'Developer-mode connector, or instructions on any plan',
+    tagline: 'Sign in with Engram, or instructions on any plan',
     platforms: ['Web', 'iOS', 'Android'],
     method: 'Connector or instructions',
     reads: true,
     writes: true,
     steps: () => [
-      <><b>Paid plans on the web:</b> open <b>Settings → Apps &amp; Connectors → Advanced</b>, turn on <b>Developer mode</b>, then <b>Create</b> a connector named Engram with your connection link and <b>No authentication</b>.</>,
-      <>In a chat, pick <b>Developer mode</b> from the <b>+</b> menu and enable Engram. ChatGPT can then save and recall directly.</>,
-      <><b>Free plan or phone only:</b> copy the <b>custom instructions</b> below into <b>Settings → Personalization → Custom instructions</b>. ChatGPT will add a “Save to Engram” link when you say something worth keeping. Tap it, check the text, and press Save.</>,
-      <>Starting a long chat? Paste the <b>memory pack</b> as your first message so ChatGPT knows your context.</>,
+      <><b>Paid plans:</b> on the web, open <b>Settings → Apps &amp; Connectors → Advanced</b> and turn on <b>Developer mode</b>. <b>Create</b> a connector named Engram with the server URL below and <b>OAuth</b> authentication, then press <b>Allow</b> on the Engram page.</>,
+      <>In a chat, pick <b>Developer mode</b> from the <b>+</b> menu and enable Engram. ChatGPT can then save and recall directly, on the web and on your phone.</>,
+      <><b>Free plan:</b> create a <b>Save only</b> key on the Keys page, choose it above, and copy the <b>custom instructions</b> below into <b>Settings → Personalization → Custom instructions</b>. ChatGPT will add a “Save to Engram” link; tap it and press Save.</>,
     ],
     snippets: (c) => [
-      { label: 'Connection link (Developer mode)', display: c.maskedUrl, value: c.url, wrap: true },
+      { label: 'Server URL (Developer mode)', display: c.mcpUrl, value: c.mcpUrl, wrap: true },
       { label: 'Custom instructions (under 1,500 characters)', display: c.maskedChatInstructions, value: c.chatInstructions, wrap: true },
     ],
     verify: <>Say <i>“Remember that I deploy with Vercel.”</i> Then check that it appears under <b>Memories</b> here.</>,
-    note: <>The instructions and save links contain your key. Use a dedicated key for ChatGPT so you can revoke it on its own. OpenAI renames these menus often.</>,
+    note: <>The instructions contain the selected key, so use a <b>Save only</b> key: if it leaks it can add notes but never read your memory. OpenAI renames these menus often.</>,
   },
   {
     id: 'gemini',
@@ -136,15 +137,31 @@ export const CLIENTS: Client[] = [
     reads: true,
     writes: true,
     steps: () => [
-      <>Copy the <b>memory pack</b>: your active memories plus a rule for tap-to-save links.</>,
+      <>Copy the <b>memory pack</b>: your active memories plus a rule for save links.</>,
       <>Paste it as the first message of a new chat.</>,
       <>Whenever the assistant offers a save link, tap it and press Save. Nothing is stored until you confirm.</>,
     ],
     snippets: (c) => [{ label: 'Memory pack', display: c.pack.replace(c.token, '••••••'), value: c.pack, wrap: true }],
     verify: <>The assistant should answer questions about your projects without you re-explaining them.</>,
   },
-
-  /* ── Desktop & IDEs ── */
+  {
+    id: 'telegram',
+    name: 'Telegram',
+    group: 'chat',
+    tagline: 'Save and recall from any phone',
+    platforms: ['iOS', 'Android', 'Desktop'],
+    method: 'Bot',
+    reads: true,
+    writes: true,
+    steps: (c) => [
+      c.telegramBot ? <>Open <b>@{c.telegramBot}</b> in Telegram and send any message.</> : <>Open the Engram bot in Telegram and send any message. (The bot link appears here once it's set up.)</>,
+      <>The bot replies with a link. Open it, sign in if asked, and press <b>Connect</b>.</>,
+      <>Now send or forward anything to save it. <code>/recall words</code> searches, <code>/recent</code> lists the newest, <code>/decision …</code> saves with a type.</>,
+    ],
+    links: [],
+    verify: <>Send the bot a fact, then <code>/recall</code> a word from it.</>,
+    note: <>Handy for sharing an answer from any AI app: use the phone's share button and pick Telegram → the Engram bot.</>,
+  },
   {
     id: 'claude-desktop',
     name: 'Claude Desktop',
@@ -319,22 +336,29 @@ export const CLIENTS: Client[] = [
   /* ── Automations ── */
   {
     id: 'shortcuts',
-    name: 'Phone shortcuts',
+    name: 'Phone share & shortcuts',
     group: 'automation',
-    tagline: 'iOS Shortcuts, Android HTTP Shortcuts',
-    platforms: ['iOS', 'Android'],
-    method: 'HTTP request',
+    tagline: 'Save from any app with the share button',
+    platforms: ['Android', 'iOS'],
+    method: 'Share sheet',
     reads: false,
     writes: true,
     steps: () => [
-      <>Create a shortcut with a <b>Get Contents of URL</b> action (iOS) or a new HTTP shortcut (Android).</>,
-      <>Method <b>POST</b>, the URL below, a header <code>Authorization: Bearer &lt;key&gt;</code>, and a JSON body with <code>text</code> and <code>type</code>.</>,
-      <>Feed the body from <b>Dictate Text</b> to save memories by voice.</>,
+      <><b>Android:</b> open this site in Chrome, tap <b>⋮ → Install app</b>. “Engram” now appears in every app's <b>Share</b> menu: share any text to it, pick a type, Save.</>,
+      <><b>iPhone:</b> create a <b>Save only</b> key and choose it above. In the Shortcuts app make a new shortcut: <b>Receive Text from Share Sheet</b> → <b>Get Contents of URL</b> with the request below (method POST, the header, and a JSON body whose <code>text</code> is the Shortcut Input).</>,
+      <>Name it <b>Save to Engram</b> and turn on <b>Show in Share Sheet</b>. Add <b>Dictate Text</b> first for a “Hey Siri, save to Engram” voice version.</>,
     ],
     snippets: (c) => [
-      { label: 'Request', display: `POST ${c.origin}/api/remember\nAuthorization: Bearer ${c.maskedToken}\n\n{"text":"…","type":"decision","scope":"personal"}`, value: `POST ${c.origin}/api/remember\nAuthorization: Bearer ${c.token}\n\n{"text":"…","type":"decision","scope":"personal"}`, wrap: true },
+      { label: 'Request (iPhone Shortcut)', display: `POST ${c.origin}/api/remember
+Authorization: Bearer ${c.maskedToken}
+
+{"text":"<Shortcut Input>","type":"decision"}`, value: `POST ${c.origin}/api/remember
+Authorization: Bearer ${c.token}
+
+{"text":"<Shortcut Input>","type":"decision"}`, wrap: true },
     ],
-    verify: <>Run the shortcut once, then refresh <b>Memories</b>.</>,
+    verify: <>Share a sentence from any app, then refresh <b>Memories</b>.</>,
+    note: <>Use a <b>Save only</b> key in shortcuts: it can add memories but never read them.</>,
   },
   {
     id: 'python',

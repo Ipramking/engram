@@ -10,9 +10,7 @@ export interface ApiKey {
   is_active?: boolean
   created_at: string
   last_used_at?: string | null
-  /** 30-day signed connection token, re-issued every time the key list is fetched. */
-  liveKey?: string
-  connectorUrl: string
+  permissions?: 'read_write' | 'read' | 'save'
 }
 
 export interface Team {

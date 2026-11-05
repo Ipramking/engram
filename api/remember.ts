@@ -1,5 +1,5 @@
 // Manual "pin this" — store a memory the user explicitly chose.
-import { getUserFromRequest } from "./_lib/auth.js";
+import { getUserFromRequest, keyCan, permissionError } from "./_lib/auth.js";
 import { getQuotaResetMetadata, PLAN_LIMITS } from "./_lib/db.js";
 import { executeMemoryCreationLifecycle } from "./_lib/lifecycle.js";
 
@@ -53,6 +53,9 @@ export default async function handler(req: any, res: any) {
   const user = await getUserFromRequest(req);
   if (!user) {
     return res.status(401).json({ error: "Unauthorized: this Engram key is missing, expired or revoked. Create a new key at https://engram-pearl.vercel.app/dashboard?tab=keys and update your app.", code: "KEY_INVALID" });
+  }
+  if (!keyCan(user, "write")) {
+    return res.status(403).json({ error: permissionError("write"), code: "KEY_PERMISSION" });
   }
   // Opening a link must never write: link previews and prefetchers follow GETs.
   if (req.method === "GET") {

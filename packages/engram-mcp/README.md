@@ -1,4 +1,4 @@
-# engram-walrus (v0.3.0)
+# engram-walrus (v0.4.0)
 
 [![npm version](https://img.shields.io/npm/v/engram-walrus.svg)](https://www.npmjs.com/package/engram-walrus)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -15,6 +15,7 @@ A Model Context Protocol (MCP) server that gives any AI agent persistent, cross-
 
 ```bash
 npx engram-walrus login     # opens your browser; approve the code and a key is saved for this device
+npx engram-walrus init      # finds your AI apps and adds Engram to each (asks first)
 npx engram-walrus doctor    # confirms the key, server, scope and today's usage
 ```
 

@@ -44,6 +44,8 @@ export function useDashboard(authToken: string | null) {
   // Permanent secrets are returned once on creation; keep them in memory for this tab only.
   const [secrets, setSecrets] = useState<Record<string, { rawKey: string; connectorUrl: string }>>({})
   const [activeKeyId, setActiveKeyId] = useState<string | null>(null)
+  // 30-day connection links, fetched one key at a time and only when a page needs them.
+  const [links, setLinks] = useState<Record<string, { token: string; url: string }>>({})
 
   const call = useCallback(
     async <T = any>(path: string, init: RequestInit = {}): Promise<Result<T>> => {
@@ -98,9 +100,29 @@ export function useDashboard(authToken: string | null) {
     if (secret) {
       return { key, token: secret.rawKey, url: secret.connectorUrl, permanent: true, expiresAt: null }
     }
-    const token = key.liveKey || ''
-    return { key, token, url: key.connectorUrl, permanent: false, expiresAt: liveKeyExpiry(token) }
-  }, [keys, activeKeyId, secrets])
+    const link = links[key.id]
+    return { key, token: link?.token || '', url: link?.url || '', permanent: false, expiresAt: liveKeyExpiry(link?.token) }
+  }, [keys, activeKeyId, secrets, links])
+
+  const ensureLink = useCallback(
+    async (keyId: string): Promise<{ token: string; url: string } | null> => {
+      if (secrets[keyId]) return { token: secrets[keyId].rawKey, url: secrets[keyId].connectorUrl }
+      if (links[keyId]) return links[keyId]
+      const r = await call('/api/keys/link', { method: 'POST', body: JSON.stringify({ keyId }) })
+      if (!r.ok || !r.data?.liveKey) return null
+      const link = { token: r.data.liveKey as string, url: r.data.connectorUrl as string }
+      setLinks((l) => ({ ...l, [keyId]: link }))
+      return link
+    },
+    [call, secrets, links],
+  )
+
+  // Pages that show the active key's link fetch it on first render.
+  const activeId = credential?.key.id
+  useEffect(() => {
+    if (activeId && !credential?.url) ensureLink(activeId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId])
 
   const origin = useMemo(() => {
     try {
@@ -110,7 +132,7 @@ export function useDashboard(authToken: string | null) {
     }
   }, [credential])
 
-  async function createKey(input: { name: string; scope: Scope; teamId?: string; room: string }) {
+  async function createKey(input: { name: string; scope: Scope; teamId?: string; room: string; permissions?: 'read_write' | 'read' | 'save' }) {
     const r = await call('/api/keys?action=create', {
       method: 'POST',
       body: JSON.stringify({ action: 'create', ...input, teamId: input.scope === 'team' ? input.teamId : undefined }),
@@ -196,6 +218,11 @@ export function useDashboard(authToken: string | null) {
     return r.ok ? { ok: true as const, keyName: r.data.keyName as string | undefined } : { ok: false as const, error: r.data?.error || 'Could not complete the request.' }
   }
 
+  async function approveTelegram(code: string) {
+    const r = await call('/api/connect/telegram-link', { method: 'POST', body: JSON.stringify({ code }) })
+    return r.ok ? { ok: true as const } : { ok: false as const, error: r.data?.error || 'Could not connect the chat.' }
+  }
+
   /** Calls the hosted MCP endpoint exactly like a client would, to prove the link works. */
   async function testConnection(url: string) {
     const started = performance.now()
@@ -226,6 +253,7 @@ export function useDashboard(authToken: string | null) {
     loadError,
     sessionExpired,
     credential,
+    ensureLink,
     origin,
     activeKeyId,
     setActiveKeyId,
@@ -241,6 +269,7 @@ export function useDashboard(authToken: string | null) {
     testConnection,
     deviceInfo,
     decideDevice,
+    approveTelegram,
   }
 }
 

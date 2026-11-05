@@ -143,7 +143,7 @@ engram/
 │   ├── storage.ts             # Storage queue status & recovery endpoint
 │   └── mcp.ts                 # Streamable HTTP MCP server (5 registered tools)
 ├── packages/
-│   ├── engram-mcp/            # engram-walrus v0.2.0 NPM package
+│   ├── engram-mcp/            # engram-walrus NPM package (CLI + MCP proxy)
 │   └── engram-py/             # engram-walrus Python SDK
 ├── scripts/                   # Automated regression test harnesses
 ├── src/                       # React 19 + Tailwind v4 Web Application

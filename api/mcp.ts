@@ -9,10 +9,10 @@ import {
   MEMORY_TYPES,
   type Scope,
 } from "./_lib/memwal.js";
-import { validateApiKey, isApiKeyActive, checkAndIncrementUsage, getProfile, getUsage, PLAN_LIMITS } from "./_lib/db.js";
+import { validateApiKey, getApiKeyRow, checkAndIncrementUsage, getProfile, getUsage, PLAN_LIMITS } from "./_lib/db.js";
 import { fetchScopeRows, rank, isSupersededRoom, formatMemoryLine } from "./_lib/search.js";
 import { verify, verifyLiveKey } from "./_lib/token.js";
-import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
+import { getUserFromRequest, authorizeMemoryAccess, keyCan, permissionError } from "./_lib/auth.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
 import { sanitizeMemoryText } from "./_lib/security.js";
 import { executeMemoryCreationLifecycle } from "./_lib/lifecycle.js";
@@ -27,6 +27,13 @@ import {
 } from "./_lib/continuity.js";
 
 const KEYS_URL = "https://engram-pearl.vercel.app/dashboard?tab=keys";
+const HOST = (globalThis as any).process?.env?.ENGRAM_MCP_HOST || "https://engram-pearl.vercel.app";
+
+/** 401 that tells MCP clients where to sign in (OAuth protected-resource metadata, RFC 9728). */
+function unauthorized(res: any) {
+  res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${HOST}/.well-known/oauth-protected-resource"`);
+  return res.status(401);
+}
 
 /** Reads the exp claim of an eng_live_ token without trusting it, to explain expiry. */
 function liveKeyExp(token: string): number | null {
@@ -235,12 +242,13 @@ export default async function handler(req: any, res: any) {
         exp && exp * 1000 < Date.now()
           ? `Unauthorized: this Engram key expired on ${new Date(exp * 1000).toISOString().slice(0, 10)}. Create a new key at ${KEYS_URL}`
           : `Unauthorized: invalid Engram key. Create a new key at ${KEYS_URL}`;
-      return res.status(401).json({ jsonrpc: "2.0", error: { code: -32001, message }, id: null });
+      return unauthorized(res).json({ jsonrpc: "2.0", error: { code: -32001, message }, id: null });
     }
+    const keyRow = live.kid ? await getApiKeyRow(live.kid) : null;
     if (live.kid) {
-      const active = await isApiKeyActive(live.kid);
+      const active = Boolean(keyRow?.is_active);
       if (!active) {
-        return res.status(401).json({
+        return unauthorized(res).json({
           jsonrpc: "2.0",
           error: { code: -32001, message: `Unauthorized: this Engram key was revoked. Create a new key at ${KEYS_URL}` },
           id: null,
@@ -253,12 +261,12 @@ export default async function handler(req: any, res: any) {
     defaultScope = live.scope || "personal";
     callerUser = {
       id: userId,
-      apiKey: { id: live.kid || "live", user_id: userId, scope: defaultScope, team_id: teamId, room },
+      apiKey: { id: live.kid || "live", user_id: userId, scope: defaultScope, team_id: teamId, room, permissions: keyRow?.permissions || "read_write" },
     };
   } else if (token && token.startsWith("eng_")) {
     const apiKey = await validateApiKey(token);
     if (!apiKey) {
-      return res.status(401).json({
+      return unauthorized(res).json({
         jsonrpc: "2.0",
         error: { code: -32001, message: `Unauthorized: this Engram key is invalid or was revoked. Create a new key at ${KEYS_URL}` },
         id: null,
@@ -286,7 +294,7 @@ export default async function handler(req: any, res: any) {
         teamId = user.apiKey?.team_id || null;
         defaultScope = (user.apiKey?.scope as Scope) || "personal";
       } else {
-        return res.status(401).json({
+        return unauthorized(res).json({
           jsonrpc: "2.0",
           error: { code: -32001, message: "Unauthorized: invalid token" },
           id: null,
@@ -294,9 +302,9 @@ export default async function handler(req: any, res: any) {
       }
     }
   } else {
-    return res.status(401).json({
+    return unauthorized(res).json({
       jsonrpc: "2.0",
-      error: { code: -32001, message: "Unauthorized: missing ?token= or Authorization header" },
+      error: { code: -32001, message: "Unauthorized: sign in with Engram, or connect with your link from the dashboard" },
       id: null,
     });
   }
@@ -355,6 +363,16 @@ export default async function handler(req: any, res: any) {
             isError: true,
           },
         };
+      }
+
+      // Scoped keys: read tools need read access, saving needs write, maintenance needs full access.
+      const need: "read" | "write" | "manage" | null =
+        toolName === "engram_whoami" ? null
+        : ["engram_recall", "engram_recent", "engram_get"].includes(toolName) ? "read"
+        : toolName === "engram_remember" ? "write"
+        : "manage";
+      if (need && !keyCan(callerUser, need)) {
+        return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: `Error: ${permissionError(need)}` }], isError: true } };
       }
 
       const scope: Scope = auth.effectiveScope;

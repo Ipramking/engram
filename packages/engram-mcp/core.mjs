@@ -54,7 +54,7 @@ export async function fetchRetry(url, init = {}, { timeoutMs = 20000, retries = 
  * Forwards MCP calls to the hosted endpoint so the local CLI always exposes exactly the
  * server's tools (recall, recent, get, whoami, handoff…) instead of a drifting copy.
  */
-export function hostedProxy({ apiKey, hostUrl = 'https://engram-pearl.vercel.app' }) {
+export function hostedProxy({ apiKey, hostUrl = 'https://engram-pearl.vercel.app', timeoutMs = 20000, retries = 1 }) {
   const base = (hostUrl || 'https://engram-pearl.vercel.app').replace(/\/$/, '')
   let n = 0
   return {
@@ -63,7 +63,7 @@ export function hostedProxy({ apiKey, hostUrl = 'https://engram-pearl.vercel.app
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ jsonrpc: '2.0', id: ++n, method, params }),
-      })
+      }, { timeoutMs, retries })
       const body = await res.json().catch(() => ({}))
       if (body?.error) throw new Error(authHint(res.status, body.error.message || `Engram error (${res.status})`, base))
       if (!res.ok) throw new Error(authHint(res.status, `Engram request failed (${res.status})`, base))

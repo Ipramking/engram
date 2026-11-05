@@ -49,7 +49,7 @@ export function ConnectionCard({ d, onCreateKey, compact = false }: { d: Dashboa
         )}
       </div>
 
-      {d.loading ? (
+      {d.loading || (cred && !cred.url) ? (
         <Skeleton className="mt-4 h-11" />
       ) : !cred ? (
         <div className="mt-4 rounded-2xl border border-dashed border-line-2 p-4 text-[13px] text-mut">

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Brain, Lock, Mail, User, ArrowRight, Eye, EyeOff, Check, AlertCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Wordmark } from '../components/Chrome'
+import { takeReturnTo } from '../lib/returnTo'
 
 export default function RegisterPage() {
   const { user, loading: authLoading, register } = useAuth()
@@ -10,7 +11,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      navigate('/dashboard', { replace: true })
+      navigate(takeReturnTo(), { replace: true })
     }
   }, [authLoading, user, navigate])
 
@@ -38,7 +39,7 @@ export default function RegisterPage() {
     setLoading(false)
 
     if (res.ok) {
-      navigate('/dashboard')
+      navigate(takeReturnTo())
     } else {
       setError(res.error || 'Failed to create account.')
     }

@@ -1,6 +1,25 @@
 import { getSupabaseAdmin, authApi } from './supabase.js'
-import { getProfile, isApiKeyActive, isTeamMember } from './db.js'
+import { getProfile, getApiKeyRow, isTeamMember } from './db.js'
 import { verify, verifySession, verifyLiveKey } from './token.js'
+
+/**
+ * What a credential may do. Signed-in sessions can do everything; API keys are limited by their
+ * permissions: read_write (default), read (recall only) or save (write only).
+ */
+export function keyCan(user: any, need: 'read' | 'write' | 'manage'): boolean {
+  if (!user?.apiKey) return true
+  const p = user.apiKey.permissions || 'read_write'
+  if (need === 'read') return p !== 'save'
+  if (need === 'write') return p !== 'read'
+  return p === 'read_write'
+}
+
+export const permissionError = (need: 'read' | 'write' | 'manage') =>
+  need === 'read'
+    ? 'This key can only save memories. Use a read or read-and-save key to recall.'
+    : need === 'write'
+      ? 'This key is read-only. Use a save or read-and-save key to store memories.'
+      : 'This key needs full read-and-save access for this action.'
 
 /** API keys and space tokens may read and write memory, but must never manage keys or teams. */
 export function isMachineToken(req: any): boolean {
@@ -46,11 +65,9 @@ export async function getUserFromRequest(req: any) {
     if (!live?.uid) {
       return null
     }
-    if (live.kid) {
-      const active = await isApiKeyActive(live.kid)
-      if (!active) {
-        return null // Revoked API key
-      }
+    const row = live.kid ? await getApiKeyRow(live.kid) : null
+    if (live.kid && !row?.is_active) {
+      return null // Revoked or unknown key
     }
     const profile = await getProfile(live.uid)
     return {
@@ -58,7 +75,7 @@ export async function getUserFromRequest(req: any) {
       email: profile?.email || `${live.scope}-${live.uid.slice(0, 8)}@engram.memory`,
       name: profile?.name || 'API Client',
       plan_tier: profile?.plan_tier || 'free_personal',
-      apiKey: { id: live.kid || 'live', user_id: live.uid, scope: live.scope, team_id: live.tid, room: live.room || 'my-space' },
+      apiKey: { id: live.kid || 'live', user_id: live.uid, scope: live.scope, team_id: live.tid, room: live.room || 'my-space', permissions: row?.permissions || 'read_write' },
     }
   }
 

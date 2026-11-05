@@ -1,21 +1,40 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Activity, KeyRound, Plus, Trash2 } from 'lucide-react'
+import { Activity, Copy, KeyRound, Plus, Trash2 } from 'lucide-react'
 import type { Dashboard } from './data'
-import { liveKeyExpiry, maskSecret } from './data'
+import { maskSecret } from './data'
 import type { ApiKey, Scope } from './types'
 import {
-  Button, Callout, CodeBlock, Confirm, CopyButton, Empty, Field, PageHeader, Panel, Segmented, Sheet, Skeleton,
+  Button, Callout, CodeBlock, Confirm, Empty, Field, PageHeader, Panel, Segmented, Sheet, Skeleton,
   fmtDate, inputCls, relTime, useToast,
 } from './ui'
 
 const NAME_IDEAS = ['Laptop · Cursor', 'Phone · Claude', 'Claude Code', 'ChatGPT', 'Work desktop']
+
+type Access = 'read_write' | 'read' | 'save'
+const ACCESS: Array<{ id: Access; label: string; hint: string }> = [
+  { id: 'read_write', label: 'Read & save', hint: 'For AI apps that recall and remember: Claude, Cursor, Claude Code.' },
+  { id: 'save', label: 'Save only', hint: 'Can add memories but never read them. Best for share links, shortcuts and ChatGPT save links.' },
+  { id: 'read', label: 'Read only', hint: 'Can recall but never change anything. Best for memory packs and recall links.' },
+]
+const ACCESS_LABEL: Record<Access, string> = { read_write: 'read & save', read: 'read only', save: 'save only' }
 
 export function Keys({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => void }) {
   const toast = useToast()
   const [revoking, setRevoking] = useState<ApiKey | null>(null)
   const [busy, setBusy] = useState(false)
   const [tests, setTests] = useState<Record<string, string>>({})
+
+  async function copyLink(k: ApiKey) {
+    const link = await d.ensureLink(k.id)
+    if (!link) return toast('Could not create a link for this key.', 'error')
+    try {
+      await navigator.clipboard.writeText(link.url)
+      toast(`Copied the 30-day link for “${k.name}”.`)
+    } catch {
+      toast('Your browser blocked the clipboard. Use the Connect page to copy the link.', 'error')
+    }
+  }
 
   async function revoke() {
     if (!revoking) return
@@ -28,7 +47,9 @@ export function Keys({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => void
 
   async function test(k: ApiKey) {
     setTests((t) => ({ ...t, [k.id]: 'Testing…' }))
-    const r = await d.testConnection(k.connectorUrl)
+    const link = await d.ensureLink(k.id)
+    if (!link) return setTests((t) => ({ ...t, [k.id]: 'Failed · could not create a link for this key' }))
+    const r = await d.testConnection(link.url)
     setTests((t) => ({ ...t, [k.id]: r.ok ? `Working · ${r.ms} ms` : `Failed · ${r.error}` }))
   }
 
@@ -75,7 +96,6 @@ export function Keys({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => void
       ) : (
         <ul className="space-y-3">
           {d.keys.map((k) => {
-            const exp = liveKeyExpiry(k.liveKey)
             const isActive = d.credential?.key.id === k.id
             return (
               <li key={k.id}>
@@ -91,6 +111,11 @@ export function Keys({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => void
                         >
                           {k.scope}
                         </span>
+                        {k.permissions && k.permissions !== 'read_write' && (
+                          <span className="rounded-lg border border-champagne/30 px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-wider text-champagne">
+                            {ACCESS_LABEL[k.permissions]}
+                          </span>
+                        )}
                         {isActive && <span className="font-mono text-[10.5px] uppercase tracking-wider text-faint">used in guides</span>}
                       </div>
                       <dl className="tabular mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-faint">
@@ -106,17 +131,13 @@ export function Keys({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => void
                           <dt className="inline">Last used </dt>
                           <dd className="inline text-mut">{relTime(k.last_used_at)}</dd>
                         </div>
-                        {exp && (
-                          <div>
-                            <dt className="inline">Link valid to </dt>
-                            <dd className="inline text-mut">{fmtDate(exp)}</dd>
-                          </div>
-                        )}
                       </dl>
                       {tests[k.id] && <p className="mt-2 font-mono text-[11.5px] text-mut" role="status">{tests[k.id]}</p>}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <CopyButton value={k.connectorUrl} label="Copy link" />
+                      <Button size="sm" onClick={() => copyLink(k)}>
+                        <Copy size={13} /> Copy link
+                      </Button>
                       <Button size="sm" onClick={() => test(k)}>
                         <Activity size={13} /> Test
                       </Button>
@@ -163,6 +184,7 @@ export function CreateKeySheet({ open, onClose, d }: { open: boolean; onClose: (
   const [scope, setScope] = useState<Scope>('personal')
   const [teamId, setTeamId] = useState('')
   const [room, setRoom] = useState('my-space')
+  const [access, setAccess] = useState<Access>('read_write')
   const [advanced, setAdvanced] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -174,6 +196,7 @@ export function CreateKeySheet({ open, onClose, d }: { open: boolean; onClose: (
       setScope('personal')
       setTeamId(d.teams[0]?.id || '')
       setRoom('my-space')
+      setAccess('read_write')
       setAdvanced(false)
       setError(null)
       setCreated(null)
@@ -186,7 +209,7 @@ export function CreateKeySheet({ open, onClose, d }: { open: boolean; onClose: (
     if (!name.trim()) return
     setSaving(true)
     setError(null)
-    const r = await d.createKey({ name: name.trim(), scope, teamId, room: room.trim() || 'my-space' })
+    const r = await d.createKey({ name: name.trim(), scope, teamId, room: room.trim() || 'my-space', permissions: access })
     setSaving(false)
     if (r.ok) setCreated({ rawKey: r.rawKey, connectorUrl: r.connectorUrl })
     else setError(r.error)
@@ -272,6 +295,25 @@ export function CreateKeySheet({ open, onClose, d }: { open: boolean; onClose: (
               ) : (
                 <p className="mt-2 text-[12.5px] text-faint">Create a team on the Teams page first.</p>
               ))}
+          </div>
+          <div>
+            <span className="mb-2 block text-[12.5px] font-medium text-txt">What can it do?</span>
+            <div className="space-y-2">
+              {ACCESS.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  aria-pressed={access === a.id}
+                  onClick={() => setAccess(a.id)}
+                  className={`ring-focus block w-full rounded-2xl border px-3.5 py-2.5 text-left transition ${
+                    access === a.id ? 'border-rose/50 bg-rose/[0.07]' : 'border-line-2 hover:bg-surface/50'
+                  }`}
+                >
+                  <span className="block text-[13px] text-txt">{a.label}</span>
+                  <span className="block text-[11.5px] leading-snug text-faint">{a.hint}</span>
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <button type="button" onClick={() => setAdvanced((a) => !a)} className="text-[12.5px] text-mut underline-offset-2 hover:text-txt hover:underline">

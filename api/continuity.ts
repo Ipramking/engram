@@ -1,5 +1,5 @@
 // Engram 2.1 Continuity & Cross-Agent Handoff REST Endpoint
-import { getUserFromRequest } from './_lib/auth.js'
+import { getUserFromRequest, keyCan, permissionError } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabase.js'
 import {
   getOrCreateProjectContext,
@@ -24,6 +24,9 @@ export default async function handler(req: any, res: any) {
     return res.status(401).json({
       error: 'Unauthorized: please provide a valid Authorization Bearer token to access continuity engine.',
     })
+  }
+  if (!keyCan(user, 'manage')) {
+    return res.status(403).json({ error: permissionError('manage'), code: 'KEY_PERMISSION' });
   }
 
   const supabase = getSupabaseAdmin()

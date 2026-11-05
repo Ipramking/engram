@@ -10,7 +10,7 @@ import {
 } from "./_lib/memwal.js";
 import { buildSystemPrompt } from "./_lib/prompt.js";
 import { generateReply, extractFacts, type ChatMsg } from "./_lib/llm.js";
-import { getUserFromRequest, authorizeMemoryAccess } from "./_lib/auth.js";
+import { getUserFromRequest, authorizeMemoryAccess, keyCan, permissionError } from "./_lib/auth.js";
 import { checkAndIncrementUsage, getUsage } from "./_lib/db.js";
 import { executeMemoryCreationLifecycle } from "./_lib/lifecycle.js";
 
@@ -60,6 +60,9 @@ export default async function handler(req: any, res: any) {
     return res.status(401).json({ error: "Unauthorized: authentication required to access chat agent." });
   }
 
+  if (!keyCan(user, "manage")) {
+    return res.status(403).json({ error: permissionError("manage"), code: "KEY_PERMISSION" });
+  }
   const auth = await authorizeMemoryAccess({ user, requestedScope, requestedTeamCode });
   if (!auth.authorized) return res.status(auth.statusCode || 403).json({ error: auth.error });
   const scope = auth.effectiveScope as Scope;

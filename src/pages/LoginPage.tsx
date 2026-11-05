@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Brain, Lock, Mail, ArrowRight, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Wordmark } from '../components/Chrome'
+import { takeReturnTo } from '../lib/returnTo'
 
 export default function LoginPage() {
   const { user, loading: authLoading, login } = useAuth()
@@ -10,7 +11,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      navigate('/dashboard', { replace: true })
+      navigate(takeReturnTo(), { replace: true })
     }
   }, [authLoading, user, navigate])
 
@@ -33,7 +34,7 @@ export default function LoginPage() {
     setLoading(false)
 
     if (res.ok) {
-      navigate('/dashboard')
+      navigate(takeReturnTo())
     } else {
       setError(res.error || 'Invalid email or password.')
     }

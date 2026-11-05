@@ -44,6 +44,42 @@
       "destination": "/api/memories?subpath=:path*"
     },
     {
+      "source": "/.well-known/oauth-protected-resource",
+      "destination": "/api/connect?subpath=prm"
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource/:path*",
+      "destination": "/api/connect?subpath=prm"
+    },
+    {
+      "source": "/.well-known/oauth-authorization-server",
+      "destination": "/api/connect?subpath=asm"
+    },
+    {
+      "source": "/.well-known/oauth-authorization-server/:path*",
+      "destination": "/api/connect?subpath=asm"
+    },
+    {
+      "source": "/.well-known/openid-configuration",
+      "destination": "/api/connect?subpath=asm"
+    },
+    {
+      "source": "/oauth/register",
+      "destination": "/api/connect?subpath=register"
+    },
+    {
+      "source": "/oauth/token",
+      "destination": "/api/connect?subpath=token"
+    },
+    {
+      "source": "/api/telegram",
+      "destination": "/api/connect?subpath=telegram"
+    },
+    {
+      "source": "/api/connect/:path*",
+      "destination": "/api/connect?subpath=:path*"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }

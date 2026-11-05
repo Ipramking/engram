@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ArrowUpRight, BookOpenCheck, Eye, PenLine } from 'lucide-react'
 import { ENGRAM_PROMPT } from '../../lib/promptText'
@@ -9,9 +9,11 @@ import type { ClientGroup, ConnectCtx } from './clients'
 import { ConnectionCard } from './ConnectionCard'
 import { Callout, CodeBlock, CopyButton, PageHeader, Panel, Segmented, Steps } from './ui'
 
-function buildCtx(d: Dashboard): ConnectCtx | null {
+const INIT_COMMANDS = 'npx engram-walrus login\nnpx engram-walrus init'
+
+function buildCtx(d: Dashboard, telegramBot: string | null): ConnectCtx | null {
   const cred = d.credential
-  if (!cred) return null
+  if (!cred || !cred.url) return null
   const { token, url } = cred
   const saveLink = (t: string) => `${d.origin}/api/remember?token=${encodeURIComponent(t)}&type=decision&text=ONE_SENTENCE_FACT`
   const active = d.recent.filter((m) => !m.isSuperseded)
@@ -41,6 +43,8 @@ When I tell you something worth keeping, end your reply with a link so I can sav
 ${lines.join('\n') || '- (none saved yet)'}`
 
   return {
+    mcpUrl: `${d.origin}/mcp`,
+    telegramBot,
     url,
     maskedUrl: maskUrl(url),
     token,
@@ -58,7 +62,14 @@ export function Connect({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => v
   const [selected, setSelected] = useState<string>('claude')
   const [showPrompt, setShowPrompt] = useState(false)
   const detailRef = useRef<HTMLDivElement>(null)
-  const ctx = buildCtx(d)
+  const [telegramBot, setTelegramBot] = useState<string | null>(null)
+  useEffect(() => {
+    fetch('/api/connect/telegram-info')
+      .then((r) => r.json())
+      .then((t) => setTelegramBot(t?.enabled ? t.username || null : null))
+      .catch(() => {})
+  }, [])
+  const ctx = buildCtx(d, telegramBot)
 
   const list = CLIENTS.filter((c) => group === 'all' || c.group === group)
   const client = CLIENTS.find((c) => c.id === selected) || CLIENTS[0]
@@ -78,7 +89,17 @@ export function Connect({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => v
         intro="Pick an app and follow its steps. Every guide uses the same connection link, so a memory saved in one app is there in all the others."
       />
 
-      <div className="mb-6">
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+        <Panel className="p-5 sm:p-6">
+          <p className="eyebrow">Fastest on a computer</p>
+          <p className="mt-1.5 text-[13.5px] leading-relaxed text-mut">
+            Two commands set up every AI app Engram can find (Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Gemini CLI,
+            Codex). It asks before each change and keeps backups.
+          </p>
+          <div className="mt-3">
+            <CodeBlock label="Terminal" display={INIT_COMMANDS} value={INIT_COMMANDS} />
+          </div>
+        </Panel>
         <ConnectionCard d={d} onCreateKey={onCreateKey} compact />
       </div>
 
@@ -173,7 +194,7 @@ export function Connect({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => v
               {ctx ? (
                 <Steps items={client.steps(ctx)} />
               ) : (
-                <p className="text-[13px] text-mut">Create a key first — the guide fills in your link automatically.</p>
+                <p className="text-[13px] text-mut">{d.credential ? 'Preparing your link…' : 'Create a key first — the guide fills in your link automatically.'}</p>
               )}
             </div>
 
