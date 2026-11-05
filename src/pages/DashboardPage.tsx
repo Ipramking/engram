@@ -148,7 +148,7 @@ function Dashboard() {
     memories: <Memories d={d} />,
     keys: <Keys d={d} onCreateKey={() => setKeySheet(true)} />,
     teams: <Teams d={d} onCreateKey={() => setKeySheet(true)} />,
-    usage: <Usage d={d} />,
+    usage: <Usage d={d} go={go} />,
     guide: <Guide go={go} />,
   }
 

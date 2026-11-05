@@ -90,3 +90,65 @@ export function formatMemoryLine(i: number, m: { type: string; text: string; cre
   const date = m.created_at ? String(m.created_at).slice(0, 10) : 'unknown date'
   return `${i + 1}. [${m.type}] ${m.text} (saved ${date}${m.replaced ? ', replaced' : ''}${m.id ? `, id ${m.id}` : ''})`
 }
+
+/** Plain lowercase words for the database search (Postgres does its own stemming). */
+export function rawTerms(text: string): string[] {
+  return Array.from(
+    new Set(
+      String(text || '')
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((w) => w.length > 1 && w.length <= 40 && !STOPWORDS.has(w)),
+    ),
+  )
+}
+
+type Row = { id: string; type: string; text: string; blob_id: string | null; created_at: string; room: string | null; team_id: string | null }
+
+/**
+ * Recall for MCP and the bots. Uses the database search function (full text + fuzzy) when the
+ * 2.4 migration is installed, widens the query with related terms when few memories match, and
+ * otherwise falls back to the in-process lexical ranking.
+ */
+export async function searchMemories(
+  supabase: any,
+  opts: {
+    scope: 'personal' | 'team'
+    userId: string
+    teamId?: string | null
+    query: string
+    limit?: number
+    expand?: (query: string) => Promise<string[]>
+  },
+): Promise<{ rows: Row[]; method: 'search' | 'lexical'; expanded: string[] }> {
+  const limit = Math.min(Math.max(opts.limit ?? 10, 1), 50)
+  const base = rawTerms(opts.query)
+  const run = (terms: string[]) =>
+    supabase.rpc('search_memories', {
+      p_user: opts.userId,
+      p_team: opts.scope === 'team' ? opts.teamId || null : null,
+      p_query: opts.query,
+      p_terms: terms,
+      p_limit: limit,
+    })
+
+  const first = await run(base)
+  if (first.error) {
+    const rows = (await fetchScopeRows(supabase, { scope: opts.scope, userId: opts.userId, teamId: opts.teamId })).filter((r) => !isSupersededRoom(r.room))
+    return { rows: rank(rows, opts.query, (r) => r.text, (r) => r.type).slice(0, limit).map((x) => x.row), method: 'lexical', expanded: [] }
+  }
+
+  let rows: Row[] = first.data || []
+  let expanded: string[] = []
+  if (rows.length < 3 && opts.expand) {
+    expanded = (await opts.expand(opts.query)).filter((w) => !base.includes(w))
+    if (expanded.length) {
+      const second = await run([...base, ...expanded])
+      if (!second.error) {
+        const seen = new Set(rows.map((r) => r.id))
+        rows = [...rows, ...(second.data || []).filter((r: Row) => !seen.has(r.id))]
+      }
+    }
+  }
+  return { rows: rows.slice(0, limit), method: 'search', expanded }
+}

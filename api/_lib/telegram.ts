@@ -5,7 +5,8 @@ import { randomInt } from 'node:crypto'
 import { getSupabaseAdmin } from './supabase.js'
 import { getProfile } from './db.js'
 import { executeMemoryCreationLifecycle } from './lifecycle.js'
-import { fetchScopeRows, formatMemoryLine, isSupersededRoom, rank } from './search.js'
+import { fetchScopeRows, formatMemoryLine, isSupersededRoom, searchMemories } from './search.js'
+import { expandQueryTerms } from './llm.js'
 
 const TYPES = ['decision', 'config', 'gotcha', 'person', 'preference', 'plan'] as const
 const env = (k: string) => (globalThis as any).process?.env?.[k] as string | undefined
@@ -80,10 +81,12 @@ export async function handleTelegramUpdate(req: any, host: string): Promise<{ st
       await send(chatId, `Plain messages will now be saved as ${arg}.`)
     }
   } else if (cmd === '/recall' || cmd === '/r' || cmd === '/recent') {
-    const rows = (await fetchScopeRows(supabase, { scope: 'personal', userId: link.user_id, limit: cmd === '/recent' ? 5 : 500 })).filter(
-      (r) => !isSupersededRoom(r.room),
-    )
-    const found = cmd === '/recent' ? rows.slice(0, 5) : rank(rows, arg, (r) => r.text, (r) => r.type).slice(0, 5).map((x) => x.row)
+    const found =
+      cmd === '/recent'
+        ? (await fetchScopeRows(supabase, { scope: 'personal', userId: link.user_id, limit: 20 })).filter((r) => !isSupersededRoom(r.room)).slice(0, 5)
+        : arg
+          ? (await searchMemories(supabase, { scope: 'personal', userId: link.user_id, query: arg, limit: 5, expand: expandQueryTerms })).rows
+          : []
     if (cmd !== '/recent' && !arg) await send(chatId, 'Add some words to search for, e.g. /recall database')
     else await send(chatId, found.length ? found.map((m, i) => formatMemoryLine(i, m)).join('\n\n') : 'No matching memories.')
   } else if (cmd.startsWith('/') && TYPES.includes(cmd.slice(1) as any)) {

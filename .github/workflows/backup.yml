@@ -1,0 +1,46 @@
+name: Database backup
+
+# Nightly encrypted dump of the Supabase database, kept as a workflow artifact for 30 days.
+# Artifacts of a public repo can be downloaded by others, so the dump is encrypted before upload.
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_URL     Session pooler connection string (Supabase → Connect → Session pooler)
+#   BACKUP_PASSPHRASE   long random passphrase; keep a copy somewhere safe, it's needed to restore
+# Restore: openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in engram.dump.enc -out engram.dump
+#          then pg_restore --no-owner -d <target db url> engram.dump
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check configuration
+        id: cfg
+        env:
+          DB: ${{ secrets.SUPABASE_DB_URL }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$DB" ] || [ -z "$PASS" ]; then echo "Backup secrets not set; skipping."; echo "enabled=false" >> "$GITHUB_OUTPUT"; else echo "enabled=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Dump and encrypt
+        if: steps.cfg.outputs.enabled == 'true'
+        env:
+          DB: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          docker run --rm -e DB -v "$PWD/out:/out" postgres:17 \
+            sh -c 'pg_dump "$DB" --format=custom --no-owner --no-privileges --schema=public --schema=auth --file=/out/engram.dump'
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in out/engram.dump -out out/engram.dump.enc -pass env:BACKUP_PASSPHRASE
+          rm out/engram.dump
+          ls -l out
+      - name: Upload
+        if: steps.cfg.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: engram-db-${{ github.run_id }}
+          path: out/engram.dump.enc
+          retention-days: 30

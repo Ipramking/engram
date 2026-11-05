@@ -101,7 +101,10 @@ export default function OAuthPage() {
                   <ShieldCheck size={17} className="mt-0.5 shrink-0 text-rose" /> Revoke it any time on your Keys page
                 </li>
               </ul>
-              <p className="mt-6 text-[12.5px] text-faint">Signed in as {user.email}</p>
+              <p className="mt-6 text-[12.5px] text-faint">
+                Signed in as {user.email} ·{' '}
+                <a href="/privacy" target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">Privacy</a>
+              </p>
               <div className="mt-4 flex gap-2">
                 <button
                   type="button"

@@ -1,6 +1,6 @@
 import { getSupabaseAuth, getSupabaseAdmin, authApi } from './_lib/supabase.js'
 import { createProfile, getProfile } from './_lib/db.js'
-import { getUserFromRequest } from './_lib/auth.js'
+import { getUserFromRequest, isMachineToken } from './_lib/auth.js'
 import { signSession } from './_lib/token.js'
 import { allow, clientIp } from './_lib/ratelimit.js'
 
@@ -26,6 +26,12 @@ export default async function handler(req: any, res: any) {
     if (path.endsWith('/health') || action === 'health' || querySubpath === 'health') {
       const env = ((globalThis as any).process?.env ?? {}) as Record<string, string | undefined>
       const mock = Boolean(env.ENGRAM_USE_MOCK) || !env.MEMWAL_PRIVATE_KEY
+      // ?deep=1 touches the database: used by the uptime check, and keeps the free Supabase project awake.
+      if (req.query?.deep || new URLSearchParams(rawUrl.split('?')[1] || '').get('deep')) {
+        const admin = getSupabaseAdmin()
+        const { error } = admin ? await admin.from('profiles').select('id', { head: true, count: 'exact' }).limit(1) : { error: { message: 'not configured' } }
+        return res.status(error ? 503 : 200).json({ mock, llm: Boolean(env.GROQ_API_KEY), db: error ? 'error' : 'ok' })
+      }
       return res.status(200).json({ mock, llm: Boolean(env.GROQ_API_KEY) })
     }
 
@@ -152,6 +158,24 @@ export default async function handler(req: any, res: any) {
         user: profile,
         session: { access_token: sessionToken },
       })
+    }
+
+    // ── Delete account (signed-in session + typed confirmation) ──
+    if (path.endsWith('/delete-account') && method === 'POST') {
+      if (isMachineToken(req)) return res.status(403).json({ error: 'Sign in to the dashboard to delete your account.' })
+      const user = await getUserFromRequest(req)
+      if (!user) return res.status(401).json({ error: 'Sign in to delete your account.' })
+      if (req.body?.confirm !== 'DELETE') return res.status(400).json({ error: 'Type DELETE to confirm.' })
+      const admin = getSupabaseAdmin()
+      if (!admin) return res.status(503).json({ error: 'Account deletion is unavailable right now.' })
+      // Usage counters aren't linked by foreign key; everything else cascades from the auth user.
+      await admin.from('usage_daily').delete().eq('entity_type', 'user').eq('entity_id', user.id)
+      const { error } = await authApi(admin).admin.deleteUser(user.id)
+      if (error) {
+        console.error('[api/auth] delete-account failed:', error.message)
+        return res.status(500).json({ error: 'Could not delete the account. Try again or contact us.' })
+      }
+      return res.status(200).json({ ok: true })
     }
 
     // ── Me / Current User ──

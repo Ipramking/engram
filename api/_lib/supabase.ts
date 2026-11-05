@@ -28,7 +28,10 @@ export function getSupabaseAdmin(): SupabaseClient | null {
  * @supabase/auth-js through supabase-js, which made these methods look missing in build logs.
  */
 export interface AuthApi {
-  admin: { createUser(attrs: Record<string, unknown>): Promise<{ data: any; error: any }> }
+  admin: {
+    createUser(attrs: Record<string, unknown>): Promise<{ data: any; error: any }>
+    deleteUser(id: string): Promise<{ data: any; error: any }>
+  }
   signInWithPassword(creds: { email: string; password: string }): Promise<{ data: any; error: any }>
   getUser(jwt?: string): Promise<{ data: any; error: any }>
 }

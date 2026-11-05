@@ -102,3 +102,33 @@ function offlineExtract(userText: string): { type: MemoryType; text: string }[] 
   else if (/\b(i prefer|i want|i like|always|never|my goal|i need)\b/.test(lower)) type = "preference";
   return type ? [{ type, text: t }] : [];
 }
+
+const expansions = new Map<string, string[]>();
+
+/**
+ * Related search words for a query, so recall finds memories phrased differently
+ * ("payment provider" → payments, paystack, stripe…). Best-effort: returns [] on any problem.
+ */
+export async function expandQueryTerms(query: string): Promise<string[]> {
+  const key = query.trim().toLowerCase().slice(0, 200);
+  if (!key || !llmEnabled()) return [];
+  const cached = expansions.get(key);
+  if (cached) return cached;
+  try {
+    const { text } = await generateText({
+      // A small non-reasoning model answers in well under a second.
+      model: model(process.env.ENGRAM_EXPAND_MODEL ?? "llama-3.1-8b-instant"),
+      system:
+        "You expand search queries for someone's personal work notes. Reply with 5 to 8 lowercase single words or " +
+        "product names a matching note might contain (synonyms, specific tools, related terms), comma-separated, nothing else.",
+      prompt: key,
+      abortSignal: AbortSignal.timeout(2500),
+    });
+    const words = Array.from(new Set(text.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2))).slice(0, 8);
+    if (expansions.size > 500) expansions.clear();
+    expansions.set(key, words);
+    return words;
+  } catch {
+    return [];
+  }
+}

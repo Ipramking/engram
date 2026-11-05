@@ -1,0 +1,30 @@
+name: Uptime
+
+# Every 6 hours: checks the site, the database and the MCP endpoint. A failed run emails the repo
+# owner. The database query also keeps the free Supabase project from pausing for inactivity.
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Site, database and MCP
+        env:
+          BASE: https://engram-pearl.vercel.app
+        run: |
+          set -u
+          fail=0
+          check() { # name, expected status, curl args...
+            name=$1; want=$2; shift 2
+            got=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 10 --max-time 30 "$@")
+            if [ "$got" = "$want" ]; then echo "ok   $name ($got)"; else echo "FAIL $name: expected $want, got $got"; fail=1; fi
+          }
+          check "landing page" 200 "$BASE/"
+          check "database (deep health)" 200 "$BASE/api/health?deep=1"
+          check "MCP asks for sign-in" 401 -X POST -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' "$BASE/mcp"
+          check "OAuth discovery" 200 "$BASE/.well-known/oauth-authorization-server"
+          exit $fail

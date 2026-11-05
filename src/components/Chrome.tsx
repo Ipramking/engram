@@ -172,8 +172,10 @@ export function Footer() {
           <a href={REPO} target="_blank" rel="noreferrer" className="hover:text-txt">GitHub ↗</a>
         </div>
       </div>
-      <p className="pb-8 text-center font-mono text-[11px] text-faint">
-        Seal-encrypted · Decentralized storage on Walrus · Sui Network
+      <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pb-8 text-center font-mono text-[11px] text-faint">
+        <Link to="/privacy" className="hover:text-txt">Privacy</Link>
+        <Link to="/terms" className="hover:text-txt">Terms</Link>
+        <span>© {new Date().getFullYear()} Engram</span>
       </p>
     </footer>
   )

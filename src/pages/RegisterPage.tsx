@@ -178,6 +178,10 @@ export default function RegisterPage() {
                 </>
               )}
             </button>
+            <p className="text-center text-[11.5px] leading-relaxed text-faint">
+              By creating an account you agree to the <Link to="/terms" className="text-mut underline-offset-2 hover:underline">Terms</Link> and{' '}
+              <Link to="/privacy" className="text-mut underline-offset-2 hover:underline">Privacy Policy</Link>.
+            </p>
           </form>
 
           <div className="mt-6 text-center text-xs text-mut">

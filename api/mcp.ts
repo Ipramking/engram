@@ -10,7 +10,8 @@ import {
   type Scope,
 } from "./_lib/memwal.js";
 import { validateApiKey, getApiKeyRow, checkAndIncrementUsage, getProfile, getUsage, PLAN_LIMITS } from "./_lib/db.js";
-import { fetchScopeRows, rank, isSupersededRoom, formatMemoryLine } from "./_lib/search.js";
+import { fetchScopeRows, isSupersededRoom, formatMemoryLine, searchMemories } from "./_lib/search.js";
+import { expandQueryTerms } from "./_lib/llm.js";
 import { verify, verifyLiveKey } from "./_lib/token.js";
 import { getUserFromRequest, authorizeMemoryAccess, keyCan, permissionError } from "./_lib/auth.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
@@ -471,15 +472,16 @@ export default async function handler(req: any, res: any) {
           const dbResults: Array<{ type: string; text: string; created_at?: string; id?: string }> = [];
           const dbSeen = new Set<string>();
           if (supabase && userId) {
-            const rows = await fetchScopeRows(supabase, {
+            const found = await searchMemories(supabase, {
               scope,
               userId,
               teamId: scope === "team" && activeTeamId !== "default" ? activeTeamId : null,
+              query,
+              limit: 10,
+              expand: expandQueryTerms,
             });
-            const live = rows
-              .filter((r) => !isSupersededRoom(r.room))
-              .map((r) => ({ ...r, text: decodeMemory(sanitizeMemoryText(r.text)).text }));
-            for (const { row } of rank(live, query, (r) => r.text, (r) => r.type)) {
+            const live = found.rows.map((r) => ({ ...r, text: decodeMemory(sanitizeMemoryText(r.text)).text }));
+            for (const row of live) {
               const k = row.text.toLowerCase();
               if (dbResults.length >= 10 || dbSeen.has(k)) continue;
               dbSeen.add(k);

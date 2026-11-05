@@ -218,6 +218,11 @@ export function useDashboard(authToken: string | null) {
     return r.ok ? { ok: true as const, keyName: r.data.keyName as string | undefined } : { ok: false as const, error: r.data?.error || 'Could not complete the request.' }
   }
 
+  async function deleteAccount() {
+    const r = await call('/api/auth/delete-account', { method: 'POST', body: JSON.stringify({ confirm: 'DELETE' }) })
+    return r.ok ? { ok: true as const } : { ok: false as const, error: r.data?.error || 'Could not delete the account.' }
+  }
+
   async function approveTelegram(code: string) {
     const r = await call('/api/connect/telegram-link', { method: 'POST', body: JSON.stringify({ code }) })
     return r.ok ? { ok: true as const } : { ok: false as const, error: r.data?.error || 'Could not connect the chat.' }
@@ -270,6 +275,7 @@ export function useDashboard(authToken: string | null) {
     deviceInfo,
     decideDevice,
     approveTelegram,
+    deleteAccount,
   }
 }
 

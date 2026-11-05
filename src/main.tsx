@@ -13,6 +13,7 @@ const SetupPage = lazy(() => import('./pages/SetupPage.tsx'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage.tsx'))
 const OAuthPage = lazy(() => import('./pages/OAuthPage.tsx'))
 const SharePage = lazy(() => import('./pages/SharePage.tsx'))
+const LegalPage = lazy(() => import('./pages/LegalPage.tsx'))
 
 // Installable app (needed for the Android share target). Network-first, caches nothing.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
@@ -38,6 +39,8 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/oauth/authorize" element={<OAuthPage />} />
             <Route path="/share" element={<SharePage />} />
+            <Route path="/privacy" element={<LegalPage doc="privacy" />} />
+            <Route path="/terms" element={<LegalPage doc="terms" />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
