@@ -71,7 +71,8 @@ export function Connect({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => v
   }, [])
   const ctx = buildCtx(d, telegramBot)
 
-  const list = CLIENTS.filter((c) => group === 'all' || c.group === group)
+  // The Telegram guide only appears once the bot is configured on the server.
+  const list = CLIENTS.filter((c) => (group === 'all' || c.group === group) && (c.id !== 'telegram' || telegramBot))
   const client = CLIENTS.find((c) => c.id === selected) || CLIENTS[0]
 
   function pick(id: string) {
