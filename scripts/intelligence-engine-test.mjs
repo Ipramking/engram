@@ -263,7 +263,7 @@ await test('api/recall acknowledges uncertainty when no memories match query', a
   const data = res.getData()
   assert.equal(data.count, 0)
   assert.equal(data.confidence, 'uncertain')
-  assert.match(data.reason, /sufficient evidence/i)
+  assert.match(data.reason, /No memories in personal scope match/i)
 })
 
 await test('api/remember returns enriched 5-category intelligence metadata', async () => {

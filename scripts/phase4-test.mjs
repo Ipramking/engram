@@ -40,7 +40,7 @@ async function run() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: 'developer@engram.memory',
-        password: 'EngramDemo2026!',
+        password: process.env.DEMO_PASSWORD, // set DEMO_PASSWORD; never commit it
       }),
     })
     const loginData = await loginRes.json()

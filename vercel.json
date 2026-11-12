@@ -6,6 +6,12 @@
       "maxDuration": 30
     }
   },
+  "crons": [
+    {
+      "path": "/api/storage",
+      "schedule": "23 4 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/mcp",

@@ -100,7 +100,7 @@ await testAsync('getOrCreateProjectContext creates and caches structured project
 
   assert.strictEqual(ctx.id, 'proj_alpha_01')
   assert.strictEqual(ctx.name, 'Alpha Agent Vault')
-  assert.strictEqual(ctx.architecture.storage, 'Walrus Decentralized Memory (Sui)')
+  assert.strictEqual(ctx.architecture.storage, '') // new projects start empty, not with Engram's own stack
   assert.ok(Array.isArray(ctx.architecture.keyDecisions))
   assert.ok(Array.isArray(ctx.preferences))
 })

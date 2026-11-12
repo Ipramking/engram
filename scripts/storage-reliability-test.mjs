@@ -271,7 +271,7 @@ await test('api/remember and api/recall maintain content integrity and storage s
   assert.ok(remData.contentHash && remData.contentHash.length === 64)
   assert.ok(remData.idempotencyKey)
   assert.ok(['confirmed_durable', 'local_mock', 'recovery_required'].includes(remData.storageState))
-  assert.equal(remData.integrityVerified, true)
+  assert.equal(remData.ok, true)
 
   // 2. Recall
   const { req: recReq, res: recRes } = createMockReqRes({

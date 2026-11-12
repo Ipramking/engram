@@ -34,13 +34,16 @@ export interface CreateMemoryParams {
 }
 
 export const MAX_MEMORY_CHARS = 4000
+// How long a save waits for the Walrus copy before leaving it to the recovery worker.
+const WALRUS_WAIT_MS = 3500
 
 export interface LifecycleExecutionResult {
   ok: boolean
   statusCode: number
   error?: string
-  metadataError?: string | null
   code?: string
+  /** Database id of the saved memory (null only when running without a database). */
+  id?: string | null
   type: string
   cleanText: string
   category: MemoryCategory
@@ -55,7 +58,6 @@ export interface LifecycleExecutionResult {
   contentHash: string
   idempotencyKey: string
   storageProvider: StorageProvider
-  integrityVerified: boolean
   isDuplicate: boolean
   superseded: any[]
 }
@@ -161,62 +163,77 @@ export async function executeMemoryCreationLifecycle(
     } as LifecycleExecutionResult
   }
 
-  // 6. Durable Write with Retry & Idempotency
-  const mem = memwalFor(effectiveScope as Scope, ns)
-  const encoded = encodeMemory(t, cleanText)
+  const teamId = effectiveScope === 'team' ? effectiveTeamId : null
+  const supabase = getSupabaseAdmin()
 
+  // 6. Save to the database first: it is what recall searches, so a save only succeeds if it lands there.
+  let memoryId: string | null = null
+  if (supabase) {
+    try {
+      const { data: inserted, error: metaErr } = await supabase
+        .from('memories_meta')
+        .insert({ user_id: user.id, team_id: teamId, room: 'my-space', type: t, text: cleanText })
+        .select('id')
+        .single()
+      if (metaErr || !inserted) throw new Error(metaErr?.message || 'no row returned')
+      memoryId = inserted.id
+    } catch (err: any) {
+      console.error('[lifecycle] saving the memory failed:', err?.message || err)
+      return {
+        ok: false,
+        statusCode: 503,
+        error: "Couldn't save the memory right now. Please try again in a moment.",
+        code: 'STORAGE_UNAVAILABLE',
+      } as LifecycleExecutionResult
+    }
+  }
+
+  // 7. Copy to Walrus with a short wait. Slow or failed copies are retried later by the recovery
+  // worker under the same idempotency key, so a retry never creates a second blob.
   const writeRes = await writeMemoryWithRetry({
-    mem,
-    encodedText: encoded,
+    mem: memwalFor(effectiveScope as Scope, ns),
+    encodedText: encodeMemory(t, cleanText),
     type: t,
     cleanText,
     userId: user.id,
     scope: effectiveScope as 'personal' | 'team',
     teamId: effectiveTeamId,
+    maxRetries: 0,
+    timeoutMs: WALRUS_WAIT_MS,
   })
+  if (writeRes.error) console.warn('[lifecycle] Walrus copy:', writeRes.storageState, writeRes.error)
 
   const blobId = writeRes.blobId ?? null
   const storageState = writeRes.storageState
   const contentHash = writeRes.contentHash
   const idempotencyKey = writeRes.idempotencyKey
   const storageProvider = writeRes.storageProvider
+  if (supabase && memoryId && blobId) {
+    const { error } = await supabase.from('memories_meta').update({ blob_id: blobId }).eq('id', memoryId)
+    if (error) console.warn('[lifecycle] could not record the blob id:', error.message)
+  }
 
-  // 7. Database Persistence & Smart Conflict Resolution
+  // 8. A new memory can replace older ones it contradicts.
   let superseded: any[] = []
-  let metadataError: string | null = null
-  const supabase = getSupabaseAdmin()
-  if (supabase && user) {
+  if (supabase && memoryId) {
     try {
-      const { data: inserted, error: metaErr } = await supabase.from('memories_meta').insert({
-        user_id: user.id,
-        team_id: effectiveScope === 'team' ? effectiveTeamId : null,
-        room: 'my-space',
-        type: t,
-        text: cleanText,
-        blob_id: blobId,
-      }).select('id').single()
-      if (metaErr) {
-        metadataError = metaErr.message
-        console.error('[lifecycle] metadata persistence failed:', metaErr.message)
-      } else {
-        const conflictRes = await detectAndResolveConflicts({
-          userId: user.id,
-          teamId: effectiveScope === 'team' ? effectiveTeamId : null,
-          scope: effectiveScope as 'personal' | 'team',
-          newText: cleanText,
-          newType: t,
-          newBlobId: blobId || undefined,
-          excludeId: inserted?.id,
-        })
-        superseded = conflictRes.supersededList
-      }
-    } catch (metaErr: any) {
-      metadataError = metaErr?.message || String(metaErr)
-      console.error('[lifecycle] metadata persistence/conflict resolution warning:', metadataError)
+      const conflictRes = await detectAndResolveConflicts({
+        userId: user.id,
+        teamId,
+        scope: effectiveScope as 'personal' | 'team',
+        newText: cleanText,
+        newType: t,
+        newBlobId: blobId || undefined,
+        newMemoryId: memoryId,
+        excludeId: memoryId,
+      })
+      superseded = conflictRes.supersededList
+    } catch (err: any) {
+      console.error('[lifecycle] conflict check failed:', err?.message || err)
     }
   }
 
-  // 8. Intelligence Enrichment (Entities, Importance, Categorization)
+  // 9. Intelligence Enrichment (Entities, Importance, Categorization)
   const pipelineResult = executeLifecyclePipeline({
     userId: user.id,
     scope: effectiveScope as 'personal' | 'team',
@@ -233,6 +250,7 @@ export async function executeMemoryCreationLifecycle(
   return {
     ok: true,
     statusCode: 200,
+    id: memoryId,
     type: t,
     cleanText,
     category: structured.category,
@@ -247,8 +265,6 @@ export async function executeMemoryCreationLifecycle(
     contentHash,
     idempotencyKey,
     storageProvider,
-    integrityVerified: true,
-    metadataError: metadataError || undefined,
     isDuplicate: writeRes.isDuplicate ?? false,
     superseded,
   }

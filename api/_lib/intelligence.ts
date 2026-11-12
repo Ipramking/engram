@@ -8,6 +8,7 @@ import {
 } from './types.js'
 import { computeContentHash } from './storage.js'
 import { scanForSecrets, sanitizeMemoryText } from './security.js'
+import { isSupersededRow } from './search.js'
 
 export { MEMORY_CATEGORIES, type MemoryCategory }
 
@@ -300,7 +301,7 @@ export function executeLifecyclePipeline(input: CaptureMemoryInput): LifecycleRe
   let isDuplicate = false
   let duplicateOf: string | undefined
   for (const existing of existingMemories) {
-    if (existing.room?.startsWith('superseded_by:')) continue
+    if (isSupersededRow(existing as any)) continue
     const similarity = computeJaccardSimilarity(cleanText, existing.text)
     if (similarity >= 0.85) {
       isDuplicate = true
@@ -312,7 +313,7 @@ export function executeLifecyclePipeline(input: CaptureMemoryInput): LifecycleRe
   // 4. UPDATE & CONFLICT RESOLUTION
   const supersededMemories: Array<{ id: string; oldText: string; reason: string }> = []
   for (const existing of existingMemories) {
-    if (existing.room?.startsWith('superseded_by:')) continue
+    if (isSupersededRow(existing as any)) continue
     const conflict = evaluateContradiction(cleanText, subtype, existing.text, existing.type)
     if (conflict.isContradiction) {
       supersededMemories.push({

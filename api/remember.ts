@@ -115,8 +115,8 @@ export default async function handler(req: any, res: any) {
       lifecycleResult.storageState === 'confirmed_durable' ||
       lifecycleResult.storageState === 'local_mock';
     const badgeHtml = isDurable
-      ? `<div class="badge" style="display:inline-block;background:rgba(52,211,153,0.15);color:#34d399;border:1px solid rgba(52,211,153,0.35);border-radius:99px;padding:6px 14px;font-size:12px;font-family:monospace;text-transform:uppercase;margin-bottom:16px;">✓ Anchored on Walrus</div>`
-      : `<div class="badge" style="display:inline-block;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.35);border-radius:99px;padding:6px 14px;font-size:12px;font-family:monospace;text-transform:uppercase;margin-bottom:16px;">⚡ Stored in Vault (${lifecycleResult.storageState === 'recovery_required' ? 'Recovery Queued' : 'Walrus Pending'})</div>`;
+      ? `<div class="badge" style="display:inline-block;background:rgba(52,211,153,0.15);color:#34d399;border:1px solid rgba(52,211,153,0.35);border-radius:99px;padding:6px 14px;font-size:12px;font-family:monospace;text-transform:uppercase;margin-bottom:16px;">✓ Saved · copy on Walrus</div>`
+      : `<div class="badge" style="display:inline-block;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.35);border-radius:99px;padding:6px 14px;font-size:12px;font-family:monospace;text-transform:uppercase;margin-bottom:16px;">✓ Saved${lifecycleResult.storageState === 'recovery_required' ? ' · Walrus copy pending' : ''}</div>`;
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(`<!doctype html>
@@ -137,7 +137,7 @@ export default async function handler(req: any, res: any) {
 <body>
   <div class="card">
     ${badgeHtml}
-    <h1>Memory Saved!</h1>
+    <h1>Memory saved</h1>
     <p style="font-size:13px;color:#9f96b8;margin:0;">This fact is now synced across your phone, laptop, and CLI.</p>
     <div class="mem">
       <span class="type">[${lifecycleResult.type}]</span>
@@ -166,7 +166,7 @@ export default async function handler(req: any, res: any) {
     contentHash: lifecycleResult.contentHash,
     idempotencyKey: lifecycleResult.idempotencyKey,
     storageProvider: lifecycleResult.storageProvider,
-    integrityVerified: lifecycleResult.integrityVerified,
+    id: lifecycleResult.id ?? null,
     isDuplicate: lifecycleResult.isDuplicate,
     superseded: lifecycleResult.superseded,
   });

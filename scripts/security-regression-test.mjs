@@ -311,7 +311,7 @@ await test('Revoked API key immediately invalidates eng_live_ tokens across REST
   })
   await mcpHandler(mcpReq, mcpRes)
   assert.equal(mcpRes.getStatusCode(), 401, 'MCP must return 401 Unauthorized for revoked API key')
-  assert.match(mcpRes.getData()?.error?.message, /revoked Engram API key/i)
+  assert.match(mcpRes.getData()?.error?.message, /key was revoked/i)
 })
 
 await test('Legacy mock_token and session_<id> blocked in production', async () => {
@@ -339,7 +339,7 @@ await test('MCP endpoint rejects unauthenticated requests with 401', async () =>
   })
   await mcpHandler(req, res)
   assert.equal(res.getStatusCode(), 401)
-  assert.match(res.getData()?.error?.message, /missing \?token= or Authorization header/i)
+  assert.match(res.getData()?.error?.message, /sign in with Engram/i)
 })
 
 // ── Test Group 5: SEC-05 Credential Redaction ──

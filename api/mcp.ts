@@ -1,16 +1,9 @@
 // Serverless Streamable HTTP MCP Endpoint for Engram (JSON-RPC 2.0)
 // Works 24/7 on Vercel at /api/mcp and /mcp with zero cold-start session loss.
 import { randomUUID } from "node:crypto";
-import {
-  memwalFor,
-  decodeMemory,
-  normalizeRecall,
-  recallMaxDistance,
-  MEMORY_TYPES,
-  type Scope,
-} from "./_lib/memwal.js";
+import { decodeMemory, MEMORY_TYPES, type Scope } from "./_lib/memwal.js";
 import { validateApiKey, getApiKeyRow, checkAndIncrementUsage, getProfile, getUsage, PLAN_LIMITS } from "./_lib/db.js";
-import { fetchScopeRows, isSupersededRoom, formatMemoryLine, searchMemories } from "./_lib/search.js";
+import { fetchScopeRows, isSupersededRow, formatMemoryLine, searchMemories } from "./_lib/search.js";
 import { expandQueryTerms } from "./_lib/llm.js";
 import { verify, verifyLiveKey } from "./_lib/token.js";
 import { getUserFromRequest, authorizeMemoryAccess, keyCan, permissionError } from "./_lib/auth.js";
@@ -378,7 +371,6 @@ export default async function handler(req: any, res: any) {
 
       const scope: Scope = auth.effectiveScope;
       const activeTeamId = auth.effectiveTeamId || "default";
-      const ns = scope === "team" ? activeTeamId : `usr_${userId}`;
       const supabase = getSupabaseAdmin();
 
       try {
@@ -447,28 +439,8 @@ export default async function handler(req: any, res: any) {
             });
           }
 
-          const results: Array<{ type: string; text: string; blobId?: string }> = [];
-          const seen = new Set<string>();
-
-          try {
-            const mem = memwalFor(scope, ns);
-            const raw = await Promise.race([
-              mem.recall({ query, topK: 8, maxDistance: recallMaxDistance() }),
-              new Promise((resolve) => setTimeout(() => resolve([]), 3500)),
-            ]);
-            for (const item of normalizeRecall(raw)) {
-              const dec = decodeMemory(sanitizeMemoryText(item.text));
-              const k = dec.text.toLowerCase();
-              if (!seen.has(k)) {
-                seen.add(k);
-                results.push({ type: dec.type, text: dec.text, blobId: item.blobId });
-              }
-            }
-          } catch (e) {
-            console.warn("[api/mcp] Walrus recall fallback:", e);
-          }
-
-          // Database matches come first: they carry dates and ids. Walrus vector hits fill in after.
+          // The database is the source of truth: it knows about deletions and replaced memories,
+          // which the Walrus copies do not, so recall reads only from it.
           const dbResults: Array<{ type: string; text: string; created_at?: string; id?: string }> = [];
           const dbSeen = new Set<string>();
           if (supabase && userId) {
@@ -480,21 +452,15 @@ export default async function handler(req: any, res: any) {
               limit: 10,
               expand: expandQueryTerms,
             });
-            const live = found.rows.map((r) => ({ ...r, text: decodeMemory(sanitizeMemoryText(r.text)).text }));
-            for (const row of live) {
-              const k = row.text.toLowerCase();
-              if (dbResults.length >= 10 || dbSeen.has(k)) continue;
+            for (const row of found.rows) {
+              const text = decodeMemory(sanitizeMemoryText(row.text)).text;
+              const k = text.toLowerCase();
+              if (dbSeen.has(k)) continue;
               dbSeen.add(k);
-              dbResults.push({ type: row.type || "decision", text: row.text, created_at: row.created_at, id: row.id });
+              dbResults.push({ type: row.type || "decision", text, created_at: row.created_at, id: row.id });
             }
           }
-          const walrusOnly = results.filter((r) => !dbResults.some((d) => d.text.toLowerCase() === r.text.toLowerCase()));
-          const lines = [
-            ...dbResults.map((m, i) => formatMemoryLine(i, m)),
-            ...walrusOnly.slice(0, Math.max(0, 10 - dbResults.length)).map(
-              (m, i) => `${dbResults.length + i + 1}. [${m.type}] ${m.text} (from Walrus${m.blobId ? `, blob ${m.blobId}` : ""})`
-            ),
-          ];
+          const lines = dbResults.map((m, i) => formatMemoryLine(i, m));
 
           const formatted =
             lines.length > 0
@@ -529,14 +495,14 @@ export default async function handler(req: any, res: any) {
             id: isGet ? memoryId : undefined,
           });
           const list = rows
-            .filter((r) => isGet || args.include_replaced || !isSupersededRoom(r.room))
+            .filter((r) => isGet || args.include_replaced || !isSupersededRow(r))
             .slice(0, isGet ? 1 : limit)
             .map((r) => ({
               type: r.type || "decision",
               text: decodeMemory(sanitizeMemoryText(r.text)).text,
               created_at: r.created_at,
               id: r.id,
-              replaced: isSupersededRoom(r.room),
+              replaced: isSupersededRow(r),
             }));
           const text = list.length
             ? list.map((m, i) => formatMemoryLine(i, m)).join("\n")
@@ -582,7 +548,7 @@ export default async function handler(req: any, res: any) {
 
             const { data: rows } = await dbQuery;
             for (const r of rows || []) {
-              if ((r.room || "").startsWith("superseded_by:")) continue;
+              if (isSupersededRow(r)) continue;
               items.push({ id: r.id, type: r.type, text: r.text, blobId: r.blob_id });
             }
           }

@@ -188,6 +188,27 @@ export function useDashboard(authToken: string | null) {
     return { ok: false as const, error: r.data?.error || 'Could not load memories.' }
   }
 
+  /** Every memory in a scope, replaced ones included, fetched page by page for export. */
+  async function exportMemories(params: { scope: Scope; teamId?: string }) {
+    const all: Memory[] = []
+    let before = ''
+    for (let page = 0; page < 40; page++) {
+      const qs = new URLSearchParams({
+        scope: params.scope,
+        teamCode: params.teamId || 'default',
+        includeSuperseded: 'true',
+        limit: '500',
+      })
+      if (before) qs.set('before', before)
+      const r = await call(`/api/memories?${qs}`)
+      if (!r.ok || !r.data?.ok) return { ok: false as const, error: r.data?.error || 'Could not export memories.' }
+      all.push(...((r.data.memories || []) as Memory[]))
+      before = r.data.nextBefore || ''
+      if (!before) break
+    }
+    return { ok: true as const, memories: all }
+  }
+
   async function saveMemory(input: { text: string; type: string; scope: Scope; teamId?: string }) {
     const r = await call('/api/remember', {
       method: 'POST',
@@ -269,6 +290,7 @@ export function useDashboard(authToken: string | null) {
     loadMembers,
     invite,
     listMemories,
+    exportMemories,
     saveMemory,
     deleteMemory,
     testConnection,

@@ -1,4 +1,5 @@
-// Phase 6 Automated Verification Suite: Smart Conflict Resolution, On-Chain Epochs & Explorer Features
+// Phase 6 integration suite: conflict resolution and the memory explorer. Talks to a real deployment
+// and database: set DEMO_PASSWORD (and run only against staging).
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
@@ -8,7 +9,6 @@ import recallHandler from '../api/recall.ts'
 import memoriesHandler from '../api/memories.ts'
 import { getSupabaseAdmin } from '../api/_lib/supabase.ts'
 import { evaluateContradiction } from '../api/_lib/conflicts.ts'
-import { calculateWalrusEpochMetadata } from '../api/_lib/epochs.ts'
 
 const app = express()
 app.use(cors())
@@ -64,18 +64,6 @@ async function run() {
     assert(eval2.isContradiction, 'Must detect transition conflict between styled-components and Tailwind')
     console.log(`✓ Detected transition conflict: ${eval2.reason}`)
 
-    // ── 2. Unit Test: Walrus Epoch & Staking Metrics ──
-    console.log('\n2. Testing calculateWalrusEpochMetadata calculation...')
-    const epochMeta = calculateWalrusEpochMetadata({
-      blobId: 'test_blob_walrus_123',
-      planTier: 'free_personal',
-    })
-    assert(epochMeta.currentEpoch === 24, 'Current epoch matches 24')
-    assert(epochMeta.storageCostWal === 0.002, 'Storage cost is 0.002 WAL')
-    assert(epochMeta.storageNodeQuorum === 5, 'Storage node quorum is 5 (RedStuff 2D)')
-    assert(epochMeta.explorerUrl.includes('test_blob_walrus_123'), 'Explorer URL contains blobId')
-    console.log(`✓ Epoch metadata verified: Epoch ${epochMeta.currentEpoch}, ${epochMeta.daysRemaining}d left, ${epochMeta.storageCostWal} WAL cost`)
-
     // ── 3. Authenticate Demo User ──
     console.log('\n3. Authenticating demo user developer@engram.memory...')
     const loginRes = await fetch(`${BASE}/api/auth/login`, {
@@ -83,7 +71,7 @@ async function run() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: 'developer@engram.memory',
-        password: 'EngramDemo2026!',
+        password: process.env.DEMO_PASSWORD, // set DEMO_PASSWORD; never commit it
       }),
     })
     const loginData = await loginRes.json()
@@ -113,7 +101,7 @@ async function run() {
       }),
     })
     const save1Data = await save1Res.json()
-    assert(save1Res.ok && save1Data.blobId, `Initial save failed: ${JSON.stringify(save1Data)}`)
+    assert(save1Res.ok && save1Data.ok && save1Data.id, `Initial save failed: ${JSON.stringify(save1Data)}`)
     const blob1 = save1Data.blobId
     console.log(`✓ Initial memory saved: blobId=${blob1}`)
 
@@ -132,7 +120,7 @@ async function run() {
       }),
     })
     const save2Data = await save2Res.json()
-    assert(save2Res.ok && save2Data.blobId, `Superseding save failed: ${JSON.stringify(save2Data)}`)
+    assert(save2Res.ok && save2Data.ok && save2Data.id, `Superseding save failed: ${JSON.stringify(save2Data)}`)
     console.log(`✓ Superseding memory saved: blobId=${save2Data.blobId}`)
     assert(
       save2Data.superseded && save2Data.superseded.length > 0,
@@ -172,12 +160,10 @@ async function run() {
     assert(listRes.ok && listData.memories, `List memories failed: ${JSON.stringify(listData)}`)
     console.log(`✓ Retrieved ${listData.memories.length} total memories`)
     assert(listData.stats.superseded >= 1, 'Stats reports at least 1 superseded memory')
-    assert(listData.stats.currentEpoch === 24, 'Stats reports Walrus currentEpoch = 24')
 
     const supersededMemory = listData.memories.find((m) => m.isSuperseded)
     assert(supersededMemory, 'Must contain a memory with isSuperseded === true')
-    assert(supersededMemory.epochMeta, 'Memory contains epochMeta')
-    console.log(`✓ Memory Explorer metadata confirmed: isSuperseded=${supersededMemory.isSuperseded}, epoch=${supersededMemory.epochMeta.currentEpoch}, cost=${supersededMemory.epochMeta.storageCostWal} WAL`)
+    console.log(`✓ Memory Explorer confirmed: isSuperseded=${supersededMemory.isSuperseded}, supersededBy=${supersededMemory.supersededBy}`)
 
     // ── 8. Delete Memory ──
     console.log('\n8. Testing memory deletion / archive via DELETE /api/memories...')

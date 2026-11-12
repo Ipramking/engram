@@ -66,24 +66,71 @@ export function rank<T>(rows: T[], query: string, textOf: (r: T) => string, type
     .sort((a, b) => b.score - a.score)
 }
 
+/** Older rows mark "replaced" with a "superseded_by:<id>" value in the room column. */
 export const isSupersededRoom = (room?: string | null) => Boolean(room && room.startsWith('superseded_by:'))
+
+/** Whether a memory was replaced by a newer one (2.5 column, or the older room marker). */
+export const isSupersededRow = (row?: { superseded_by?: string | null; room?: string | null } | null) =>
+  Boolean(row?.superseded_by) || isSupersededRoom(row?.room)
+
+/** What replaced a memory: the newer memory's id (or, for old rows, a blob id), when recorded. */
+export function supersededByOf(row?: { superseded_by?: string | null; room?: string | null } | null): string | null {
+  const v = row?.superseded_by || (isSupersededRoom(row?.room) ? String(row?.room).slice('superseded_by:'.length) : '')
+  return v && v !== 'latest' && v !== 'unknown' ? v : null
+}
+
+export type MemoryRow = {
+  id: string
+  type: string
+  text: string
+  blob_id: string | null
+  created_at: string
+  room: string | null
+  team_id: string | null
+  superseded_by?: string | null
+  superseded_at?: string | null
+}
+
+const BASE_COLUMNS = 'id, type, text, blob_id, created_at, room, team_id'
+// Whether the 2.5 superseded_by/superseded_at columns exist; learned from the first query.
+let statusColumns: boolean | null = null
+const MISSING_COLUMN = ['42703', 'PGRST204']
 
 /** Newest rows in the caller's scope. Personal never includes team rows. */
 export async function fetchScopeRows(
   supabase: any,
-  opts: { scope: 'personal' | 'team'; userId: string; teamId?: string | null; limit?: number; type?: string; id?: string },
-) {
-  let q = supabase
-    .from('memories_meta')
-    .select('id, type, text, blob_id, created_at, room, team_id')
-    .order('created_at', { ascending: false })
-    .limit(Math.min(Math.max(opts.limit ?? 500, 1), 1000))
-  q = opts.scope === 'team' && opts.teamId ? q.eq('team_id', opts.teamId) : q.eq('user_id', opts.userId).is('team_id', null)
-  if (opts.type && opts.type !== 'all') q = q.eq('type', opts.type)
-  if (opts.id) q = q.eq('id', opts.id)
-  const { data, error } = await q
+  opts: {
+    scope: 'personal' | 'team'
+    userId: string
+    teamId?: string | null
+    limit?: number
+    type?: string
+    id?: string
+    /** Only rows created before this ISO time (for paging). */
+    before?: string
+  },
+): Promise<MemoryRow[]> {
+  const build = (columns: string) => {
+    let q = supabase
+      .from('memories_meta')
+      .select(columns)
+      .order('created_at', { ascending: false })
+      .limit(Math.min(Math.max(opts.limit ?? 500, 1), 1000))
+    q = opts.scope === 'team' && opts.teamId ? q.eq('team_id', opts.teamId) : q.eq('user_id', opts.userId).is('team_id', null)
+    if (opts.type && opts.type !== 'all') q = q.eq('type', opts.type)
+    if (opts.id) q = q.eq('id', opts.id)
+    if (opts.before) q = q.lt('created_at', opts.before)
+    return q
+  }
+  let { data, error } = await build(statusColumns === false ? BASE_COLUMNS : `${BASE_COLUMNS}, superseded_by, superseded_at`)
+  if (error && statusColumns !== false && MISSING_COLUMN.includes(error.code)) {
+    statusColumns = false
+    ;({ data, error } = await build(BASE_COLUMNS))
+  } else if (!error) {
+    statusColumns = statusColumns ?? true
+  }
   if (error) throw new Error(error.message)
-  return (data || []) as Array<{ id: string; type: string; text: string; blob_id: string | null; created_at: string; room: string | null; team_id: string | null }>
+  return (data || []) as MemoryRow[]
 }
 
 export function formatMemoryLine(i: number, m: { type: string; text: string; created_at?: string; id?: string; replaced?: boolean }) {
@@ -103,7 +150,7 @@ export function rawTerms(text: string): string[] {
   )
 }
 
-type Row = { id: string; type: string; text: string; blob_id: string | null; created_at: string; room: string | null; team_id: string | null }
+type Row = MemoryRow
 
 /**
  * Recall for MCP and the bots. Uses the database search function (full text + fuzzy) when the
@@ -134,7 +181,7 @@ export async function searchMemories(
 
   const first = await run(base)
   if (first.error) {
-    const rows = (await fetchScopeRows(supabase, { scope: opts.scope, userId: opts.userId, teamId: opts.teamId })).filter((r) => !isSupersededRoom(r.room))
+    const rows = (await fetchScopeRows(supabase, { scope: opts.scope, userId: opts.userId, teamId: opts.teamId })).filter((r) => !isSupersededRow(r))
     return { rows: rank(rows, opts.query, (r) => r.text, (r) => r.type).slice(0, limit).map((x) => x.row), method: 'lexical', expanded: [] }
   }
 

@@ -199,7 +199,11 @@ export type KeyPermissions = 'read_write' | 'read' | 'save'
 export async function getApiKeyRow(keyId: string): Promise<any | null> {
   if (!keyId) return null
   const supabase = getSupabaseAdmin()
-  if (!supabase) return null
+  if (!supabase) {
+    // Local development and tests run without a database: use the in-memory keys.
+    for (const [, v] of memApiKeys) if (v.id === keyId) return v
+    return null
+  }
   const { data, error } = await supabase.from('api_keys').select('*').eq('id', keyId).maybeSingle()
   if (error || !data) return null
   if (data.is_active) {

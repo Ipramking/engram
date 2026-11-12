@@ -8,9 +8,10 @@ import { MemWal, MemWalMock } from "@mysten-incubation/memwal";
 export type Scope = "personal" | "team";
 
 export type MemwalClient = {
-  remember(text: string): Promise<any>;
-  rememberAndWait(text: string, meta?: unknown, opts?: unknown): Promise<any>;
-  waitForRememberJob(jobId: string): Promise<any>;
+  // Options carry { idempotencyKey, dedupe } so retries collapse onto the first write.
+  remember(text: string, options?: unknown): Promise<any>;
+  rememberAndWait(text: string, options?: unknown, opts?: unknown): Promise<any>;
+  waitForRememberJob?(jobId: string, opts?: { timeoutMs?: number; pollIntervalMs?: number }): Promise<any>;
   recall(args: { query: string; topK?: number; maxDistance?: number }): Promise<any>;
   health?(): Promise<any>;
 };

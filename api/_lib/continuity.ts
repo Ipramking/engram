@@ -187,23 +187,12 @@ export async function getOrCreateProjectContext(opts: {
     userId,
     teamId,
     scope,
-    architecture: {
-      framework: 'TypeScript + Express / Vite',
-      database: 'Supabase Postgres',
-      storage: 'Walrus Decentralized Memory (Sui)',
-      hosting: 'Vercel + Render',
-      keyDecisions: [
-        'Portable cross-agent memory via Model Context Protocol (MCP)',
-        'Fail-closed security guarantees for secrets and tokens',
-      ],
-    },
+    // A new project starts empty; agents fill it in as they learn the user's stack.
+    architecture: { framework: '', database: '', storage: '', hosting: '', keyDecisions: [] },
     activeTasks: [],
     blockers: [],
-    preferences: ['Keep UI strictly consistent with Aubergine and Rose-Gold palette'],
-    keyTerms: {
-      MemWal: 'Decentralized Walrus memory client and relayer SDK',
-      MCP: 'Model Context Protocol for cross-agent tool communication',
-    },
+    preferences: [],
+    keyTerms: {},
     updatedAt: new Date().toISOString(),
   }
 
@@ -620,14 +609,21 @@ export function formatQuickResumeBrief(snapshot: ContinuitySnapshot): string {
     `*Snapshot ID: ${snapshot.snapshotId} | Verified Checksum: ${snapshot.checksum.slice(0, 12)}... | Updated: ${snapshot.createdAt}*`,
     '',
     '## 1. System Architecture & Decisions',
-    `- Framework: ${ctx.architecture.framework}`,
-    `- Database: ${ctx.architecture.database}`,
-    `- Storage: ${ctx.architecture.storage}`,
-    `- Hosting: ${ctx.architecture.hosting}`,
+    ...(
+      [
+        ['Framework', ctx.architecture.framework],
+        ['Database', ctx.architecture.database],
+        ['Storage', ctx.architecture.storage],
+        ['Hosting', ctx.architecture.hosting],
+      ] as const
+    )
+      .filter(([, v]) => v)
+      .map(([k, v]) => `- ${k}: ${v}`),
     ...ctx.architecture.keyDecisions.map((d) => `- Decision: ${d}`),
+    ...(Object.values(ctx.architecture).some((v) => (Array.isArray(v) ? v.length : v)) ? [] : ['- Nothing recorded yet.']),
     '',
     '## 2. Working Preferences',
-    ...ctx.preferences.map((p) => `- ${p}`),
+    ...(ctx.preferences.length ? ctx.preferences.map((p) => `- ${p}`) : ['- Nothing recorded yet.']),
     '',
   ]
 

@@ -1,22 +1,14 @@
-// Explicit recall — powers the MCP engram_recall tool and search endpoints with hybrid scoring.
-import {
-  memwalFor,
-  normalizeRecall,
-  decodeMemory,
-  recallMaxDistance,
-  type Scope,
-} from "./_lib/memwal.js";
+// REST recall (Python SDK, scripts, shortcuts). Same search as the MCP engram_recall tool:
+// database full text with word forms, prefixes and typo tolerance, widened with related terms
+// when few memories match. Replaced memories are left out unless asked for.
+import { decodeMemory, type Scope } from "./_lib/memwal.js";
 import { getUserFromRequest, authorizeMemoryAccess, keyCan, permissionError } from "./_lib/auth.js";
 import { checkAndIncrementUsage } from "./_lib/db.js";
-import { scoreText, minCoverage } from "./_lib/search.js";
+import { fetchScopeRows, isSupersededRow, rank, searchMemories, supersededByOf, type MemoryRow } from "./_lib/search.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
-import { verifyMemoryIntegrity } from "./_lib/storage.js";
-import {
-  scoreMemoryHybrid,
-  mapSubtypeToCategory,
-  extractEntities,
-  type StructuredMemory,
-} from "./_lib/intelligence.js";
+import { sanitizeMemoryText } from "./_lib/security.js";
+import { expandQueryTerms } from "./_lib/llm.js";
+import { mapSubtypeToCategory, extractEntities } from "./_lib/intelligence.js";
 
 export default async function handler(req: any, res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -31,10 +23,10 @@ export default async function handler(req: any, res: any) {
   const searchParams = new URLSearchParams(rawUrl.split("?")[1] || "");
   const source = req.method === "GET" ? { ...Object.fromEntries(searchParams.entries()), ...(req.query || {}) } : (req.body ?? {});
 
-  const query = String(source.query ?? "");
+  const query = String(source.query ?? source.q ?? "").trim().slice(0, 500);
   let scope = (source.scope === "team" ? "team" : "personal") as Scope;
   const teamCode = String(source.teamCode ?? "default");
-  const topK = Number(source.topK ?? 10) || 10;
+  const topK = Math.min(Math.max(Number(source.topK ?? 10) || 10, 1), 50);
   const includeSuperseded = source.includeSuperseded === true || source.includeSuperseded === "true";
   const categoryFilter = source.category ? String(source.category).toLowerCase() : undefined;
 
@@ -47,188 +39,100 @@ export default async function handler(req: any, res: any) {
     return res.status(403).json({ error: permissionError("read"), code: "KEY_PERMISSION" });
   }
 
-  // Centralized authorization enforcement
-  const authRes = await authorizeMemoryAccess({
-    user,
-    requestedScope: scope,
-    requestedTeamCode: teamCode,
-  });
-
+  const authRes = await authorizeMemoryAccess({ user, requestedScope: scope, requestedTeamCode: teamCode });
   if (!authRes.authorized) {
     return res.status(authRes.statusCode || 403).json({ error: authRes.error });
   }
-
-  const effectiveScope = authRes.effectiveScope;
-  const effectiveTeamId = authRes.effectiveTeamId;
+  const effectiveScope = authRes.effectiveScope as Scope;
+  const teamId = effectiveScope === "team" ? authRes.effectiveTeamId : null;
 
   await checkAndIncrementUsage({
     entityType: effectiveScope === "team" ? "team" : "user",
-    entityId: effectiveScope === "team" ? effectiveTeamId! : user.id,
+    entityId: effectiveScope === "team" ? teamId! : user.id,
     operation: "recall",
     planTier: user.plan_tier,
   }).catch(() => {});
 
-  const combined: any[] = [];
-  const seenTexts = new Set<string>();
-  const supersededMap = new Map<string, string>();
-
-  // 1. Query Supabase memories_meta (includes migrated Walrus memories + pinned cloud memories)
   const supabase = getSupabaseAdmin();
-  if (supabase && user) {
+  let rows: Array<MemoryRow & { rank?: number }> = [];
+  let expanded: string[] = [];
+  if (supabase) {
     try {
-      let q = supabase
-        .from("memories_meta")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(500);
-
-      if (effectiveScope === "team" && effectiveTeamId) {
-        q = q.eq("team_id", effectiveTeamId);
+      if (!query) {
+        rows = (await fetchScopeRows(supabase, { scope: effectiveScope, userId: user.id, teamId, limit: 200 }))
+          .filter((r) => includeSuperseded || !isSupersededRow(r));
+      } else if (!includeSuperseded) {
+        const found = await searchMemories(supabase, {
+          scope: effectiveScope,
+          userId: user.id,
+          teamId,
+          query,
+          limit: Math.max(topK, 20),
+          expand: expandQueryTerms,
+        });
+        rows = found.rows;
+        expanded = found.expanded;
       } else {
-        q = q.eq("user_id", user.id).is("team_id", null);
+        // History view: the lexical ranking over recent rows, replaced memories included.
+        const recent = await fetchScopeRows(supabase, { scope: effectiveScope, userId: user.id, teamId, limit: 500 });
+        rows = rank(recent, query, (r) => r.text, (r) => r.type).map((x) => ({ ...x.row, rank: x.score }));
       }
-
-      const { data: rows } = await q;
-      if (rows) {
-        for (const row of rows) {
-          const isSuperseded = Boolean(row.room && row.room.startsWith("superseded_by:"));
-          const supersededBy = isSuperseded ? row.room.replace("superseded_by:", "") : null;
-          if (isSuperseded && row.blob_id) {
-            supersededMap.set(row.blob_id, supersededBy || "latest");
-          }
-
-          const key = String(row.text || "").trim().toLowerCase();
-          if (!seenTexts.has(key)) {
-            seenTexts.add(key);
-            const { verified, actualHash } = verifyMemoryIntegrity(row.text || '', row.type || 'note', row.content_hash);
-            const { category, subtype } = mapSubtypeToCategory(row.type || 'note');
-
-            const structured: StructuredMemory = {
-              id: row.id,
-              userId: user.id,
-              teamId: effectiveTeamId,
-              scope: effectiveScope,
-              category,
-              subtype,
-              text: row.text,
-              entities: extractEntities(row.text),
-              confidence: 1.0,
-              importance: (row.type === 'decision' ? 4 : 3),
-              sensitivity: 'internal',
-              status: isSuperseded ? 'superseded' : 'active',
-              source: 'explicit_user',
-              version: 1,
-              createdAt: row.created_at || new Date().toISOString(),
-              updatedAt: row.created_at || new Date().toISOString(),
-              blobId: row.blob_id,
-              contentHash: actualHash,
-            };
-
-            const scored = scoreMemoryHybrid(structured, query);
-            combined.push({
-              ...scored,
-              type: subtype, // backward-compat for existing clients
-              isSuperseded,
-              supersededBy,
-              integrityVerified: verified,
-            });
-          }
-        }
-      }
-    } catch {}
+    } catch (err: any) {
+      console.error("[api/recall] search failed:", err?.message || err);
+      return res.status(500).json({ error: "Search failed. Try again." });
+    }
   }
 
-  // 2. Also query live Walrus / MemWal namespace and merge
-  const ns = effectiveScope === "team" ? effectiveTeamId! : `usr_${user.id}`;
-  const mem = memwalFor(effectiveScope as Scope, ns);
-  try {
-    const r = await Promise.race([
-      mem.recall({ query: query || " ", topK, maxDistance: recallMaxDistance() }),
-      new Promise((resolve) => setTimeout(() => resolve([]), 3500)),
-    ]);
-    for (const m of normalizeRecall(r)) {
-      const decoded = decodeMemory(m.text);
-      const key = decoded.text.trim().toLowerCase();
-      if (seenTexts.has(key)) continue;
-      seenTexts.add(key);
-      const isSuperseded = m.blobId ? supersededMap.has(m.blobId) : false;
-      const supersededBy = m.blobId ? supersededMap.get(m.blobId) || null : null;
-      const { verified, actualHash } = verifyMemoryIntegrity(decoded.text, decoded.type);
-      const { category, subtype } = mapSubtypeToCategory(decoded.type);
-
-      const structured: StructuredMemory = {
-        id: `walrus-${combined.length + 1}`,
-        userId: user.id,
-        teamId: effectiveTeamId,
-        scope: effectiveScope,
+  const results = rows
+    .map((row, i) => {
+      const text = decodeMemory(sanitizeMemoryText(row.text)).text;
+      const { category, subtype } = mapSubtypeToCategory(row.type || "decision");
+      return {
+        id: row.id,
+        type: row.type || subtype,
+        text,
         category,
         subtype,
-        text: decoded.text,
-        entities: extractEntities(decoded.text),
+        entities: extractEntities(text),
+        createdAt: row.created_at,
+        blobId: row.blob_id,
+        // Rank from the database search when available; otherwise position-based.
+        score: typeof row.rank === "number" ? Number(row.rank.toFixed(4)) : Number((1 / (i + 1)).toFixed(4)),
         confidence: 1.0,
-        importance: (decoded.type === 'decision' ? 4 : 3),
-        sensitivity: 'internal',
-        status: isSuperseded ? 'superseded' : 'active',
-        source: 'explicit_user',
-        version: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        blobId: m.blobId,
-        contentHash: actualHash,
+        importance: row.type === "decision" ? 4 : 3,
+        isSuperseded: isSupersededRow(row),
+        supersededBy: supersededByOf(row),
       };
-
-      const scored = scoreMemoryHybrid(structured, query);
-      combined.push({
-        ...scored,
-        type: subtype,
-        isSuperseded,
-        supersededBy,
-        integrityVerified: verified,
-      });
-    }
-  } catch {}
-
-  let results = combined
-    .filter((m) => includeSuperseded || (!m.isSuperseded && m.status !== 'superseded'))
-    .filter((m) => !categoryFilter || categoryFilter === 'all' || m.category === categoryFilter || m.subtype === categoryFilter)
-    .filter((m) => !query || scoreText(query, m.text, m.type).coverage >= minCoverage(query))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, Number(topK) || 50);
+    })
+    .filter((m) => !categoryFilter || categoryFilter === "all" || m.category === categoryFilter || m.subtype === categoryFilter || m.type === categoryFilter)
+    .slice(0, topK);
 
   const format = source.format || "json";
+  if (format === "text") {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    if (!results.length) return res.status(200).send(`No memories in ${effectiveScope} scope match "${query}".`);
+    return res
+      .status(200)
+      .send(results.map((m, i) => `${i + 1}. [${m.type}] ${m.text} (saved ${String(m.createdAt || "").slice(0, 10) || "unknown date"})`).join("\n"));
+  }
 
-  if (results.length === 0) {
-    if (format === "text") {
-      res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      return res.status(200).send(`No relevant memories in ${effectiveScope} scope for "${query}".`);
-    }
+  if (!results.length) {
     return res.status(200).json({
       ok: true,
       count: 0,
       confidence: "uncertain",
-      reason: `No memories in ${effectiveScope} scope matched query "${query}" with sufficient evidence.`,
+      reason: query ? `No memories in ${effectiveScope} scope match "${query}".` : `No memories in ${effectiveScope} scope yet.`,
       results: [],
       memories: [],
     });
   }
 
-  if (format === "text") {
-    const textOutput = results
-      .map(
-        (m, i) =>
-          `• (${m.type}) ${i + 1}. ${m.text}${
-            m.blobId ? ` [walrus:${m.blobId.slice(0, 8)}...]` : ""
-          }`
-      )
-      .join("\n");
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(200).send(textOutput);
-  }
-
   res.status(200).json({
     ok: true,
     count: results.length,
-    confidence: results[0].score >= 0.4 ? "high" : "medium",
+    // "medium" when fewer than three memories matched the caller's own words and related terms were added.
+    confidence: expanded.length ? "medium" : "high",
+    expandedTerms: expanded,
     results,
     memories: results,
   });

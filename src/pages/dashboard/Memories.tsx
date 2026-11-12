@@ -38,6 +38,7 @@ export function Memories({ d }: { d: Dashboard }) {
   const [toDelete, setToDelete] = useState<Memory | null>(null)
   const [dupes, setDupes] = useState<Memory[] | null>(null)
   const [busy, setBusy] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const effectiveTeam = teamId || d.teams[0]?.id || ''
 
@@ -104,11 +105,19 @@ export function Memories({ d }: { d: Dashboard }) {
     setToDelete(null)
   }
 
-  function exportAs(fmt: 'json' | 'md') {
-    if (!items.length) return
+  // Exports everything in the current scope (not just what the filters show), replaced memories included.
+  async function exportAs(fmt: 'json' | 'md') {
+    if (scope === 'team' && !effectiveTeam) return
+    setExporting(true)
+    const r = await d.exportMemories({ scope, teamId: scope === 'team' ? effectiveTeam : undefined })
+    setExporting(false)
+    if (!r.ok) return toast(r.error, 'error')
+    const all = r.memories
+    if (!all.length) return toast('Nothing to export yet.', 'info')
     const stamp = new Date().toISOString().slice(0, 10)
-    if (fmt === 'json') return download(`engram-${scope}-${stamp}.json`, 'application/json', JSON.stringify(items, null, 2))
-    const body = items
+    toast(`Exported ${all.length} memor${all.length === 1 ? 'y' : 'ies'}.`)
+    if (fmt === 'json') return download(`engram-${scope}-${stamp}.json`, 'application/json', JSON.stringify(all, null, 2))
+    const body = all
       .map((m, i) => {
         const proof = isWalrusBlobId(m.blobId) ? `\n- Walrus blob: ${WALRUSCAN}${m.blobId}` : ''
         return `### ${i + 1}. ${TYPE_META[m.type]?.label || m.type}${m.isSuperseded ? ' (replaced)' : ''}\n${m.text}\n- Saved: ${m.createdAt || 'unknown'}${proof}\n`
@@ -137,10 +146,10 @@ export function Memories({ d }: { d: Dashboard }) {
             <Button onClick={findDupes} disabled={!items.length}>
               <Sparkles size={14} /> Find duplicates
             </Button>
-            <Button onClick={() => exportAs('md')} disabled={!items.length} aria-label="Export as Markdown">
+            <Button onClick={() => exportAs('md')} disabled={exporting} aria-label="Export all as Markdown">
               <Download size={14} /> .md
             </Button>
-            <Button onClick={() => exportAs('json')} disabled={!items.length} aria-label="Export as JSON">
+            <Button onClick={() => exportAs('json')} disabled={exporting} aria-label="Export all as JSON">
               <Download size={14} /> .json
             </Button>
           </>

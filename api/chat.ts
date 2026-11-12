@@ -1,13 +1,7 @@
 // Main agent turn: recall relevant memories -> answer -> auto-capture new
 // durable memories. Returns the reply plus what was recalled and remembered
 // (with blob ids) so the UI can show proof.
-import {
-  memwalFor,
-  normalizeRecall,
-  decodeMemory,
-  recallMaxDistance,
-  type Scope,
-} from "./_lib/memwal.js";
+import { decodeMemory, type Scope } from "./_lib/memwal.js";
 import { buildSystemPrompt } from "./_lib/prompt.js";
 import { generateReply, extractFacts, type ChatMsg } from "./_lib/llm.js";
 import { getUserFromRequest, authorizeMemoryAccess, keyCan, permissionError } from "./_lib/auth.js";
@@ -21,20 +15,7 @@ const MAX_TOTAL_CHARS = 40000;
 const CHAT_DAILY_LIMIT = 100;
 import { getSupabaseAdmin } from "./_lib/supabase.js";
 import { sanitizeMemoryText } from "./_lib/security.js";
-
-function scoreQueryMatch(query: string, text: string): number {
-  const q = query.trim().toLowerCase();
-  if (!q) return 1;
-  const words = q.replace(/[^a-z0-9\s_-]/g, " ").split(/\s+/).filter((w) => w.length > 1);
-  if (words.length === 0) return 1;
-  const lower = text.toLowerCase();
-  let score = 0;
-  if (lower.includes(q)) score += 5;
-  for (const w of words) {
-    if (lower.includes(w)) score += 1;
-  }
-  return score;
-}
+import { searchMemories } from "./_lib/search.js";
 
 export default async function handler(req: any, res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -76,69 +57,30 @@ export default async function handler(req: any, res: any) {
   }
   await checkAndIncrementUsage({ entityType, entityId, operation: "recall" }).catch(() => {});
 
-  const ns = scope === "team" ? teamCode : `usr_${user.id}`;
-  const mem = memwalFor(scope as Scope, ns);
   const lastUser =
     [...messages].reverse().find((m: ChatMsg) => m.role === "user")?.content ?? "";
 
-  // 1. RECALL (Walrus + Supabase memories_meta)
-  let recalled: { type: string; text: string; blobId?: string }[] = [];
-  const seenTexts = new Set<string>();
-  try {
-    const r = await mem.recall({ query: lastUser, topK: 6, maxDistance: recallMaxDistance() });
-    for (const m of normalizeRecall(r)) {
-      const dec = decodeMemory(sanitizeMemoryText(m.text));
-      const key = dec.text.toLowerCase();
-      if (!seenTexts.has(key)) {
-        seenTexts.add(key);
-        recalled.push({ type: dec.type, text: dec.text, blobId: m.blobId });
-      }
-    }
-  } catch (e) {
-    console.error("recall failed", e);
-  }
-
+  // 1. RECALL from the database (it knows about deleted and replaced memories).
+  const recalled: { type: string; text: string; blobId?: string }[] = [];
   const supabase = getSupabaseAdmin();
-  if (supabase) {
+  if (supabase && lastUser.trim()) {
     try {
-      let query = supabase
-        .from("memories_meta")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
-
-      if (scope === "team" && teamCode && teamCode !== "default") {
-        query = query.eq("team_id", teamCode);
-      } else {
-        query = query.eq("user_id", user.id).is("team_id", null);
-      }
-
-      const { data: metaRows } = await query;
-      if (metaRows && metaRows.length > 0) {
-        const activeRows = metaRows
-          .filter((r: any) => !(r.room || "").startsWith("superseded_by:"))
-          .map((r: any) => {
-            const dec = decodeMemory(sanitizeMemoryText(r.text));
-            return {
-              type: r.type || dec.type || "decision",
-              text: dec.text,
-              blobId: r.blob_id || undefined,
-              score: scoreQueryMatch(lastUser, `${r.type || ""} ${dec.text}`),
-            };
-          })
-          .filter((r: any) => r.score > 0)
-          .sort((a: any, b: any) => b.score - a.score);
-
-        for (const r of activeRows) {
-          const key = r.text.toLowerCase();
-          if (!seenTexts.has(key) && recalled.length < 6) {
-            seenTexts.add(key);
-            recalled.push({ type: r.type, text: r.text, blobId: r.blobId });
-          }
-        }
+      const found = await searchMemories(supabase, {
+        scope,
+        userId: user.id,
+        teamId: scope === "team" && teamCode !== "default" ? teamCode : null,
+        query: lastUser.slice(0, 500),
+        limit: 6,
+      });
+      const seen = new Set<string>();
+      for (const r of found.rows) {
+        const text = decodeMemory(sanitizeMemoryText(r.text)).text;
+        if (seen.has(text.toLowerCase())) continue;
+        seen.add(text.toLowerCase());
+        recalled.push({ type: r.type || "decision", text, blobId: r.blob_id || undefined });
       }
     } catch (e) {
-      console.error("supabase recall failed", e);
+      console.error("[api/chat] recall failed", e);
     }
   }
 

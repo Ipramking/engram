@@ -2,6 +2,7 @@
 // Detects when a new memory contradicts or supersedes an older architectural decision,
 // configuration, or workflow preference, and marks the older memory as superseded.
 import { getSupabaseAdmin } from './supabase.js'
+import { isSupersededRow } from './search.js'
 
 export interface MemoryRecord {
   id: string
@@ -117,6 +118,7 @@ export async function detectAndResolveConflicts({
   newText,
   newType,
   newBlobId,
+  newMemoryId,
   excludeId,
 }: {
   userId?: string | null
@@ -127,6 +129,8 @@ export async function detectAndResolveConflicts({
   /** Id of the row just inserted for this memory, which must never supersede itself. */
   excludeId?: string | null
   newBlobId?: string
+  /** Id of the new memory; recorded on the memories it replaces. */
+  newMemoryId?: string | null
 }): Promise<{
   supersededList: Array<{
     id: string
@@ -165,18 +169,12 @@ export async function detectAndResolveConflicts({
     }> = []
 
     for (const row of existingRows) {
-      // Skip if already superseded
-      if (row.room && row.room.startsWith('superseded_by:')) continue
+      if (isSupersededRow(row)) continue
       if (row.id === excludeId || row.text === newText) continue
 
       const evalResult = evaluateContradiction(newText, newType, row.text, row.type)
       if (evalResult.isContradiction) {
-        const supersededMarker = `superseded_by:${newBlobId || 'latest'}`
-        await supabase
-          .from('memories_meta')
-          .update({ room: supersededMarker })
-          .eq('id', row.id)
-
+        await markSuperseded(supabase, row.id, newMemoryId || newBlobId || 'latest')
         supersededList.push({
           id: row.id,
           blobId: row.blob_id,
@@ -191,4 +189,29 @@ export async function detectAndResolveConflicts({
     console.error('Error resolving memory conflicts:', err)
     return { supersededList: [] }
   }
+}
+
+// Whether memories_meta has the superseded_by column (added by the 2.5 migration). Until it does,
+// the older "superseded_by:<id>" marker in the room column is used instead.
+let supersededColumn: boolean | null = null
+
+/** Mark one memory as replaced by a newer one, using the column when it exists. */
+export async function markSuperseded(supabase: any, rowId: string, replacedBy: string) {
+  if (supersededColumn !== false) {
+    const { error } = await supabase
+      .from('memories_meta')
+      .update({ superseded_by: replacedBy, superseded_at: new Date().toISOString() })
+      .eq('id', rowId)
+    if (!error) {
+      supersededColumn = true
+      return
+    }
+    // 42703: undefined column (Postgres); PGRST204: column not in PostgREST's schema cache.
+    if (!['42703', 'PGRST204'].includes(error.code)) {
+      console.error('[conflicts] could not mark memory as replaced:', error.message)
+      return
+    }
+    supersededColumn = false
+  }
+  await supabase.from('memories_meta').update({ room: `superseded_by:${replacedBy}` }).eq('id', rowId)
 }

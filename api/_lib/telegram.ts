@@ -5,7 +5,7 @@ import { randomInt } from 'node:crypto'
 import { getSupabaseAdmin } from './supabase.js'
 import { getProfile } from './db.js'
 import { executeMemoryCreationLifecycle } from './lifecycle.js'
-import { fetchScopeRows, formatMemoryLine, isSupersededRoom, searchMemories } from './search.js'
+import { fetchScopeRows, formatMemoryLine, isSupersededRow, searchMemories } from './search.js'
 import { expandQueryTerms } from './llm.js'
 
 const TYPES = ['decision', 'config', 'gotcha', 'person', 'preference', 'plan'] as const
@@ -83,7 +83,7 @@ export async function handleTelegramUpdate(req: any, host: string): Promise<{ st
   } else if (cmd === '/recall' || cmd === '/r' || cmd === '/recent') {
     const found =
       cmd === '/recent'
-        ? (await fetchScopeRows(supabase, { scope: 'personal', userId: link.user_id, limit: 20 })).filter((r) => !isSupersededRoom(r.room)).slice(0, 5)
+        ? (await fetchScopeRows(supabase, { scope: 'personal', userId: link.user_id, limit: 20 })).filter((r) => !isSupersededRow(r)).slice(0, 5)
         : arg
           ? (await searchMemories(supabase, { scope: 'personal', userId: link.user_id, query: arg, limit: 5, expand: expandQueryTerms })).rows
           : []
