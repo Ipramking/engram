@@ -1,157 +1,132 @@
-# 🧠 Engram 2.1 — Production Reliability, Continuity, and Security Hardening
+# Engram
 
-**The Universal, Portable Memory Layer for AI Agents — powered by [Walrus](https://walrus.xyz).**
+One memory for the AI tools you use. Your AI saves the facts worth keeping, like decisions, configs, gotchas,
+people, preferences and plans, and any connected app can recall them later: Claude, ChatGPT, Claude Code, Cursor,
+VS Code, Windsurf, Gemini CLI, Codex, or your phone.
 
-Engram enables authorized AI agents (Claude, Cursor, Copilot, Antigravity, Gemini, CrewAI, AutoGen, LangChain) to remember, retrieve, understand, and seamlessly continue useful work across different models, platforms, devices, and sessions.
+- **App:** https://engram-pearl.vercel.app (docs at [/docs](https://engram-pearl.vercel.app/docs))
+- **npm:** [`engram-walrus`](https://www.npmjs.com/package/engram-walrus)
+- **Status:** free personal and team plans; see [docs/OPERATIONS.md](docs/OPERATIONS.md) for how it runs
 
-The user never has to repeatedly explain who they are, their technology stack, previous decisions, architectural choices, or what happened in previous sessions.
+## What it does
 
----
+- **Typed memories.** Six types (`decision`, `config`, `gotcha`, `person`, `preference`, `plan`). Text that looks
+  like an API key or private key is refused before it's saved.
+- **Personal and team memory.** Personal memory is private; a team shares one memory that's separate from each
+  member's personal one.
+- **Recall that copes with real questions.** Postgres full-text search with word forms and prefixes, fuzzy matching
+  for typos, and related-term expansion when few memories match. When a new decision contradicts an older one,
+  the older one is marked as replaced.
+- **Keys you control.** Every app gets its own key, which can be read-only or save-only and revoked on its own.
+  Keys are stored as fingerprints only.
+- **Copies on Walrus.** Engram also writes memories to [Walrus](https://walrus.xyz) through Walrus Memory. The
+  database is the source of truth for search; memories that reached Walrus carry a blob id you can check on
+  Walruscan.
 
-## ⚡ Engram 2.1 Production Hardening Pillars
+## Connect
 
-### 1. Security & Trust Hardening (Zero-Trust Architecture)
-* **Fail-Closed Secrets:** Automatically fails closed in production if `ENGRAM_SIGNING_SECRET` is missing or insecure (<16 chars).
-* **Zero-Downtime Secret Rotation:** Supports seamless cryptographic key rotation via `ENGRAM_PREVIOUS_SIGNING_SECRET`.
-* **Real-Time Token Revocation:** Instant revocation of `eng_live_` API keys across both REST and MCP protocols.
-* **Anti-IDOR Authorization:** Centralized server-side team membership validation (`authorizeMemoryAccess`) prevents unauthorized cross-tenant data access.
-* **Credential Redaction:** Automatic redaction of raw tokens, private keys, and query parameters from URLs and application logs.
+### Claude and ChatGPT: Sign in with Engram
 
-### 2. Storage Reliability & Data Integrity
-* **Explicit Persistence States:** Truthful states (`confirmed_durable`, `pending`, `local_mock`, `failed`, `recovery_required`). Engram never falsely claims on-chain anchoring when unanchored.
-* **Idempotent Write-Ahead Pipeline:** Cryptographic idempotency keys prevent duplicate writes, conserving on-chain storage units.
-* **Resilient Retry Queue:** Automatic exponential backoff with jitter and background recovery processing for transient storage outages.
-* **Cryptographic Content Hashing:** Deterministic SHA-256 verification and runtime tamper detection.
-* **Truthful Retention Contracts:** Accurate representation of decentralized blob storage lifecycle and Sui epoch expiration.
+Add `https://engram-pearl.vercel.app/mcp` as a custom connector (Claude: Settings → Connectors; ChatGPT: Settings →
+Apps & Connectors → Developer mode), click Connect and approve on the Engram page. There's no key to copy.
+Each approval shows up on the Keys page as "<app> (connector)"; revoke it to disconnect.
 
-### 3. Intelligent Memory Engine
-* **5 Structured Memory Categories:** `episodic` (events/experiences), `semantic` (facts/knowledge), `procedural` (rules/workflows), `project` (decisions/architecture/progress), `relational` (people/teams/entities).
-* **8-Stage Lifecycle Pipeline:** `CAPTURE` → `CLASSIFY` → `CONSOLIDATE` → `VALIDATE` → `UPDATE` → `RETRIEVE` → `DECAY` → `FORGET`.
-* **Hybrid Retrieval Scoring:** Blends semantic query matching (45%), entity graph link analysis (30%), recency half-life (15%), and importance weighting (10%).
-* **Smart Conflict Resolution:** Automatically identifies when newer statements update older preferences (e.g. migrating backend stack from Python to TypeScript) and supersedes outdated memories while preserving audit history.
+### Desktop apps and terminal
 
-### 4. Continuous Context & Cross-Agent Handoffs
-* **Zero-Cold-Start Agent Handoffs:** Departing agents record structured task states, handoff notes, next actions, and unresolved questions. Any subsequent agent picks up work immediately.
-* **Verifiable Snapshots:** Export and restore project context using tamper-proof SHA-256 snapshot checksums.
-* **Quick-Resume Brief:** Generates concise, agent-ready Markdown injected directly into any fresh agent session.
+```bash
+npx engram-walrus login    # approve this computer in the browser; a per-device key is saved
+npx engram-walrus init     # adds Engram to Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Gemini CLI, Codex
+npx engram-walrus doctor   # checks the key, server, scope and today's usage
+```
 
-### 5. Multi-Language SDK & Agent Integrations
-* **Python SDK (`engram-walrus`, install from this repo):** standard-library Python client (`from engram import remember, recall, handoff`) with provenance tracking.
-* **Model Context Protocol (MCP):** Serverless HTTP endpoint (`/api/mcp`) and stdio CLI package (`engram-walrus`) exposing `engram_remember`, `engram_recall`, `engram_tidy`, `engram_handoff`, and `engram_snapshot`.
-* **Cross-Platform:** Works with Claude Desktop, Cursor IDE, Google Antigravity, Gemini CLI, Windsurf, ChatGPT, and iOS/Android workflows.
+`init` asks before changing each app, backs up every config it touches and replaces older entries that used pasted
+keys. For Claude Code it can also add memory rules and a session-start brief. To configure an app by hand after
+`login`, use an entry with no secret in it:
 
----
+```json
+{ "mcpServers": { "engram": { "command": "npx", "args": ["-y", "engram-walrus"] } } }
+```
 
-## 🚀 Quick Start
+On servers and in CI, pass a key instead: `ENGRAM_API_KEY=eng_usr_… npx -y engram-walrus`.
 
-### 1. Python SDK
+### Phone
+
+- **Android:** open the app in Chrome → Install app. Engram appears in every app's share menu; shares made offline
+  are sent when you're back online.
+- **iPhone:** a Shortcut that POSTs to `/api/remember` with a save-only key (guide in the dashboard).
+
+### REST
+
+```bash
+curl -X POST https://engram-pearl.vercel.app/api/remember \
+  -H "Authorization: Bearer $ENGRAM_API_KEY" -H "Content-Type: application/json" \
+  -d '{"text":"Staging uses Neon, production uses Supabase","type":"config"}'
+
+curl "https://engram-pearl.vercel.app/api/recall?query=database&topK=5" \
+  -H "Authorization: Bearer $ENGRAM_API_KEY"
+```
+
+### Python (preview)
 
 ```bash
 pip install "git+https://github.com/Ipramking/engram#subdirectory=packages/engram-py"
 ```
 
 ```python
-from engram import remember, recall, handoff
+from engram import remember, recall   # reads ENGRAM_API_KEY
 
-# Remember a durable architectural choice
-remember("We use Supabase PostgreSQL for metadata and Walrus for decentralized blob storage", type="decision")
-
-# Recall before answering questions that depend on past context
-memories = recall("What database do we use?")
-for m in memories:
-    print(f"[{m.type}] {m.text}")
-
-# Zero-cold-start agent handoff
-handoff(
-    project_id="proj_alpha",
-    from_agent="Claude Code",
-    to_agent="Cursor IDE",
-    task_state="Milestone 3 complete",
-    notes="Finished continuity engine and verified 13/13 tests.",
-    next_actions=["Deploy to Vercel"]
-)
+remember("Staging uses Neon, production uses Supabase", type="config")
+for m in recall("which database does staging use?"):
+    print(m.type, m.text)
 ```
 
-### 2. Model Context Protocol (MCP) Setup
+A PyPI release under the name `engram-walrus` is planned.
 
-**Desktop and terminal apps (Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Gemini CLI, Codex):** sign in once, then add a config with no key in it.
+## MCP tools
 
-```bash
-npx engram-walrus login     # approve the code in your browser; a key is saved for this device
-npx engram-walrus doctor    # optional: confirms key, server and usage
-```
+| Tool | Does |
+| --- | --- |
+| `engram_remember` | Save one durable fact |
+| `engram_recall` | Find the memories that match a question |
+| `engram_recent` | Newest memories first, optionally by type or including replaced ones |
+| `engram_get` | One memory by id |
+| `engram_whoami` | Account, key, scope, expiry and today's usage |
+| `engram_tidy` | Report likely duplicates and replaced memories |
+| `engram_handoff` | Record or read a handoff between agents |
+| `engram_snapshot` | Save or restore a project's context |
 
-```json
-{ "mcpServers": { "engram": { "command": "npx", "args": ["-y", "engram-walrus"] } } }
-```
+The hosted server speaks MCP over HTTP at `/mcp` with OAuth 2.1 discovery, dynamic client registration and PKCE.
+The npm package runs the same tools over stdio and forwards each call to the hosted server.
 
-**Web and phone apps (Claude connectors, ChatGPT developer mode):** paste your connection link from the dashboard's Connect page, `https://engram-pearl.vercel.app/mcp?token=YOUR_KEY`. Apps that accept a remote URL (Cursor `url`, VS Code `type: http`, Windsurf `serverUrl`, Gemini CLI `httpUrl`) can use the same link.
-
-### 3. Local Development & Web Dashboard
+## Develop
 
 ```bash
 pnpm install
-
-# Run Vite web dashboard + local API server
-pnpm dev
-
-# Build for production
-pnpm run build
+pnpm dev            # Vite + local API server
+pnpm typecheck      # frontend and serverless functions
+pnpm build
+pnpm test           # hermetic tests: no network, no database
 ```
 
----
-
-## 🧪 Comprehensive Automated Test Suites
-
-Engram 2.1 maintains 100% passing test coverage across 78 automated tests and benchmarks:
-
-```bash
-pnpm run test:all
-```
-
-| Suite | Focus Area | Passing Tests |
-| :--- | :--- | :---: |
-| `packages/engram-mcp/test.mjs` | MCP Package Protocol & Utilities | **5 / 5** |
-| `scripts/phase5-test.mjs` | CLI & NPM Subprocess Integration | **PASS** |
-| `scripts/phase6-test.mjs` | Conflict Engine & Walrus Epoch Staking | **PASS** |
-| `scripts/security-regression-test.mjs` | Fail-Closed Secrets, Anti-IDOR, Token Revocation | **14 / 14** |
-| `scripts/storage-reliability-test.mjs` | Idempotency, Retries, SHA-256 Hashing, Retention | **10 / 10** |
-| `scripts/intelligence-engine-test.mjs` | 5 Categories, Lifecycle, Hybrid Scoring, Conflict | **10 / 10** |
-| `scripts/continuity-engine-test.mjs` | Context Tracking, Handoffs, Snapshots, REST/MCP | **13 / 13** |
-| `scripts/retrieval-quality-eval.mjs` | Scientific Retrieval Benchmark (Recall@k, MRR, nDCG) | **PASS (MRR 1.000)** |
-| `scripts/engram-2.1-regression-test.mjs` | Workstreams A–F: Continuity, Leases, Parity, Security | **20 / 20** |
-| `packages/engram-py/tests/test_sdk.py` | Python SDK Models, Fallback, Provenance | **5 / 5** |
-| **Total Test Suite** | **All Core Verification Suites & Evaluation Benchmarks** | **78 / 78 PASS** |
-
----
-
-## 📂 Repository Architecture
+`pnpm test:integration` talks to a real Supabase project; run it only against staging. Environment variables,
+database migrations, monitoring and backups are described in [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ```
-engram/
-├── api/                       # Serverless REST & MCP endpoints (Vercel / Express)
-│   ├── _lib/                  # Core engineering engines
-│   │   ├── auth.ts            # Centralized authentication & IDOR authorization
-│   │   ├── continuity.ts      # Cross-agent handoff & context snapshot engine
-│   │   ├── intelligence.ts    # 5-category memory lifecycle & hybrid retrieval
-│   │   ├── storage.ts         # Idempotent write-ahead retry queue & sha256 hashing
-│   │   ├── token.ts           # Dynamic HMAC rotation & token lifecycle
-│   │   └── security.ts        # Secret scanners & credential URL redaction
-│   ├── continuity.ts          # REST endpoints for cross-agent continuity
-│   ├── remember.ts            # Intelligent memory persistence endpoint
-│   ├── recall.ts              # Hybrid semantic retrieval endpoint
-│   ├── storage.ts             # Storage queue status & recovery endpoint
-│   └── mcp.ts                 # Streamable HTTP MCP server (5 registered tools)
-├── packages/
-│   ├── engram-mcp/            # engram-walrus NPM package (CLI + MCP proxy)
-│   └── engram-py/             # engram-walrus Python SDK
-├── scripts/                   # Automated regression test harnesses
-├── src/                       # React 19 + Tailwind v4 Web Application
-└── server/                    # Local Express development server
+api/               Vercel serverless functions (REST, /mcp, OAuth, keys, teams)
+api/_lib/          auth, search, storage, OAuth, device login, Telegram, security checks
+src/               React 19 + Tailwind v4 web app and dashboard
+packages/engram-mcp  npm package `engram-walrus` (CLI + MCP server)
+packages/engram-py   Python SDK
+supabase/          schema and migrations
+tests/             hermetic contract tests
+scripts/           older engine test suites and benchmarks
 ```
 
----
+## Security
 
-## 📜 License
+Please report vulnerabilities privately through
+[GitHub security advisories](https://github.com/Ipramking/engram/security/advisories/new). See [SECURITY.md](SECURITY.md).
 
-MIT License. Built for the decentralized future of autonomous AI agents.
+## License
+
+MIT

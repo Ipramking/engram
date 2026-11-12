@@ -67,36 +67,93 @@ const MEM_TYPES = [
   },
 ]
 
+const SITE_URL = 'https://engram-pearl.vercel.app'
+const MCP_URL = `${SITE_URL}/mcp`
+const REPO = 'https://github.com/Ipramking/engram'
+
 const PLATFORMS = [
   {
     icon: Smartphone,
-    title: 'Mobile Workflows',
-    subtitle: 'Claude, ChatGPT & Google Gemini',
-    description: 'Save insights on the go during mobile brainstorming. Everything is instantly synced to your cloud memory for laptop and CLI recall.',
-    tag: 'Mobile Ready',
+    title: 'On your phone',
+    subtitle: 'Claude app, Android share, iPhone Shortcuts',
+    description:
+      'Add Engram once as a connector on claude.ai and sign in; the Claude phone app uses the same connection. On Android, share any text straight into Engram; on iPhone, a Shortcut does it.',
+    tag: 'Sign in with Engram',
   },
   {
     icon: Laptop,
-    title: 'IDEs & Desktop AIs',
-    subtitle: 'Cursor, Claude Desktop, VS Code',
-    description: 'Connect natively using Streamable HTTP MCP. Your code-assistant automatically recalls your stack rules without re-prompting.',
-    tag: 'Native MCP',
+    title: 'Desktop apps & editors',
+    subtitle: 'Claude Desktop, Cursor, VS Code, Windsurf',
+    description:
+      'Run one command. It finds the apps you have installed, asks before changing each one, and backs up every config it touches.',
+    tag: 'engram-walrus init',
   },
   {
     icon: Terminal,
-    title: 'CLI & Developer Agents',
-    subtitle: 'npx engram-walrus, Antigravity, Windsurf',
-    description: 'Run the verified npm package in your terminal or CI pipelines. Works in headless agents and automated coding workflows.',
-    tag: 'Verified NPM',
+    title: 'Terminal agents',
+    subtitle: 'Claude Code, Gemini CLI, Codex',
+    description:
+      'The same setup gives Claude Code memory rules and a short brief at the start of every session, so it opens already knowing your stack.',
+    tag: 'Session brief',
   },
   {
     icon: Users,
-    title: 'Shared Team Brains',
-    subtitle: 'Collaborative engineering workspaces',
-    description: 'Team members read and write a shared memory pool. Onboard new developers in minutes without repeating architectural context.',
-    tag: 'Team Isolation',
+    title: 'Teams',
+    subtitle: 'One shared memory, separate from personal',
+    description:
+      'Teammates read and write one pool of decisions, configs and conventions. Give each app only what it needs: a key can be read-only or save-only.',
+    tag: 'Scoped keys',
   },
 ]
+
+const CONNECT_TABS = [
+  {
+    id: 'chat',
+    label: 'Claude & ChatGPT',
+    note: 'No key to paste. Add the link as a custom connector, click Connect, sign in to Engram and approve.',
+    display: `# Claude:  Settings → Connectors → Add custom connector
+# ChatGPT: Settings → Apps & Connectors → Developer mode → Create
+${MCP_URL}`,
+    copy: MCP_URL,
+  },
+  {
+    id: 'terminal',
+    label: 'Desktop & terminal',
+    note: 'Approve this computer once, then add Engram to Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Gemini CLI and Codex.',
+    display: `npx engram-walrus login    # approve this computer in your browser
+npx engram-walrus init     # add Engram to the apps it finds
+npx engram-walrus doctor   # check the key, server and scope`,
+    copy: 'npx engram-walrus login\nnpx engram-walrus init',
+  },
+  {
+    id: 'mcp',
+    label: 'Any MCP app',
+    note: 'After login, any app that can run a local MCP command uses this config. It contains no secret.',
+    display: `{
+  "mcpServers": {
+    "engram": { "command": "npx", "args": ["-y", "engram-walrus"] }
+  }
+}`,
+    copy: `{
+  "mcpServers": {
+    "engram": { "command": "npx", "args": ["-y", "engram-walrus"] }
+  }
+}`,
+  },
+  {
+    id: 'http',
+    label: 'Scripts & shortcuts',
+    note: 'Use a save-only key here: it can add memories but never read them.',
+    display: `curl -X POST ${SITE_URL}/api/remember \\
+  -H "Authorization: Bearer $ENGRAM_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"text":"Staging uses Neon, production uses Supabase","type":"config"}'`,
+    copy: `curl -X POST ${SITE_URL}/api/remember \\
+  -H "Authorization: Bearer $ENGRAM_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"text":"Staging uses Neon, production uses Supabase","type":"config"}'`,
+  },
+] as const
 
 export default function App() {
   useReveal()
@@ -126,7 +183,7 @@ function Hero() {
         <div data-reveal className="min-w-0">
           <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/50 px-3 py-1 text-xs text-mut">
             <Sparkles size={13} className="text-rose" />
-            <span>Decentralized Cross-Platform Memory · Backed by Walrus</span>
+            <span>One memory for Claude, ChatGPT, your editor and terminal</span>
           </div>
 
           <h1 className="mt-6 text-[2.6rem] leading-[1.04] sm:text-[4.2rem] sm:leading-[1.02]">
@@ -135,9 +192,8 @@ function Hero() {
           </h1>
 
           <p className="mt-6 max-w-xl text-[16px] leading-relaxed text-mut sm:text-[18px]">
-            Engram gives your AI agents a persistent, portable memory across mobile, desktop, and CLI.
-            Save a decision on your phone in Claude or Gemini, recall it in Cursor on your laptop, and share context
-            seamlessly across your engineering team.
+            Engram gives your AI tools one memory that follows you. Save a decision from Claude on your phone,
+            recall it in Cursor on your laptop, and share the context your team keeps re-explaining.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:mt-9 sm:flex-row sm:flex-wrap sm:items-center">
@@ -161,15 +217,15 @@ function Hero() {
             </button>
           </div>
 
-          <div className="mt-8 flex items-center gap-6 text-xs font-mono text-faint">
+          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-mono text-faint">
             <span className="flex items-center gap-1.5">
-              <Check size={14} className="text-rose" /> Free Personal Plan
+              <Check size={14} className="text-rose" /> Free for personal use
             </span>
             <span className="flex items-center gap-1.5">
-              <Check size={14} className="text-rose" /> 3-Member Free Team
+              <Check size={14} className="text-rose" /> Free teams of 3
             </span>
             <span className="flex items-center gap-1.5">
-              <Check size={14} className="text-rose" /> Seal Encrypted
+              <Check size={14} className="text-rose" /> Export any time
             </span>
           </div>
         </div>
@@ -225,7 +281,7 @@ function HeroCard() {
         <Users size={13} className="text-violet-soft" /> Team Shared
       </div>
       <div
-        className="absolute -left-2 bottom-6 inline-flex -rotate-6 items-center gap-1.5 rounded-2xl border border-line glass px-3.5 py-2 text-xs text-mut animate-float shadow-lg sm:-left-5"
+        className="absolute -left-2 -bottom-5 inline-flex -rotate-6 items-center gap-1.5 rounded-2xl border border-line glass px-3.5 py-2 text-xs text-mut animate-float shadow-lg sm:-left-5"
         style={{ animationDelay: '0.8s' }}
       >
         <Lock size={13} className="text-rose" /> Personal Memory
@@ -236,8 +292,8 @@ function HeroCard() {
 
 function Marquee() {
   const tools = [
-    'Cursor', 'Claude Desktop', 'ChatGPT Mobile', 'Google Gemini', 'VS Code', 'Antigravity CLI',
-    'Claude iOS', 'Windsurf', 'Walrus Storage', 'Sui Network', 'GitHub Actions'
+    'Claude', 'ChatGPT', 'Claude Code', 'Cursor', 'VS Code', 'Windsurf',
+    'Claude Desktop', 'Gemini CLI', 'Codex', 'Antigravity', 'Android share', 'iPhone Shortcuts'
   ]
   const row = [...tools, ...tools]
   return (
@@ -273,8 +329,8 @@ function Problem() {
             Ten minutes later, in Cursor or on your phone, you have to explain it all over again.
           </p>
           <p>
-            Engram separates memory from the ephemeral chat session. Stored securely on Walrus, memories
-            persist forever, belong to you, and travel across every AI client you connect.
+            Engram keeps memory outside the chat. Your memories stay in your account until you delete them,
+            you can export them whenever you like, and every AI app you connect reads the same set.
           </p>
         </div>
       </div>
@@ -289,8 +345,8 @@ function Taxonomy() {
         <p className="mb-3 font-mono text-xs tracking-widest text-rose uppercase">Signal, not noise</p>
         <h2 className="text-3xl sm:text-5xl font-display">What Engram remembers.</h2>
         <p className="mt-4 text-base sm:text-lg text-mut">
-          Never spam or throwaway chatter. Engram captures structured, durable facts worth reusing weeks later
-          and recalls them semantically — matching by concept rather than just keywords.
+          No throwaway chatter. Engram keeps typed, durable facts worth reusing weeks later, and finds them again
+          when you word the question differently: word forms, typos and related terms all match.
         </p>
       </div>
 
@@ -322,18 +378,18 @@ function HowItWorks() {
   const steps = [
     {
       num: '01',
-      title: 'Durable Capture',
-      desc: 'As you work, your connected AI recognizes important facts (or captures explicit plans on request) and calls engram_remember.',
+      title: 'Capture',
+      desc: 'As you work, your AI spots durable facts (or saves what you ask it to) and calls engram_remember. Text that looks like an API key or private key is refused.',
     },
     {
       num: '02',
-      title: 'Seal-Encrypted on Walrus',
-      desc: 'Each memory is encrypted with Seal and committed to Walrus as a verifiable, decentralized blob anchored on Sui.',
+      title: 'Keep',
+      desc: 'Each memory goes into your personal or team space, ready to search straight away. When a new decision contradicts an old one, the old one is marked as replaced.',
     },
     {
       num: '03',
-      title: 'Zero-Effort Recall',
-      desc: 'Open any AI client, phone, or IDE weeks later. The agent automatically retrieves relevant context before answering.',
+      title: 'Recall',
+      desc: 'Weeks later, in any connected app, your AI calls engram_recall before answering. Claude Code can load a short brief at the start of every session.',
     },
   ]
 
@@ -365,9 +421,9 @@ function HowItWorks() {
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-line bg-bg/60 text-rose">
           <Link2 size={19} />
         </span>
-        <div>
-          <p className="text-sm font-medium text-txt">Every memory is an immutable, verifiable Walrus blob.</p>
-          <p className="text-xs text-faint">Cryptographically verified on Sui mainnet.</p>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-txt">Engram also keeps copies on Walrus, decentralized storage on Sui.</p>
+          <p className="text-xs text-faint">Memories that reached Walrus show a blob id anyone can check. Here is one of ours.</p>
         </div>
         <a
           href={`https://walruscan.com/mainnet/blob/${PROOF_BLOB}`}
@@ -420,84 +476,65 @@ function Platforms() {
 }
 
 function QuickConnectPreview() {
-  const [tab, setTab] = useState<'cursor' | 'claude' | 'gemini' | 'antigravity' | 'cli'>('cursor')
+  const [tabId, setTabId] = useState<(typeof CONNECT_TABS)[number]['id']>('chat')
   const [copied, setCopied] = useState(false)
-
-  const configs = {
-    cursor: `{
-  "mcpServers": {
-    "engram": {
-      "url": "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"
-    }
-  }
-}`,
-    claude: `{
-  "mcpServers": {
-    "engram": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"]
-    }
-  }
-}`,
-    gemini: `// ~/.gemini/settings.json (Gemini CLI)
-{
-  "mcpServers": {
-    "engram": { "httpUrl": "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space" }
-  }
-}
-
-# Or create a custom Gem at gemini.google.com/gems for 1-tap memory sync!`,
-    antigravity: `// Antigravity: Agent panel → MCP Servers → View raw config
-{
-  "mcpServers": {
-    "engram": { "command": "npx", "args": ["-y", "mcp-remote", "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"] }
-  }
-}`,
-    cli: `# Direct terminal execution (or CI/CD pipelines)
-ENGRAM_API_KEY=YOUR_API_KEY npx -y engram-walrus@0.2`,
-  }
+  const tab = CONNECT_TABS.find((t) => t.id === tabId) ?? CONNECT_TABS[0]
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(configs[tab])
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    navigator.clipboard?.writeText(tab.copy).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      },
+      () => {},
+    )
   }
 
   return (
     <section id="connect" className="mx-auto max-w-6xl px-5 py-16">
-      <div data-reveal className="rounded-3xl border border-line glass p-7 sm:p-10 shadow-2xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div data-reveal className="rounded-3xl border border-line glass p-6 sm:p-10 shadow-2xl">
+        <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <div>
-            <p className="font-mono text-xs uppercase tracking-wider text-rose">Zero-Friction Setup</p>
-            <h2 className="text-2xl sm:text-3xl font-display text-txt mt-1">Connect in 30 seconds.</h2>
+            <p className="font-mono text-xs uppercase tracking-wider text-rose">Setup</p>
+            <h2 className="mt-1 text-2xl font-display text-txt sm:text-3xl">Connect in about a minute.</h2>
           </div>
-          <div className="flex flex-wrap gap-1.5 bg-surface/70 rounded-2xl p-1.5 border border-line/80">
-            {(['cursor', 'claude', 'gemini', 'antigravity', 'cli'] as const).map((t) => (
+          <div role="tablist" aria-label="Where you use AI" className="flex flex-wrap gap-1.5 rounded-2xl border border-line/80 bg-surface/70 p-1.5">
+            {CONNECT_TABS.map((t) => (
               <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-3 py-1.5 text-xs font-mono rounded-xl transition uppercase ${
-                  tab === t
-                    ? 'bg-rose/15 text-rose font-medium border border-rose/30'
-                    : 'text-mut hover:text-txt'
+                key={t.id}
+                role="tab"
+                aria-selected={tabId === t.id}
+                onClick={() => {
+                  setTabId(t.id)
+                  setCopied(false)
+                }}
+                className={`rounded-xl px-3 py-1.5 text-xs transition ${
+                  tabId === t.id ? 'border border-rose/30 bg-rose/15 font-medium text-rose' : 'text-mut hover:text-txt'
                 }`}
               >
-                {t}
+                {t.label}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="relative rounded-2xl border border-line/90 bg-bg p-4 font-mono text-xs text-txt overflow-x-auto">
+        <p className="mb-4 max-w-2xl text-sm leading-relaxed text-mut">{tab.note}</p>
+
+        <div className="relative rounded-2xl border border-line/90 bg-bg p-4 pr-24 font-mono text-xs text-txt">
           <button
             onClick={handleCopy}
-            className="absolute top-3 right-3 flex items-center gap-1.5 rounded-xl border border-line bg-surface/80 px-3 py-1.5 text-xs text-mut hover:text-txt transition"
+            className="absolute right-3 top-3 flex items-center gap-1.5 rounded-xl border border-line bg-surface/80 px-3 py-1.5 text-xs text-mut transition hover:text-txt"
           >
             {copied ? <Check size={13} className="text-rose" /> : <Copy size={13} />}
-            <span>{copied ? 'Copied' : 'Copy'}</span>
+            <span>{copied ? 'Copied' : tab.id === 'chat' ? 'Copy link' : 'Copy'}</span>
           </button>
-          <pre className="text-mut leading-relaxed">{configs[tab]}</pre>
+          <pre className="whitespace-pre-wrap break-all leading-relaxed text-mut sm:whitespace-pre sm:break-normal sm:overflow-x-auto">{tab.display}</pre>
         </div>
+
+        <p className="mt-5 text-xs text-faint">
+          Step-by-step guides for 15 apps, with a check that the connection works, are in your{' '}
+          <Link to="/dashboard?tab=connect" className="text-rose hover:underline">dashboard</Link>.
+        </p>
       </div>
     </section>
   )
@@ -514,12 +551,12 @@ function TeamIsolation() {
             Team memory is shared.
           </h2>
           <p className="mt-5 text-base sm:text-lg leading-relaxed text-mut">
-            Every memory is strictly partitioned by cryptographic namespaces. Your personal API keys access
-            only your private notes, preferences, and personal facts.
+            Every memory belongs to one person or one team, and the server checks that on every request.
+            Personal keys reach only your own memory; team keys reach only that team's.
           </p>
           <p className="mt-3 text-base sm:text-lg leading-relaxed text-mut">
-            Switching to team scope allows all authorized teammates to read architectural decisions,
-            stack configurations, and team roles without copying tokens manually.
+            Each app gets its own key, which you can make read-only or save-only and revoke on its own.
+            Apps connected with Sign in with Engram show up on your Keys page too.
           </p>
           <div className="mt-7 flex gap-4">
             <Link
@@ -538,8 +575,7 @@ function TeamIsolation() {
               <h4 className="font-display text-lg text-txt">Personal Memory Scope</h4>
             </div>
             <p className="text-xs sm:text-sm text-mut leading-relaxed">
-              Bound to <code className="text-rose font-mono">usr_&lt;id&gt;</code>. Private credentials, personal preferences,
-              individual workflow notes. Never visible to teammates.
+              Only you. Your preferences, personal projects and working notes. Never visible to teammates.
             </p>
           </div>
 
@@ -549,8 +585,8 @@ function TeamIsolation() {
               <h4 className="font-display text-lg text-txt">Team Memory Scope</h4>
             </div>
             <p className="text-xs sm:text-sm text-mut leading-relaxed">
-              Bound to <code className="text-violet-soft font-mono">team_&lt;id&gt;</code>. Shared tech stack decisions,
-              conventions, API rules, and team member roles. Accessible to authorized teammates (up to 3 free).
+              Everyone you invite (3 seats free). Shared stack decisions, conventions, API rules and who owns what.
+              Invite people by email from the dashboard.
             </p>
           </div>
         </div>
@@ -559,130 +595,114 @@ function TeamIsolation() {
   )
 }
 
+const PLAN_CARDS = [
+  {
+    eyebrow: 'Individual',
+    name: 'Personal',
+    price: 'Free',
+    sub: 'Your own memory, in every app',
+    points: [
+      ['50 saves a day', ', unlimited recall'],
+      ['Phone, desktop, editor and terminal', ''],
+      ['Read-only and save-only keys', ''],
+      ['Export as Markdown or JSON', ''],
+    ],
+    cta: { label: 'Start free', to: '/register' },
+    featured: false,
+  },
+  {
+    eyebrow: 'Small teams',
+    name: 'Team',
+    price: 'Free',
+    sub: 'One shared memory for up to 3 people',
+    points: [
+      ['Up to 3 people', ''],
+      ['150 shared saves a day', ''],
+      ['Separate from personal memory', ''],
+      ['Owner and member roles', ''],
+    ],
+    cta: { label: 'Create a free team', to: '/register' },
+    featured: true,
+  },
+  {
+    eyebrow: 'Later',
+    name: 'Pro',
+    price: 'Not yet',
+    sub: 'For bigger teams, when they need it',
+    points: [
+      ['Bigger teams', ''],
+      ['Higher daily limits', ''],
+      ['Audit log', ''],
+      ['Longer Walrus storage', ''],
+    ],
+    cta: { label: 'Tell us what you need', href: `${REPO}/issues/new?title=Plan%20request` },
+    featured: false,
+  },
+] as const
+
 function Pricing() {
   return (
     <section id="pricing" className="mx-auto max-w-6xl px-5 py-20 sm:py-28">
-      <div data-reveal className="mb-14 text-center max-w-2xl mx-auto">
-        <p className="mb-3 font-mono text-xs tracking-widest text-rose uppercase">Simple Plans</p>
-        <h2 className="text-3xl sm:text-5xl font-display">Transparent usage limits.</h2>
-        <p className="mt-4 text-base sm:text-lg text-mut">
-          Generous free limits for individual builders and small teams. Scale to Pro when you need unlimited capacity.
+      <div data-reveal className="mx-auto mb-14 max-w-2xl text-center">
+        <p className="mb-3 font-mono text-xs uppercase tracking-widest text-rose">Plans</p>
+        <h2 className="text-3xl font-display sm:text-5xl">Free while we grow.</h2>
+        <p className="mt-4 text-base text-mut sm:text-lg">
+          Personal and team memory are both free. Daily limits reset at midnight UTC, and recall doesn't count against them.
         </p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        {/* Personal Free */}
-        <div data-reveal className="rounded-3xl border border-line bg-surface/30 p-7 flex flex-col justify-between">
-          <div>
-            <span className="font-mono text-xs text-rose uppercase tracking-wider">Individual</span>
-            <h3 className="mt-2 text-2xl font-display text-txt">Personal Free</h3>
-            <p className="mt-4 text-4xl font-display text-txt">$0</p>
-            <p className="text-xs text-faint font-mono mt-1 mb-6">Free forever for everyday use</p>
-            <ul className="space-y-3 text-xs sm:text-sm text-mut">
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span><strong>50 memory saves</strong> per day</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span>1 user account & personal API keys</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span>Cross-device sync (Mobile, Desktop, CLI)</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span>Seal-encrypted Walrus storage</span>
-              </li>
-            </ul>
-          </div>
-          <Link
-            to="/register"
-            className="mt-8 block w-full rounded-full border border-line py-3 text-center text-xs font-medium text-txt hover:border-rose/50 transition"
+        {PLAN_CARDS.map((p, i) => (
+          <div
+            key={p.name}
+            data-reveal
+            style={{ transitionDelay: `${i * 80}ms` }}
+            className={`relative flex flex-col justify-between rounded-3xl border p-7 ${
+              p.featured ? 'border-rose/50 bg-surface/60 shadow-xl shadow-rose/5' : 'border-line bg-surface/30'
+            }`}
           >
-            Start free
-          </Link>
-        </div>
-
-        {/* Free Team Plan */}
-        <div data-reveal style={{ transitionDelay: '80ms' }} className="rounded-3xl border border-rose/50 bg-surface/60 p-7 flex flex-col justify-between relative shadow-xl shadow-rose/5">
-          <span className="absolute -top-3 right-6 rounded-full bg-gradient-to-r from-rose to-violet px-3 py-0.5 text-[10.5px] font-mono uppercase text-bg font-bold">
-            Popular
-          </span>
-          <div>
-            <span className="font-mono text-xs text-rose uppercase tracking-wider">Small Teams</span>
-            <h3 className="mt-2 text-2xl font-display text-txt">Free Team Plan</h3>
-            <p className="mt-4 text-4xl font-display text-txt">$0</p>
-            <p className="text-xs text-faint font-mono mt-1 mb-6">For small engineering pods</p>
-            <ul className="space-y-3 text-xs sm:text-sm text-mut">
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span><strong>Maximum 3 team members</strong></span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span><strong>150 shared saves</strong> per day</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span>1 shared team memory pool</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span>Role controls (Owner, Member)</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span>Team MCP connector endpoints</span>
-              </li>
-            </ul>
+            <div>
+              <span className={`font-mono text-xs uppercase tracking-wider ${p.name === 'Pro' ? 'text-violet-soft' : 'text-rose'}`}>
+                {p.eyebrow}
+              </span>
+              <h3 className="mt-2 text-2xl font-display text-txt">{p.name}</h3>
+              <p className="mt-4 text-4xl font-display text-txt">{p.price}</p>
+              <p className="mb-6 mt-1 font-mono text-xs text-faint">{p.sub}</p>
+              <ul className="space-y-3 text-xs text-mut sm:text-sm">
+                {p.points.map(([strong, rest]) => (
+                  <li key={strong} className="flex items-start gap-2.5">
+                    <Check size={16} className={`mt-0.5 shrink-0 ${p.name === 'Pro' ? 'text-faint' : 'text-rose'}`} />
+                    <span>
+                      {rest ? <strong>{strong}</strong> : strong}
+                      {rest}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {'to' in p.cta ? (
+              <Link
+                to={p.cta.to}
+                className={`mt-8 block w-full rounded-full py-3 text-center text-xs font-medium transition ${
+                  p.featured
+                    ? 'bg-gradient-to-r from-rose to-violet text-bg shadow hover:opacity-90'
+                    : 'border border-line text-txt hover:border-rose/50'
+                }`}
+              >
+                {p.cta.label}
+              </Link>
+            ) : (
+              <a
+                href={p.cta.href}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-8 block w-full rounded-full border border-line py-3 text-center text-xs font-medium text-mut transition hover:border-line-2 hover:text-txt"
+              >
+                {p.cta.label}
+              </a>
+            )}
           </div>
-          <Link
-            to="/register"
-            className="mt-8 block w-full rounded-full bg-gradient-to-r from-rose to-violet py-3 text-center text-xs font-medium text-bg shadow hover:opacity-90 transition"
-          >
-            Create free team
-          </Link>
-        </div>
-
-        {/* Paid / Enterprise Plan */}
-        <div data-reveal style={{ transitionDelay: '160ms' }} className="rounded-3xl border border-line bg-surface/30 p-7 flex flex-col justify-between">
-          <div>
-            <span className="font-mono text-xs text-violet-soft uppercase tracking-wider">Scale</span>
-            <h3 className="mt-2 text-2xl font-display text-txt">Pro & Enterprise</h3>
-            <p className="mt-4 text-4xl font-display text-txt">$29</p>
-            <p className="text-xs text-faint font-mono mt-1 mb-6">per member / month</p>
-            <ul className="space-y-3 text-xs sm:text-sm text-mut">
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span><strong>Unlimited team members</strong></span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span><strong>2,000+ saves</strong> per day</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span>Multiple dedicated team spaces</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span>Permanent multi-epoch Walrus storage</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Check size={16} className="text-rose mt-0.5 shrink-0" />
-                <span>Priority relayer & SLA</span>
-              </li>
-            </ul>
-          </div>
-          <Link
-            to="/register"
-            className="mt-8 block w-full rounded-full border border-line py-3 text-center text-xs font-medium text-mut hover:text-txt hover:border-line-2 transition"
-          >
-            Contact sales
-          </Link>
-        </div>
+        ))}
       </div>
     </section>
   )
@@ -691,24 +711,22 @@ function Pricing() {
 function CTA() {
   return (
     <section className="mx-auto max-w-6xl px-5 py-20">
-      <div data-reveal className="relative rounded-3xl border border-line glass p-8 sm:p-14 text-center overflow-hidden">
-        <div className="absolute -inset-10 -z-10 rounded-full bg-gradient-to-r from-rose/10 via-violet/10 to-transparent blur-3xl pointer-events-none" />
-        <h2 className="text-3xl sm:text-5xl font-display text-txt">
-          Give your agents a permanent brain today.
-        </h2>
-        <p className="mt-4 max-w-xl mx-auto text-sm sm:text-base text-mut leading-relaxed">
-          Sign up in 30 seconds, grab your API key, and connect your favorite AI chatbot or developer tool.
+      <div data-reveal className="relative overflow-hidden rounded-3xl border border-line glass p-8 text-center sm:p-14">
+        <div className="pointer-events-none absolute -inset-10 -z-10 rounded-full bg-gradient-to-r from-rose/10 via-violet/10 to-transparent blur-3xl" />
+        <h2 className="text-3xl font-display text-txt sm:text-5xl">Give your AI a memory that follows you.</h2>
+        <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-mut sm:text-base">
+          Create an account, then connect Claude, ChatGPT or your editor. Claude and ChatGPT need no key at all.
         </p>
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
             to="/register"
-            className="w-full sm:w-auto rounded-full bg-gradient-to-r from-rose to-violet px-8 py-3.5 text-sm font-medium text-bg shadow-lg shadow-violet/20 hover:opacity-95 transition"
+            className="w-full rounded-full bg-gradient-to-r from-rose to-violet px-8 py-3.5 text-sm font-medium text-bg shadow-lg shadow-violet/20 transition hover:opacity-95 sm:w-auto"
           >
             Create free account
           </Link>
           <Link
             to="/docs"
-            className="w-full sm:w-auto rounded-full border border-line px-6 py-3.5 text-sm font-medium text-txt hover:border-rose/50 transition"
+            className="w-full rounded-full border border-line px-6 py-3.5 text-sm font-medium text-txt transition hover:border-rose/50 sm:w-auto"
           >
             Read the docs
           </Link>

@@ -97,7 +97,7 @@ export const CLIENTS: Client[] = [
     writes: true,
     steps: () => [
       <><b>Paid plans:</b> on the web, open <b>Settings → Apps &amp; Connectors → Advanced</b> and turn on <b>Developer mode</b>. <b>Create</b> a connector named Engram with the server URL below and <b>OAuth</b> authentication, then press <b>Allow</b> on the Engram page.</>,
-      <>In a chat, pick <b>Developer mode</b> from the <b>+</b> menu and enable Engram. ChatGPT can then save and recall directly, on the web and on your phone.</>,
+      <>In a chat, pick <b>Developer mode</b> from the <b>+</b> menu and enable Engram. ChatGPT can then save and recall directly.</>,
       <><b>Free plan:</b> create a <b>Save only</b> key on the Keys page, choose it above, and copy the <b>custom instructions</b> below into <b>Settings → Personalization → Custom instructions</b>. ChatGPT will add a “Save to Engram” link; tap it and press Save.</>,
     ],
     snippets: (c) => [

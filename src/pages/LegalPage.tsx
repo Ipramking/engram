@@ -8,7 +8,7 @@ const OPERATOR = 'Engram'
 const SITE = 'engram-pearl.vercel.app'
 const CONTACT_EMAIL = ''
 const GOVERNING_LAW = 'the laws of the Federal Republic of Nigeria'
-const EFFECTIVE = '5 November 2026'
+const EFFECTIVE = '12 November 2026'
 
 const contact = CONTACT_EMAIL ? (
   <a className="text-rose underline-offset-2 hover:underline" href={`mailto:${CONTACT_EMAIL}`}>
@@ -81,7 +81,10 @@ const PRIVACY: Section[] = [
           <li><b>Supabase</b>: database and sign-in.</li>
           <li><b>Vercel</b>: hosting and request logs.</li>
           <li><b>Walrus, via the MemWal service</b>: decentralised storage for some memories.</li>
-          <li><b>Groq</b>: only for the built-in chat feature, which sends your message and relevant memories to generate a reply.</li>
+          <li>
+            <b>Groq</b>: for the built-in chat feature, which sends your message and relevant memories to generate a reply, and to
+            suggest related search words when a search finds few results (only the search words are sent, never your memories).
+          </li>
           <li><b>GitHub</b>: encrypted database backups and our code repository.</li>
           <li><b>Telegram</b>: only if you link the Engram bot.</li>
         </ul>

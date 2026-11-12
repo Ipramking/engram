@@ -9,7 +9,6 @@ import { AuthProvider } from './context/AuthContext.tsx'
 
 // Heavy pages load on demand so the landing page stays light.
 const DocsPage = lazy(() => import('./pages/DocsPage.tsx'))
-const SetupPage = lazy(() => import('./pages/SetupPage.tsx'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage.tsx'))
 const OAuthPage = lazy(() => import('./pages/OAuthPage.tsx'))
 const SharePage = lazy(() => import('./pages/SharePage.tsx'))
@@ -31,8 +30,8 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/" element={<App />} />
             <Route path="/docs" element={<DocsPage />} />
             <Route path="/setup" element={<DocsPage />} />
-            <Route path="/setup/wizard" element={<SetupPage />} />
-            {/* Anonymous space links were retired; keys live in the dashboard now. */}
+            {/* The old setup wizard and anonymous space links were retired: setup lives in the dashboard. */}
+            <Route path="/setup/wizard" element={<Navigate to="/dashboard?tab=connect" replace />} />
             <Route path="/setup/token" element={<Navigate to="/dashboard?tab=keys" replace />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />

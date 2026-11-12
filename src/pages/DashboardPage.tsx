@@ -18,6 +18,7 @@ import { Usage } from './dashboard/Usage'
 import { Guide } from './dashboard/Guide'
 import { DeviceApproval } from './dashboard/DeviceApproval'
 import { TelegramApproval } from './dashboard/TelegramApproval'
+import { setReturnTo } from '../lib/returnTo'
 
 const DEVICE_KEY = 'engram.pendingDevice'
 
@@ -68,8 +69,12 @@ function Dashboard() {
         /* private mode */
       }
     }
-    if (!authLoading && !user) navigate('/login')
-  }, [authLoading, user, navigate, deviceParam])
+    if (!authLoading && !user) {
+      // Links like /dashboard?tab=connect land on that tab after signing in.
+      if (isTab(tabParam)) setReturnTo(`/dashboard?tab=${tabParam}`)
+      navigate('/login')
+    }
+  }, [authLoading, user, navigate, deviceParam, tabParam])
 
   const telegramParam = params.get('telegram')
   const [telegramCode, setTelegramCode] = useState<string | null>(() => {

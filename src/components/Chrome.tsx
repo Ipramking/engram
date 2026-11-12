@@ -153,7 +153,7 @@ export function Footer() {
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-5 py-12 sm:flex-row sm:items-center">
         <Wordmark />
         <p className="text-sm text-faint sm:ml-4">
-          Portable, verifiable persistent memory for AI agents — on Walrus.
+          One memory for every AI you use, with copies on Walrus.
         </p>
         <div className="flex flex-wrap items-center gap-5 text-sm text-mut sm:ml-auto">
           {isHome ? (

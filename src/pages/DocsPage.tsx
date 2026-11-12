@@ -1,739 +1,752 @@
-import React, { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import {
-  Terminal, Laptop, Smartphone, Shield, Check, Copy, ExternalLink, ArrowRight, ArrowLeft,
-  Sparkles, Download, ChevronRight, Search, Database, ShieldCheck
-} from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, ArrowRight, Check, ChevronRight, Copy, Download, ExternalLink, Search } from 'lucide-react'
 import { Nav, Footer } from '../components/Chrome'
 import { ENGRAM_PROMPT, downloadText } from '../lib/promptText'
+
+const SITE = 'https://engram-pearl.vercel.app'
+const MCP_URL = `${SITE}/mcp`
+const REPO = 'https://github.com/Ipramking/engram'
+const NPM = 'https://www.npmjs.com/package/engram-walrus'
 
 interface DocArticle {
   id: string
   category: string
   title: string
-  badge?: string
   description: string
   toc: { id: string; label: string }[]
-  content: React.ReactNode
+  content: ReactNode
 }
 
+/* ── Small building blocks ─────────────────────────────────────────────── */
+
+function H({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <h3 id={id} className="scroll-mt-28 pt-2 text-xl font-display text-txt">
+      {children}
+    </h3>
+  )
+}
+
+function P({ children }: { children: ReactNode }) {
+  return <p className="text-sm leading-relaxed text-mut sm:text-[15px]">{children}</p>
+}
+
+function C({ children }: { children: ReactNode }) {
+  return <code className="rounded bg-surface/80 px-1.5 py-0.5 font-mono text-[12px] text-txt">{children}</code>
+}
+
+function Steps({ items }: { items: ReactNode[] }) {
+  return (
+    <ol className="space-y-2.5">
+      {items.map((it, i) => (
+        <li key={i} className="flex gap-3 text-sm leading-relaxed text-mut sm:text-[15px]">
+          <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-rose/40 font-mono text-[10.5px] text-rose">
+            {i + 1}
+          </span>
+          <span className="min-w-0">{it}</span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function Bullets({ items }: { items: ReactNode[] }) {
+  return (
+    <ul className="space-y-2">
+      {items.map((it, i) => (
+        <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-mut sm:text-[15px]">
+          <Check size={15} className="mt-1 shrink-0 text-rose" />
+          <span className="min-w-0">{it}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function Note({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-violet/30 bg-violet/[0.06] px-4 py-3 text-[13px] leading-relaxed text-mut">{children}</div>
+  )
+}
+
+function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-line">
+      <table className="w-full min-w-[520px] text-left text-[13px]">
+        <thead className="bg-surface/60 font-mono text-[11px] uppercase tracking-wider text-faint">
+          <tr>
+            {head.map((h) => (
+              <th key={h} className="px-3.5 py-2.5 font-normal">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line/70">
+          {rows.map((r, i) => (
+            <tr key={i} className="align-top">
+              {r.map((cell, j) => (
+                <td key={j} className={`px-3.5 py-2.5 ${j === 0 ? 'text-txt' : 'text-mut'}`}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function CodeBlock({ label, code }: { label: string; code: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () =>
+    navigator.clipboard?.writeText(code).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1800)
+      },
+      () => {},
+    )
+  return (
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-line bg-bg/80">
+      <div className="flex items-center justify-between gap-3 border-b border-line/70 px-4 py-2">
+        <span className="truncate font-mono text-[11px] text-faint">{label}</span>
+        <button
+          onClick={copy}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 font-mono text-[11px] text-mut transition hover:text-txt"
+        >
+          {copied ? <Check size={12} className="text-rose" /> : <Copy size={12} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-mut">{code}</pre>
+    </div>
+  )
+}
+
+const json = (v: unknown) => JSON.stringify(v, null, 2)
+const NPX = { command: 'npx', args: ['-y', 'engram-walrus'] }
+
+/* ── Articles ──────────────────────────────────────────────────────────── */
+
+const ARTICLES: DocArticle[] = [
+  {
+    id: 'intro',
+    category: 'Start here',
+    title: 'What is Engram?',
+    description: 'One memory for the AI tools you use: Claude, ChatGPT, your editor and your terminal.',
+    toc: [
+      { id: 'problem', label: 'Why it exists' },
+      { id: 'how', label: 'How it works' },
+      { id: 'storage', label: 'Where memories live' },
+    ],
+    content: (
+      <>
+        <H id="problem">Why it exists</H>
+        <P>
+          Every new chat starts from zero. You explain your stack, your conventions and last week's decisions to Claude,
+          then again to Cursor, then again on your phone. Engram stores those facts once and lets every AI you connect read
+          them.
+        </P>
+        <H id="how">How it works</H>
+        <P>
+          Engram is an MCP server, the standard way AI apps call tools. Connected apps get tools such as <C>engram_remember</C>{' '}
+          and <C>engram_recall</C>. When your AI learns something durable, like a decision, a config value or a gotcha, it saves it
+          as a typed memory. Before answering a question about your work, it recalls the memories that match.
+        </P>
+        <P>
+          Memories are personal by default. A team gets its own shared memory, separate from each member's personal one, that
+          every member's apps can read and write.
+        </P>
+        <H id="storage">Where memories live</H>
+        <P>
+          Memories are stored in Engram's database (Supabase Postgres), which is what search runs on. Engram also writes a copy
+          to Walrus, decentralized storage on Sui, through Walrus Memory. Memories whose copy reached Walrus show a blob id on
+          the dashboard that anyone can check on Walruscan.
+        </P>
+        <P>
+          Deleting a memory removes it from Engram and from recall straight away. A Walrus copy can remain until its storage
+          period ends, so don't save anything that must be erased everywhere. The{' '}
+          <Link to="/privacy" className="text-rose hover:underline">Privacy Policy</Link> has the details.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: 'quickstart',
+    category: 'Start here',
+    title: 'Quick start',
+    description: 'Create an account, connect one app, and check that it remembers.',
+    toc: [
+      { id: 'account', label: '1. Create an account' },
+      { id: 'connect', label: '2. Connect an app' },
+      { id: 'check', label: '3. Check it works' },
+    ],
+    content: (
+      <>
+        <H id="account">1. Create an account</H>
+        <P>
+          <Link to="/register" className="text-rose hover:underline">Sign up</Link> with your email and a password of 8 or more
+          characters. The dashboard opens on a short checklist that follows your progress.
+        </P>
+        <H id="connect">2. Connect an app</H>
+        <Bullets
+          items={[
+            <>
+              <b className="text-txt">Claude or ChatGPT:</b> add <C>{MCP_URL}</C> as a custom connector and sign in when asked.
+              See <i>Claude &amp; ChatGPT</i>.
+            </>,
+            <>
+              <b className="text-txt">Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Gemini CLI or Codex:</b> run the two
+              commands below.
+            </>,
+            <>
+              <b className="text-txt">Anything else:</b> the dashboard's Connect page has step-by-step guides for 15 apps.
+            </>,
+          ]}
+        />
+        <CodeBlock label="Terminal" code={'npx engram-walrus login\nnpx engram-walrus init'} />
+        <H id="check">3. Check it works</H>
+        <P>
+          In one app, say: <i>“Remember that our staging database is Neon.”</i> In another app or a new chat, ask:{' '}
+          <i>“What do you remember about our databases?”</i> The memory also shows up on the dashboard's Memories page.
+        </P>
+        <P>
+          In a terminal, <C>npx engram-walrus doctor</C> checks the key, the server, the scope and today's usage.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: 'chat-apps',
+    category: 'Connect',
+    title: 'Claude & ChatGPT',
+    description: 'Sign in with Engram: add one link, approve once, and there is no key to copy.',
+    toc: [
+      { id: 'claude', label: 'Claude' },
+      { id: 'chatgpt', label: 'ChatGPT' },
+      { id: 'disconnect', label: 'Disconnecting' },
+    ],
+    content: (
+      <>
+        <H id="claude">Claude</H>
+        <Steps
+          items={[
+            <>On a computer, open <b className="text-txt">claude.ai → Settings → Connectors</b> and choose <b className="text-txt">Add custom connector</b>.</>,
+            <>Name it Engram and paste the link below. Click <b className="text-txt">Add</b>, then <b className="text-txt">Connect</b>.</>,
+            <>Engram opens. Sign in if asked, check the app name, and press <b className="text-txt">Allow</b>.</>,
+            <>In a chat, open the tools menu and switch Engram on. Connectors you add on claude.ai also work in the Claude phone and desktop apps.</>,
+          ]}
+        />
+        <CodeBlock label="Connector URL" code={MCP_URL} />
+        <Note>Custom connectors depend on your Claude plan. If you can't add one, use Claude Desktop with the terminal setup instead.</Note>
+        <H id="chatgpt">ChatGPT</H>
+        <Steps
+          items={[
+            <>On a paid plan, open <b className="text-txt">Settings → Apps &amp; Connectors → Advanced</b> on the web and turn on <b className="text-txt">Developer mode</b>.</>,
+            <>Create a connector named Engram with the same URL and <b className="text-txt">OAuth</b> authentication, then press <b className="text-txt">Allow</b> on the Engram page.</>,
+            <>In a chat, pick <b className="text-txt">Developer mode</b> from the <b className="text-txt">+</b> menu and enable Engram.</>,
+          ]}
+        />
+        <P>
+          ChatGPT's free plan can't call connectors. The ChatGPT guide on the dashboard shows a save-only alternative that uses
+          custom instructions.
+        </P>
+        <H id="disconnect">Disconnecting</H>
+        <P>
+          Each approval creates a key named after the app, such as “Claude (connector)”, on the Keys page. Revoke it to disconnect
+          that app. Its access lasts 7 days at a time and renews automatically while the app keeps using it.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: 'cli',
+    category: 'Connect',
+    title: 'Desktop apps & terminal',
+    description: 'One command adds Engram to the AI apps on your computer.',
+    toc: [
+      { id: 'login', label: 'Sign in this computer' },
+      { id: 'init', label: 'Add Engram to your apps' },
+      { id: 'commands', label: 'All commands' },
+      { id: 'manual', label: 'Manual setup' },
+      { id: 'headless', label: 'Servers and CI' },
+    ],
+    content: (
+      <>
+        <H id="login">Sign in this computer</H>
+        <CodeBlock label="Terminal" code="npx engram-walrus login" />
+        <P>
+          The terminal shows a code and a link. Open the link, check that the code matches, and approve. The computer gets its
+          own permanent key, saved in <C>~/.engram/credentials.json</C> and listed on your Keys page so you can revoke it on its
+          own. The key is encrypted for that terminal before it leaves the server, so it never appears in the browser.
+        </P>
+        <H id="init">Add Engram to your apps</H>
+        <CodeBlock label="Terminal" code="npx engram-walrus init" />
+        <P>
+          <C>init</C> looks for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Gemini CLI and Codex. For each one it
+          finds, it asks before changing anything, keeps a backup of the config (<C>.engram-backup</C>), and replaces older
+          Engram entries that used pasted keys. Restart each app afterwards.
+        </P>
+        <P>
+          For Claude Code it can also add memory rules to <C>~/.claude/CLAUDE.md</C> and a session-start hook that runs{' '}
+          <C>npx -y engram-walrus brief</C>, so every session opens with your most recent memories. Add <C>--dry-run</C> to see
+          what would change, or <C>--yes</C> to accept every change.
+        </P>
+        <H id="commands">All commands</H>
+        <Table
+          head={['Command', 'What it does']}
+          rows={[
+            [<C>npx engram-walrus login</C>, 'Sign in this computer'],
+            [<C>npx engram-walrus init</C>, 'Add Engram to the apps on this computer (--dry-run, --yes)'],
+            [<C>npx engram-walrus doctor</C>, "Check the key, server, scope and today's usage"],
+            [<C>npx engram-walrus brief</C>, 'Print your most recent memories (used by the Claude Code hook)'],
+            [<C>npx engram-walrus logout</C>, "Forget this computer's key"],
+            [<C>npx engram-walrus</C>, 'Run the MCP server (apps start it themselves)'],
+          ]}
+        />
+        <H id="manual">Manual setup</H>
+        <P>After <C>login</C>, every app can use the same entry. It contains no secret.</P>
+        <CodeBlock label="Claude Desktop, Cursor, Windsurf, Gemini CLI, Antigravity" code={json({ mcpServers: { engram: NPX } })} />
+        <CodeBlock label="VS Code (.vscode/mcp.json)" code={json({ servers: { engram: { type: 'stdio', ...NPX } } })} />
+        <CodeBlock label="Claude Code" code="claude mcp add engram -s user -- npx -y engram-walrus" />
+        <CodeBlock label="Codex (~/.codex/config.toml)" code={'[mcp_servers.engram]\ncommand = "npx"\nargs = ["-y", "engram-walrus"]'} />
+        <H id="headless">Servers and CI</H>
+        <P>
+          Where nobody can approve a login, create a key on the Keys page and pass it in the environment. Give jobs a read-only
+          or save-only key when that's all they need.
+        </P>
+        <CodeBlock label="Terminal" code="ENGRAM_API_KEY=eng_usr_… npx -y engram-walrus" />
+      </>
+    ),
+  },
+  {
+    id: 'phone',
+    category: 'Connect',
+    title: 'Phone',
+    description: 'Save from any app with the share button, even when you are offline.',
+    toc: [
+      { id: 'android', label: 'Android' },
+      { id: 'iphone', label: 'iPhone' },
+      { id: 'offline', label: 'Offline' },
+    ],
+    content: (
+      <>
+        <H id="android">Android</H>
+        <P>
+          Open {SITE.replace('https://', '')} in Chrome and choose <b className="text-txt">⋮ → Install app</b>. Engram then
+          appears in every app's share menu: share some text to it, pick a type and press Save.
+        </P>
+        <H id="iphone">iPhone</H>
+        <Steps
+          items={[
+            <>Create a <b className="text-txt">Save only</b> key on the Keys page.</>,
+            <>In Shortcuts, make a new shortcut: <b className="text-txt">Receive Text from Share Sheet</b> → <b className="text-txt">Get Contents of URL</b>, with method POST, the header and the JSON body below. Use Shortcut Input as the text.</>,
+            <>Name it <b className="text-txt">Save to Engram</b> and turn on <b className="text-txt">Show in Share Sheet</b>. Add <b className="text-txt">Dictate Text</b> first for a voice version.</>,
+          ]}
+        />
+        <CodeBlock
+          label="Shortcut request"
+          code={`POST ${SITE}/api/remember\nAuthorization: Bearer eng_usr_…\nContent-Type: application/json\n\n{"text":"<Shortcut Input>","type":"decision"}`}
+        />
+        <H id="offline">Offline</H>
+        <P>
+          When the phone has no connection, the installed app keeps what you shared on the device and sends it as soon as you're
+          back online.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: 'rest',
+    category: 'Connect',
+    title: 'REST API',
+    description: 'Save and search from scripts, shortcuts and other tools.',
+    toc: [
+      { id: 'auth', label: 'Authentication' },
+      { id: 'remember', label: 'Save a memory' },
+      { id: 'recall', label: 'Search memories' },
+      { id: 'errors', label: 'Errors' },
+    ],
+    content: (
+      <>
+        <H id="auth">Authentication</H>
+        <P>Send a key from the Keys page as a bearer token.</P>
+        <CodeBlock label="Header" code="Authorization: Bearer eng_usr_…" />
+        <H id="remember">Save a memory</H>
+        <CodeBlock
+          label="POST /api/remember"
+          code={`curl -X POST ${SITE}/api/remember \\\n  -H "Authorization: Bearer $ENGRAM_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"text":"Staging uses Neon, production uses Supabase","type":"config"}'`}
+        />
+        <P>
+          <C>type</C> is one of decision, config, gotcha, person, preference or plan, and <C>text</C> can be up to 4,000
+          characters. A team key saves to its team. With a personal key, add <C>"scope":"team"</C> and{' '}
+          <C>"teamCode":"&lt;team id&gt;"</C> to save to a team you belong to.
+        </P>
+        <H id="recall">Search memories</H>
+        <CodeBlock
+          label="GET /api/recall"
+          code={`curl "${SITE}/api/recall?query=database&topK=5" \\\n  -H "Authorization: Bearer $ENGRAM_API_KEY"`}
+        />
+        <P>
+          Returns <C>results</C>, best match first, each with <C>id</C>, <C>type</C>, <C>text</C> and <C>createdAt</C>. Memories
+          replaced by newer ones are left out unless you add <C>includeSuperseded=true</C>. POST with a JSON body works too.
+        </P>
+        <H id="errors">Errors</H>
+        <Table
+          head={['Status', 'Meaning']}
+          rows={[
+            ['401', 'The key is missing, revoked or expired (code KEY_INVALID). Link keys expire after 30 days.'],
+            ['403', "The key can't do this: a read-only key tried to save, a save-only key tried to read, or the team isn't yours."],
+            ['413', 'The text is too long.'],
+            ['429', 'The daily save limit is reached. It resets at midnight UTC.'],
+          ]}
+        />
+      </>
+    ),
+  },
+  {
+    id: 'memory-types',
+    category: 'Concepts',
+    title: 'Memory types',
+    description: 'Six kinds of durable fact. Everything else is chatter and stays out.',
+    toc: [
+      { id: 'types', label: 'The six types' },
+      { id: 'secrets', label: 'What not to save' },
+    ],
+    content: (
+      <>
+        <H id="types">The six types</H>
+        <Table
+          head={['Type', 'Holds', 'Example']}
+          rows={[
+            ['decision', 'A choice and the reason for it', '“Moved the database to Neon because the free tier expired.”'],
+            ['config', 'A setup value, or where a secret lives', '“DATABASE_URL is set in Vercel env, not .env.”'],
+            ['gotcha', 'A pitfall and its workaround', '“The Supabase CLI has no Windows binary: use the standalone .exe.”'],
+            ['person', 'A stable fact about someone you work with', '“Ada leads frontend and works in WAT.”'],
+            ['preference', 'A lasting rule or style', '“Every screen must work on phone and desktop.”'],
+            ['plan', 'A spec, roadmap or task list', '“Launch: ship MCP, add tests, open sign-ups.”'],
+          ]}
+        />
+        <P>
+          Your AI picks the type, or you can say it outright: <i>“Save this as a gotcha: …”</i>. Download the{' '}
+          <button onClick={() => downloadText('engram-memory-prompt.txt', ENGRAM_PROMPT)} className="inline-flex items-center gap-1 text-rose hover:underline">
+            memory rules <Download size={12} />
+          </button>{' '}
+          to give any AI the same habits.
+        </P>
+        <H id="secrets">What not to save</H>
+        <P>
+          Passwords, API keys and private keys. Engram refuses text that looks like a known key format (OpenAI, Anthropic, Groq,
+          GitHub, Google, AWS, Stripe, Paystack, Slack, npm, Hugging Face, Telegram bots, Engram itself, PEM private keys and a
+          few more). Save where a secret lives instead: <i>“The Paystack key is in Vercel env as PAYSTACK_SECRET.”</i>
+        </P>
+      </>
+    ),
+  },
+  {
+    id: 'keys',
+    category: 'Concepts',
+    title: 'Personal, teams & keys',
+    description: 'Who can see a memory, and how each app gets in.',
+    toc: [
+      { id: 'personal-team', label: 'Personal and team memory' },
+      { id: 'kinds', label: 'Kinds of keys' },
+      { id: 'permissions', label: 'Permissions' },
+    ],
+    content: (
+      <>
+        <H id="personal-team">Personal and team memory</H>
+        <P>
+          Personal memory is yours alone. A team has its own memory, separate from each member's personal memory. Create a team
+          on the Teams page and invite people by email; they need an Engram account with that address. Free teams have 3 seats.
+        </P>
+        <P>A team key always works in its team. A personal key uses your personal memory unless the app asks for the team.</P>
+        <H id="kinds">Kinds of keys</H>
+        <Table
+          head={['Key', 'Where it comes from', 'Lifetime']}
+          rows={[
+            ['Personal or team key', 'Keys page', 'Until you revoke it'],
+            ['Computer key', <C>npx engram-walrus login</C>, 'Until you revoke it or log out'],
+            ['Connector', 'Approving an app with Sign in with Engram', 'Renews itself every 7 days while in use'],
+            ['Link', 'Keys page, for apps that only accept a URL', '30 days'],
+          ]}
+        />
+        <P>
+          Engram stores a fingerprint of each key, never the key itself, so it can't show you a key again later. Copy it when you
+          create it.
+        </P>
+        <H id="permissions">Permissions</H>
+        <Table
+          head={['Permission', 'Can', "Can't"]}
+          rows={[
+            ['Read & write', 'Save, recall, tidy, handoffs and snapshots', '—'],
+            ['Read only', 'Recall, recent, get', 'Save anything'],
+            ['Save only', 'Save new memories', 'Read anything back (good for shortcuts and share buttons)'],
+          ]}
+        />
+      </>
+    ),
+  },
+  {
+    id: 'recall',
+    category: 'Concepts',
+    title: 'How recall works',
+    description: 'Search that copes with how people actually ask.',
+    toc: [
+      { id: 'matching', label: 'What matches' },
+      { id: 'ranking', label: 'Ranking' },
+    ],
+    content: (
+      <>
+        <H id="matching">What matches</H>
+        <P>Recall searches every memory in your personal or team space, not just the newest ones:</P>
+        <Bullets
+          items={[
+            <><b className="text-txt">Word forms:</b> “deploying” finds “deploy”, “databases” finds “database”.</>,
+            <><b className="text-txt">Beginnings of words:</b> “postg” finds “Postgres”.</>,
+            <><b className="text-txt">Typos:</b> close misspellings still match.</>,
+            <>
+              <b className="text-txt">Related words:</b> when fewer than three memories match, a small language model suggests
+              related terms (“payment provider” → “Paystack”) and the search runs again. Only your search words are sent, never
+              your memories.
+            </>,
+          ]}
+        />
+        <H id="ranking">Ranking</H>
+        <P>
+          Results are ordered by how well they match, newest first among equals. When a new decision replaces an old one, the old
+          one drops out of recall; ask for replaced memories to see the history. Recall never counts against your daily limit.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: 'tools',
+    category: 'Concepts',
+    title: 'MCP tools',
+    description: 'What connected apps can call.',
+    toc: [
+      { id: 'list', label: 'Tools' },
+      { id: 'transport', label: 'Endpoint' },
+    ],
+    content: (
+      <>
+        <H id="list">Tools</H>
+        <Table
+          head={['Tool', 'Arguments', 'Does']}
+          rows={[
+            [<C>engram_remember</C>, 'text, type, scope?, team_code?', 'Save one durable fact'],
+            [<C>engram_recall</C>, 'query, scope?, team_code?', 'Find the memories that match'],
+            [<C>engram_recent</C>, 'limit?, type?, include_replaced?', 'Newest memories first'],
+            [<C>engram_get</C>, 'id', 'One memory by id'],
+            [<C>engram_whoami</C>, '—', "Account, key, scope, expiry and today's usage"],
+            [<C>engram_tidy</C>, 'scope?', 'Report likely duplicates and replaced memories'],
+            [<C>engram_handoff</C>, 'action (record, latest, resume_brief), notes…', 'Pass work between agents'],
+            [<C>engram_snapshot</C>, 'action (generate, restore, brief)', "Save or restore a project's context"],
+          ]}
+        />
+        <H id="transport">Endpoint</H>
+        <P>
+          The hosted server speaks MCP over HTTP at <C>{MCP_URL}</C> and supports OAuth sign-in. The npm package runs the same
+          tools locally over stdio and forwards each call to the hosted server.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: 'limits',
+    category: 'Account',
+    title: 'Plans & limits',
+    description: 'Both plans are free for now.',
+    toc: [{ id: 'table', label: 'Limits' }],
+    content: (
+      <>
+        <H id="table">Limits</H>
+        <Table
+          head={['', 'Personal', 'Team']}
+          rows={[
+            ['Price', 'Free', 'Free'],
+            ['Saves per day', '50', '150, shared'],
+            ['People', '1', 'Up to 3'],
+            ['Recall', 'Not counted', 'Not counted'],
+            ['Built-in chat', '100 messages a day', '100 messages a day'],
+            ['Memory length', '4,000 characters', '4,000 characters'],
+          ]}
+        />
+        <P>
+          Limits reset at midnight UTC. Bigger teams and higher limits will come with a paid plan later;{' '}
+          <a href={`${REPO}/issues/new?title=Plan%20request`} target="_blank" rel="noreferrer" className="text-rose hover:underline">
+            tell us what you need
+          </a>
+          .
+        </P>
+      </>
+    ),
+  },
+  {
+    id: 'security',
+    category: 'Account',
+    title: 'Security & privacy',
+    description: 'How Engram protects your account and what you control.',
+    toc: [
+      { id: 'protect', label: 'What Engram does' },
+      { id: 'control', label: 'What you control' },
+      { id: 'report', label: 'Reporting a problem' },
+    ],
+    content: (
+      <>
+        <H id="protect">What Engram does</H>
+        <Bullets
+          items={[
+            'Keys are stored as fingerprints, so a database leak would not reveal them.',
+            'Every request is checked against the key’s owner, team and permission.',
+            'Text that looks like an API key or private key is refused before it is saved.',
+            'Sign-in and sign-up are rate limited.',
+            'Save links opened in a browser ask before saving, so link previews can’t write memories.',
+            'All traffic is encrypted in transit.',
+          ]}
+        />
+        <H id="control">What you control</H>
+        <Bullets
+          items={[
+            'Give each app its own key, limit it to read-only or save-only, and revoke it on its own.',
+            'Export your memories as Markdown or JSON from the Memories page.',
+            'Delete single memories, or your whole account from the Usage page.',
+          ]}
+        />
+        <H id="report">Reporting a problem</H>
+        <P>
+          Please report security issues privately through{' '}
+          <a href={`${REPO}/security/advisories/new`} target="_blank" rel="noreferrer" className="text-rose hover:underline">
+            GitHub
+          </a>
+          , not in a public issue. Read the <Link to="/privacy" className="text-rose hover:underline">Privacy Policy</Link> and{' '}
+          <Link to="/terms" className="text-rose hover:underline">Terms</Link>.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: 'troubleshooting',
+    category: 'Account',
+    title: 'Troubleshooting',
+    description: 'The problems people hit most, and the fix for each.',
+    toc: [
+      { id: 'unauthorized', label: '“Unauthorized”' },
+      { id: 'missing', label: 'Recall finds nothing' },
+      { id: 'old-setup', label: 'Older setups' },
+      { id: 'help', label: 'Still stuck' },
+    ],
+    content: (
+      <>
+        <H id="unauthorized">“Unauthorized” or “key invalid”</H>
+        <P>
+          Run <C>npx engram-walrus doctor</C>: it names the key in use and why it fails. Link keys expire after 30 days and
+          revoked keys stop at once. Run <C>npx engram-walrus login</C> to give the computer a fresh key, or reconnect the app
+          from the dashboard.
+        </P>
+        <H id="missing">Recall finds nothing</H>
+        <P>
+          Check the scope. Memories saved with a team key live in the team, not in your personal memory. Ask the app to call{' '}
+          <C>engram_whoami</C>, or look on the dashboard's Memories page with the matching scope selected.
+        </P>
+        <H id="old-setup">Older setups</H>
+        <P>
+          Configs made with <C>--key=…</C> or version 0.1 of the package may point at the wrong place. Run{' '}
+          <C>npx engram-walrus init</C>: it finds those entries, backs them up and replaces them.
+        </P>
+        <H id="help">Still stuck</H>
+        <P>
+          <a href={`${REPO}/issues`} target="_blank" rel="noreferrer" className="text-rose hover:underline">
+            Open an issue on GitHub
+          </a>{' '}
+          with what you ran and what you saw. Leave keys out of it.
+        </P>
+      </>
+    ),
+  },
+]
+
+/* ── Page ──────────────────────────────────────────────────────────────── */
+
 export default function DocsPage() {
-  const [activeArticleId, setActiveArticleId] = useState('intro')
+  const [params, setParams] = useSearchParams()
   const [searchQuery, setSearchQuery] = useState('')
-  const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null)
+  const requested = params.get('a')
+  const activeArticle = ARTICLES.find((a) => a.id === requested) ?? ARTICLES[0]
 
-  const copy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedSnippet(id)
-    setTimeout(() => setCopiedSnippet(null), 2000)
-  }
-
-  // Articles Definition modeled after standard Web3 crypto project docs (Sui, Walrus, Uniswap)
-  const articles: DocArticle[] = useMemo(() => [
-    // ── 1. INTRODUCTION ──
-    {
-      id: 'intro',
-      category: 'Overview',
-      title: 'What is Engram?',
-      badge: 'v0.1.0',
-      description: 'Decentralized, verifiable persistent memory for autonomous AI agents built on Walrus and Sui.',
-      toc: [
-        { id: 'problem', label: 'The Agent Amnesia Problem' },
-        { id: 'solution', label: 'The Engram Solution' },
-        { id: 'why-walrus', label: 'Why Walrus & Sui?' },
-        { id: 'architecture', label: 'High-Level Architecture' },
-      ],
-      content: (
-        <div className="space-y-8">
-          <p className="text-base text-mut leading-relaxed">
-            <strong>Engram</strong> is an open-source decentralized memory layer that gives AI coding assistants, autonomous agents, and mobile chatbots a persistent, verifiable memory. It decouples memory from the ephemeral chat session and anchors it to decentralized storage.
-          </p>
-
-          <div id="problem" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">The Agent Amnesia Problem</h3>
-            <p className="text-sm text-mut leading-relaxed">
-              Modern AI agents are stateless. Every time you start a conversation in Cursor, Claude Desktop, or ChatGPT on your phone:
-            </p>
-            <ul className="space-y-2 text-sm text-mut">
-              <li className="flex items-start gap-2">
-                <span className="text-rose font-bold">•</span>
-                <span><strong>Context window resets:</strong> Architectural choices, environment settings, and bug workarounds disappear.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-rose font-bold">•</span>
-                <span><strong>Platform silos:</strong> Insights discovered on your phone do not carry over to your IDE or terminal.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-rose font-bold">•</span>
-                <span><strong>Team duplication:</strong> Every engineer must separately explain team conventions and tech stacks to their own AI.</span>
-              </li>
-            </ul>
-          </div>
-
-          <div id="solution" className="scroll-mt-28 rounded-3xl border border-rose/30 bg-rose/[0.04] p-6 space-y-3">
-            <div className="flex items-center gap-2 text-rose">
-              <Sparkles size={18} />
-              <h3 className="font-display text-lg text-txt">The Engram Solution</h3>
-            </div>
-            <p className="text-sm text-mut leading-relaxed">
-              Engram introduces an external persistent memory substrate. When an agent discovers a durable fact (or when you explicitly command it to record a plan), it writes a cryptographically encrypted memory to Walrus. When starting any new session on any tool, the agent automatically executes semantic recall in under 200ms before generating a response.
-            </p>
-          </div>
-
-          <div id="why-walrus" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">Why Walrus & Sui?</h3>
-            <p className="text-sm text-mut leading-relaxed">
-              Unlike centralized vector databases (which are proprietary and vendor-locked) or local files (which cannot sync to your phone), Engram leverages <strong>Walrus</strong>:
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-line bg-surface/30 p-4">
-                <h4 className="font-semibold text-txt text-xs flex items-center gap-2 mb-1">
-                  <Database size={15} className="text-rose" /> Decentralized & Censorship-Resistant
-                </h4>
-                <p className="text-xs text-mut">
-                  Memories are partitioned into erasure-coded slivers across independent storage nodes. No single vendor controls your agent's knowledge.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-line bg-surface/30 p-4">
-                <h4 className="font-semibold text-txt text-xs flex items-center gap-2 mb-1">
-                  <ShieldCheck size={15} className="text-violet-soft" /> Sui On-Chain Verifiability
-                </h4>
-                <p className="text-xs text-mut">
-                  Every memory generates an immutable Walrus Blob ID registered on the Sui blockchain, enabling independent verification via Walruscan.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div id="architecture" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">High-Level Architecture</h3>
-            <pre className="overflow-x-auto rounded-2xl border border-line bg-bg/80 p-5 font-mono text-xs text-txt leading-relaxed">
-{`┌─────────────────────────────────────────────────────────────┐
-│                    CONNECTED CLIENTS                        │
-│   Cursor IDE   ·   Claude Desktop   ·   Mobile (iOS/Android)│
-│               CLI (engram-walrus)   ·   Windsurf            │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ MCP Protocol (HTTP SSE / stdio)
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    ENGRAM ROUTING LAYER                     │
-│  Personal Space (usr_<id>)   │   Team Space (team_<id>)     │
-│  Daily Quota Enforcement     │   Role Access Validation     │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ Seal Threshold Encryption
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    WALRUS STORAGE NETWORK                   │
-│   Decentralized Blobs   ·   Erasure Slivers   ·   Sui PoS   │
-└─────────────────────────────────────────────────────────────┘`}
-            </pre>
-          </div>
-        </div>
-      ),
-    },
-
-    // ── 2. QUICKSTART ──
-    {
-      id: 'quickstart',
-      category: 'Getting Started',
-      title: 'Quickstart Guide',
-      badge: '2 Min',
-      description: 'Zero to persistent cross-platform memory in three simple steps.',
-      toc: [
-        { id: 'step-1', label: '1. Create Account & Mint Key' },
-        { id: 'step-2', label: '2. Configure your AI Client' },
-        { id: 'step-3', label: '3. Inject System Instructions' },
-        { id: 'step-4', label: '4. Verify First Write' },
-      ],
-      content: (
-        <div className="space-y-8">
-          <p className="text-sm text-mut leading-relaxed">
-            Follow this guide to connect Engram to your preferred AI environment (Cursor, Claude, or mobile) in under 2 minutes.
-          </p>
-
-          <div id="step-1" className="scroll-mt-28 space-y-3">
-            <h3 className="text-lg font-display text-txt flex items-center gap-2">
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-rose/15 text-rose text-xs font-mono">1</span>
-              Create an Account & Mint an API Key
-            </h3>
-            <p className="text-xs text-mut">
-              Navigate to <Link to="/register" className="text-rose underline">/register</Link> to start with a free Personal Plan (50 saves/day). Then visit the <strong>API Keys</strong> tab in your <Link to="/dashboard" className="text-rose underline">Dashboard</Link> and generate a personal key (<code className="font-mono text-rose">eng_usr_...</code>).
-            </p>
-          </div>
-
-          <div id="step-2" className="scroll-mt-28 space-y-3">
-            <h3 className="text-lg font-display text-txt flex items-center gap-2">
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-rose/15 text-rose text-xs font-mono">2</span>
-              Configure Your AI Client
-            </h3>
-            <p className="text-xs text-mut">
-              Engram supports both remote Streamable HTTP MCP and local stdio CLI. Add the following to your client configuration:
-            </p>
-
-            <div className="rounded-2xl border border-line bg-bg/80 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-mono text-xs text-faint">claude_desktop_config.json / .cursor/mcp.json</span>
-                <button
-                  onClick={() =>
-                    copy(
-                      JSON.stringify(
-                        {
-                          mcpServers: {
-                            engram: {
-                              url: 'https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space',
-                            },
-                          },
-                        },
-                        null,
-                        2
-                      ),
-                      'qs-conf'
-                    )
-                  }
-                  className="flex items-center gap-1 font-mono text-xs text-rose hover:underline"
-                >
-                  {copiedSnippet === 'qs-conf' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                  <span>{copiedSnippet === 'qs-conf' ? 'Copied' : 'Copy'}</span>
-                </button>
-              </div>
-              <pre className="overflow-x-auto font-mono text-xs text-txt">
-{`{
-  "mcpServers": {
-    "engram": {
-      "url": "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"
+  useEffect(() => {
+    document.title = `${activeArticle.title} · Engram docs`
+    return () => {
+      document.title = 'Engram'
     }
+  }, [activeArticle])
+
+  const open = (id: string) => {
+    setParams(id === ARTICLES[0].id ? {} : { a: id }, { replace: false })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
-}`}
-              </pre>
-            </div>
-          </div>
 
-          <div id="step-3" className="scroll-mt-28 space-y-3">
-            <h3 className="text-lg font-display text-txt flex items-center gap-2">
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-rose/15 text-rose text-xs font-mono">3</span>
-              Inject System Instructions
-            </h3>
-            <p className="text-xs text-mut">
-              Instruct your agent to utilize Engram tools silently. Paste the official Engram prompt into your agent's custom instructions or system rules:
-            </p>
-            <button
-              onClick={() => downloadText('engram-rules.txt', ENGRAM_PROMPT)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-surface/50 px-4 py-2.5 text-xs font-medium text-txt hover:border-rose/50 transition"
-            >
-              <Download size={14} className="text-rose" /> Download System Prompt (.txt)
-            </button>
-          </div>
-
-          <div id="step-4" className="scroll-mt-28 space-y-3">
-            <h3 className="text-lg font-display text-txt flex items-center gap-2">
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-rose/15 text-rose text-xs font-mono">4</span>
-              Verify First Write
-            </h3>
-            <p className="text-xs text-mut leading-relaxed">
-              In your AI chat, say: <em className="text-txt">“Remember that our database is on Supabase with project ref lqscyshajhvzkusougpy.”</em><br />
-              The agent will invoke <code className="font-mono text-rose">engram_remember</code>. Open a completely new session and ask: <em className="text-txt">“What is our DB setup?”</em> The agent will cite your previous decision immediately!
-            </p>
-          </div>
-        </div>
-      ),
-    },
-
-    // ── 3. WALRUS & CRYPTOGRAPHY ──
-    {
-      id: 'cryptography',
-      category: 'Storage & Cryptography',
-      title: 'Walrus Protocol & Seal',
-      badge: 'Mainnet',
-      description: 'How client-side encryption and decentralized storage guarantee privacy and verifiability.',
-      toc: [
-        { id: 'walrus-storage', label: 'Walrus Storage Mechanism' },
-        { id: 'seal-encryption', label: 'Seal Cryptographic Privacy' },
-        { id: 'sui-verification', label: 'Sui Blockchain Verification' },
-        { id: 'epochs', label: 'Storage Epochs & Retention' },
-      ],
-      content: (
-        <div className="space-y-8">
-          <div id="walrus-storage" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">Walrus Storage Mechanism</h3>
-            <p className="text-sm text-mut leading-relaxed">
-              Walrus is designed by Mysten Labs to store unstructured data blobs at massive scale and minimal cost. Instead of replicating full copies across hundreds of validators, Walrus employs <strong>RedStuff 2D erasure coding</strong>:
-            </p>
-            <div className="rounded-2xl border border-line bg-surface/20 p-4 text-xs text-mut space-y-2">
-              <p>• A memory blob is partitioned into an array of small slivers.</p>
-              <p>• Slivers are distributed across independent storage node committees.</p>
-              <p>• The memory can be fully reconstructed even if up to one-third of storage nodes fail or go offline.</p>
-            </div>
-          </div>
-
-          <div id="seal-encryption" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">Seal Cryptographic Privacy</h3>
-            <p className="text-sm text-mut leading-relaxed">
-              Memories often contain sensitive architectural nuances, URLs, or internal references. Engram integrates <strong>Seal</strong> threshold encryption:
-            </p>
-            <div className="rounded-2xl border border-line glass p-5 space-y-3">
-              <div className="flex items-center gap-2 text-rose">
-                <Shield size={16} />
-                <h4 className="font-semibold text-xs text-txt uppercase tracking-wider font-mono">Zero Knowledge Relayer</h4>
-              </div>
-              <p className="text-xs text-mut leading-relaxed">
-                Data is encrypted locally on the client with ephemeral public keys before leaving your machine. Storage node operators on Walrus cannot read the plaintext content of your memories. Only authenticated requests bearing your signed session token can decrypt payloads.
-              </p>
-            </div>
-          </div>
-
-          <div id="sui-verification" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">Sui Blockchain Verification</h3>
-            <p className="text-sm text-mut leading-relaxed">
-              When a blob is certified on Walrus, its metadata and storage availability certificate are recorded on the <strong>Sui Mainnet</strong>.
-            </p>
-            <div className="rounded-2xl border border-line bg-bg/80 p-4">
-              <p className="text-xs font-mono text-faint mb-2">Live Mainnet Blob Proof Example:</p>
-              <div className="flex items-center justify-between font-mono text-xs text-txt bg-surface/50 p-2.5 rounded-xl">
-                <span>2iD9wFtosZo0AwOEmEmHWyjWw6T_gOuY899xrqU2qdI</span>
-                <a
-                  href="https://walruscan.com/mainnet/blob/2iD9wFtosZo0AwOEmEmHWyjWw6T_gOuY899xrqU2qdI"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1 text-rose hover:underline"
-                >
-                  <span>Inspect on Walruscan</span> <ExternalLink size={12} />
-                </a>
-              </div>
-            </div>
-          </div>
-
-          <div id="epochs" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">Storage Epochs & Retention</h3>
-            <p className="text-sm text-mut leading-relaxed">
-              On Walrus, storage is provisioned in <strong>Epochs</strong> (discrete multi-day intervals). Free tier accounts have memories stored for the standard hackathon lifecycle, while Pro accounts leverage staking pools for permanent, multi-epoch persistent storage.
-            </p>
-          </div>
-        </div>
-      ),
-    },
-
-    // ── 4. CORE PRIMITIVES & TAXONOMY ──
-    {
-      id: 'primitives',
-      category: 'Core Concepts',
-      title: 'Primitives & Memory Taxonomy',
-      badge: 'Core',
-      description: 'Personal vs. team memory isolation and the 6 signal memory types.',
-      toc: [
-        { id: 'taxonomy-breakdown', label: 'The 6 Signal Memory Types' },
-        { id: 'personal-spaces', label: 'Personal Memory Spaces' },
-        { id: 'team-spaces', label: 'Team Memory Spaces & Limits' },
-      ],
-      content: (
-        <div className="space-y-8">
-          <div id="taxonomy-breakdown" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">The 6 Signal Memory Types</h3>
-            <p className="text-sm text-mut leading-relaxed">
-              Engram explicitly prevents noisy conversational chatter from polluting memory. Every stored fact is classified into one of six structured types:
-            </p>
-
-            <div className="overflow-x-auto rounded-2xl border border-line glass">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-line bg-surface/40 font-mono uppercase text-[10px] text-faint">
-                  <tr>
-                    <th className="p-3">Type</th>
-                    <th className="p-3">Definition</th>
-                    <th className="p-3">Example Stored Sentence</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line/60 text-mut">
-                  <tr>
-                    <td className="p-3 font-mono font-bold text-rose">decision</td>
-                    <td className="p-3">An architectural or design choice and its specific rationale.</td>
-                    <td className="p-3 font-mono text-[11px] text-txt">“Moved DB to Neon on Aug 3 because Render free tier expired.”</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 font-mono font-bold text-sky-400">config</td>
-                    <td className="p-3">Concrete setup values, ports, or where an env variable lives.</td>
-                    <td className="p-3 font-mono text-[11px] text-txt">“DATABASE_URL is set in Render dashboard env, not .env.”</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 font-mono font-bold text-amber-400">gotcha</td>
-                    <td className="p-3">Non-obvious pitfall, build bug, or tested platform workaround.</td>
-                    <td className="p-3 font-mono text-[11px] text-txt">“supabase CLI has no win32 binary; use standalone .exe.”</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 font-mono font-bold text-rose-300">person</td>
-                    <td className="p-3">Stable fact about a teammate, client, role, or timezone.</td>
-                    <td className="p-3 font-mono text-[11px] text-txt">“Ada leads frontend, prefers Tailwind, is in WAT timezone.”</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 font-mono font-bold text-pink-400">preference</td>
-                    <td className="p-3">Lasting user objective, styling rule, or workflow constraint.</td>
-                    <td className="p-3 font-mono text-[11px] text-txt">“User wants every UI to work seamlessly on mobile and desktop.”</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 font-mono font-bold text-emerald-400">plan</td>
-                    <td className="p-3">Multi-step spec, task list, or notes kept on user request.</td>
-                    <td className="p-3 font-mono text-[11px] text-txt">“Our launch plan: 1) ship MCP, 2) test suite, 3) open signups.”</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div id="personal-spaces" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">Personal Memory Spaces</h3>
-            <p className="text-sm text-mut leading-relaxed">
-              Personal memory is accessed via keys with prefix <code className="font-mono text-rose">eng_usr_...</code>. The storage namespace is locked to <code className="font-mono text-txt">usr_&lt;id&gt;</code>. These memories are strictly private and synchronized only across your own devices.
-            </p>
-          </div>
-
-          <div id="team-spaces" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">Team Memory Spaces & Limits</h3>
-            <p className="text-sm text-mut leading-relaxed">
-              Team spaces allow engineering pods to share common architectural decisions and conventions. Keys with prefix <code className="font-mono text-violet-soft">eng_team_...</code> map to namespace <code className="font-mono text-txt">team_&lt;id&gt;</code>.
-            </p>
-            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
-              <span className="font-bold">Strict Free Team Limit:</span> The Free Team Plan allows a maximum of 3 active team members. Adding a 4th member is blocked at the database level unless upgraded to Pro.
-            </div>
-          </div>
-        </div>
-      ),
-    },
-
-    // ── 5. PLATFORM INTEGRATIONS ──
-    {
-      id: 'integrations',
-      category: 'Platform Guides',
-      title: 'Client & Mobile Integrations',
-      badge: 'Guides',
-      description: 'Setup guides for Claude Desktop, Cursor, Mobile ChatGPT/Claude, and CLI.',
-      toc: [
-        { id: 'cursor-setup', label: 'Cursor IDE' },
-        { id: 'claude-desktop', label: 'Claude Desktop' },
-        { id: 'mobile-guide', label: 'Mobile Workflows (iOS/Android)' },
-        { id: 'npm-package', label: 'CLI & NPM Package' },
-      ],
-      content: (
-        <div className="space-y-8">
-          <div id="cursor-setup" className="scroll-mt-28 space-y-3">
-            <h3 className="text-lg font-display text-txt flex items-center gap-2">
-              <Laptop size={16} className="text-rose" /> Cursor Setup
-            </h3>
-            <p className="text-xs text-mut">
-              Add the following block to <code className="font-mono">~/.cursor/mcp.json</code>:
-            </p>
-            <pre className="overflow-x-auto rounded-2xl border border-line bg-bg/80 p-3 font-mono text-xs text-txt">
-{`{
-  "mcpServers": {
-    "engram": {
-      "url": "https://engram-pearl.vercel.app/mcp?token=YOUR_API_KEY&room=my-space"
-    }
-  }
-}`}
-            </pre>
-          </div>
-
-          <div id="claude-desktop" className="scroll-mt-28 space-y-3">
-            <h3 className="text-lg font-display text-txt flex items-center gap-2">
-              <Laptop size={16} className="text-violet-soft" /> Claude Desktop Setup
-            </h3>
-            <p className="text-xs text-mut">
-              Open <strong>Settings → Developer → Edit Config</strong> (<code className="font-mono">claude_desktop_config.json</code>) and add:
-            </p>
-            <pre className="overflow-x-auto rounded-2xl border border-line bg-bg/80 p-3 font-mono text-xs text-txt">
-{`{
-  "mcpServers": {
-    "engram": {
-      "command": "npx",
-      "args": ["-y", "engram-walrus@0.2"],
-      "env": { "ENGRAM_API_KEY": "YOUR_API_KEY" }
-    }
-  }
-}`}
-            </pre>
-          </div>
-
-          <div id="mobile-guide" className="scroll-mt-28 space-y-3">
-            <h3 className="text-lg font-display text-txt flex items-center gap-2">
-              <Smartphone size={16} className="text-emerald-400" /> Mobile Workflows (iOS & Android)
-            </h3>
-            <p className="text-xs text-mut leading-relaxed">
-              Use Engram on mobile to capture brainstorms or voice notes during your commute and recall them when you return to your computer:
-            </p>
-            <div className="space-y-3 text-xs text-mut">
-              <div className="rounded-2xl border border-line bg-surface/30 p-4">
-                <p className="font-bold text-txt mb-1">Method 1: Custom GPTs / Instructions</p>
-                <p>
-                  Paste the Engram System Prompt in your mobile ChatGPT custom instructions and provide your API key. In Custom GPTs, add an Action with endpoint <code className="font-mono text-rose">/api/remember</code>.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-line bg-surface/30 p-4">
-                <p className="font-bold text-txt mb-1">Method 2: iOS Shortcuts</p>
-                <p>
-                  Create an iOS Shortcut that sends highlighted text as JSON to <code className="font-mono text-rose">https://engram-pearl.vercel.app/api/remember</code> using header <code className="font-mono">Authorization: Bearer YOUR_KEY</code>.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div id="npm-package" className="scroll-mt-28 space-y-3">
-            <h3 className="text-lg font-display text-txt flex items-center gap-2">
-              <Terminal size={16} className="text-sky-400" /> CLI & NPM Package (engram-walrus)
-            </h3>
-            <pre className="overflow-x-auto rounded-2xl border border-line bg-bg/80 p-3 font-mono text-xs text-txt leading-relaxed">
-{`# Connect local terminal agent to cloud account
-ENGRAM_API_KEY=eng_usr_YOUR_KEY npx -y engram-walrus@0.2
-
-# Direct Walrus account browser sign-in
-npx engram-walrus login
-
-# Display CLI help
-npx engram-walrus --help`}
-            </pre>
-          </div>
-        </div>
-      ),
-    },
-
-    // ── 6. PROTOCOL & API REFERENCE ──
-    {
-      id: 'api-reference',
-      category: 'API Reference',
-      title: 'MCP Tools & REST Protocol',
-      badge: 'REST / MCP',
-      description: 'Comprehensive endpoint reference, request/response schemas, and error codes.',
-      toc: [
-        { id: 'mcp-tools', label: 'MCP Tools Specification' },
-        { id: 'rest-routes', label: 'REST API Endpoints' },
-        { id: 'error-handling', label: 'Error Codes & Rate Limits' },
-      ],
-      content: (
-        <div className="space-y-8">
-          <div id="mcp-tools" className="scroll-mt-28 space-y-4">
-            <h3 className="text-xl font-display text-txt">MCP Tools Specification</h3>
-
-            <div className="rounded-2xl border border-line bg-surface/30 p-4 space-y-2">
-              <p className="font-mono text-xs font-bold text-rose">engram_remember(text, type, scope?, team_code?)</p>
-              <p className="text-xs text-mut">Stores one typed durable fact. Writes to Walrus and records blob ID.</p>
-              <pre className="rounded-xl bg-bg/60 p-3 font-mono text-[11px] text-faint">
-{`Input: { "text": "DATABASE_URL is in Render env", "type": "config", "scope": "personal" }
-Output: "Remembered (config, scope=personal). Walrus blob: 2iD9wF..."`}
-              </pre>
-            </div>
-
-            <div className="rounded-2xl border border-line bg-surface/30 p-4 space-y-2">
-              <p className="font-mono text-xs font-bold text-violet-soft">engram_recall(query, scope?, team_code?)</p>
-              <p className="text-xs text-mut">Semantic retrieval matching the meaning of the query against encrypted Walrus blobs.</p>
-              <pre className="rounded-xl bg-bg/60 p-3 font-mono text-[11px] text-faint">
-{`Input: { "query": "what is our db setup?", "scope": "personal" }
-Output: "• (config) DATABASE_URL is in Render env  [blob 2iD9wF...]"`}
-              </pre>
-            </div>
-          </div>
-
-          <div id="rest-routes" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">REST API Endpoints</h3>
-            <div className="overflow-x-auto rounded-2xl border border-line glass">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-line bg-surface/40 font-mono uppercase text-[10px] text-faint">
-                  <tr>
-                    <th className="p-3">Route</th>
-                    <th className="p-3">Method</th>
-                    <th className="p-3">Headers</th>
-                    <th className="p-3">Description</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line/60 text-mut font-mono text-[11px]">
-                  <tr>
-                    <td className="p-3 text-txt">/api/remember</td>
-                    <td className="p-3 text-rose font-bold">POST</td>
-                    <td className="p-3">Authorization: Bearer &lt;key&gt;</td>
-                    <td className="p-3 font-sans">Persist typed memory to Walrus.</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 text-txt">/api/recall</td>
-                    <td className="p-3 text-rose font-bold">POST</td>
-                    <td className="p-3">Authorization: Bearer &lt;key&gt;</td>
-                    <td className="p-3 font-sans">Semantic vector memory search.</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 text-txt">/api/keys</td>
-                    <td className="p-3 text-emerald-400 font-bold">GET/POST</td>
-                    <td className="p-3">Authorization: Bearer &lt;jwt|key&gt;</td>
-                    <td className="p-3 font-sans">Mint, list, and revoke API keys.</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 text-txt">/api/teams</td>
-                    <td className="p-3 text-emerald-400 font-bold">GET/POST</td>
-                    <td className="p-3">Authorization: Bearer &lt;jwt|key&gt;</td>
-                    <td className="p-3 font-sans">Create spaces and invite teammates.</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 text-txt">/api/usage</td>
-                    <td className="p-3 text-sky-400 font-bold">GET</td>
-                    <td className="p-3">Authorization: Bearer &lt;jwt|key&gt;</td>
-                    <td className="p-3 font-sans">Fetch daily quota stats vs plan limits.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div id="error-handling" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">Error Codes & Rate Limits</h3>
-            <div className="space-y-2 text-xs text-mut">
-              <p>• <code className="font-mono text-txt">401 Unauthorized</code>: Missing or invalid API key / token.</p>
-              <p>• <code className="font-mono text-txt">403 Forbidden</code>: Limit reached (e.g. Free Team Plan max 3 members ceiling).</p>
-              <p>• <code className="font-mono text-txt">429 Too Many Requests</code>: Daily save quota reached (50/day personal, 150/day team). Resets at 00:00 UTC.</p>
-            </div>
-          </div>
-        </div>
-      ),
-    },
-
-    // ── 7. PLANS & LIMITS ──
-    {
-      id: 'plans',
-      category: 'Billing & Tokenomics',
-      title: 'Usage Quotas & Staking',
-      badge: 'Quotas',
-      description: 'Understanding free plan allowances, team member ceilings, and Pro capabilities.',
-      toc: [
-        { id: 'plan-matrix', label: 'Plan Comparison Matrix' },
-        { id: 'quota-resets', label: 'Daily Quota Mechanics' },
-      ],
-      content: (
-        <div className="space-y-8">
-          <div id="plan-matrix" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">Plan Comparison Matrix</h3>
-            <div className="grid gap-4 sm:grid-cols-3 text-xs">
-              <div className="rounded-2xl border border-line bg-surface/30 p-5">
-                <span className="font-mono text-[10px] uppercase text-rose">Individual</span>
-                <h4 className="font-display text-lg text-txt mt-1">Personal Free</h4>
-                <p className="text-2xl font-bold font-mono text-txt my-2">$0</p>
-                <ul className="space-y-2 text-mut">
-                  <li>• 1 User Account</li>
-                  <li>• <strong>50 saves / day</strong></li>
-                  <li>• Cross-platform sync</li>
-                  <li>• Seal client encryption</li>
-                </ul>
-              </div>
-
-              <div className="rounded-2xl border border-rose/40 bg-surface/50 p-5 shadow-lg shadow-rose/5">
-                <span className="font-mono text-[10px] uppercase text-rose font-bold">Small Teams</span>
-                <h4 className="font-display text-lg text-txt mt-1">Free Team Plan</h4>
-                <p className="text-2xl font-bold font-mono text-txt my-2">$0</p>
-                <ul className="space-y-2 text-mut">
-                  <li className="text-txt font-semibold">• <strong>Strict max 3 members</strong></li>
-                  <li>• <strong>150 shared saves / day</strong></li>
-                  <li>• 1 Shared Team space</li>
-                  <li>• Role access control</li>
-                </ul>
-              </div>
-
-              <div className="rounded-2xl border border-line bg-surface/30 p-5">
-                <span className="font-mono text-[10px] uppercase text-violet-soft">Enterprise</span>
-                <h4 className="font-display text-lg text-txt mt-1">Pro Tier</h4>
-                <p className="text-2xl font-bold font-mono text-txt my-2">$29 <span className="text-xs font-normal text-faint">/ seat</span></p>
-                <ul className="space-y-2 text-mut">
-                  <li>• Unlimited members</li>
-                  <li>• 2,000+ saves / day</li>
-                  <li>• Multi-epoch Walrus storage</li>
-                  <li>• Priority relayer SLA</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div id="quota-resets" className="scroll-mt-28 space-y-3">
-            <h3 className="text-xl font-display text-txt">Daily Quota Mechanics</h3>
-            <p className="text-sm text-mut leading-relaxed">
-              Daily save quotas count calls to <code className="font-mono text-rose">engram_remember</code> or <code className="font-mono text-rose">/api/remember</code>. Daily counters reset automatically at <strong>00:00 UTC</strong> every night. Recalls (<code className="font-mono">engram_recall</code>) are unlimited for all active users.
-            </p>
-          </div>
-        </div>
-      ),
-    },
-  ], [copiedSnippet])
-
-  // Filtered articles based on search
-  const filteredArticles = useMemo(() => {
-    if (!searchQuery.trim()) return articles
-    const q = searchQuery.toLowerCase()
-    return articles.filter(
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return ARTICLES
+    return ARTICLES.filter(
       (a) =>
         a.title.toLowerCase().includes(q) ||
         a.description.toLowerCase().includes(q) ||
         a.category.toLowerCase().includes(q) ||
-        a.toc.some((t) => t.label.toLowerCase().includes(q))
+        a.toc.some((t) => t.label.toLowerCase().includes(q)),
     )
-  }, [articles, searchQuery])
+  }, [searchQuery])
 
-  const activeArticle = useMemo(() => {
-    return articles.find((a) => a.id === activeArticleId) || articles[0]
-  }, [articles, activeArticleId])
-
-  const activeIndex = articles.findIndex((a) => a.id === activeArticle.id)
-  const prevArticle = activeIndex > 0 ? articles[activeIndex - 1] : null
-  const nextArticle = activeIndex < articles.length - 1 ? articles[activeIndex + 1] : null
-
-  // Grouped for sidebar (filters actively with search)
   const categories = useMemo(() => {
     const map = new Map<string, DocArticle[]>()
-    filteredArticles.forEach((a) => {
-      const list = map.get(a.category) || []
-      list.push(a)
-      map.set(a.category, list)
-    })
+    filtered.forEach((a) => map.set(a.category, [...(map.get(a.category) || []), a]))
     return Array.from(map.entries())
-  }, [filteredArticles])
+  }, [filtered])
+
+  const idx = ARTICLES.findIndex((a) => a.id === activeArticle.id)
+  const prev = idx > 0 ? ARTICLES[idx - 1] : null
+  const next = idx < ARTICLES.length - 1 ? ARTICLES[idx + 1] : null
 
   return (
-    <div className="min-h-screen bg-bg text-txt flex flex-col justify-between">
-      {/* Background ambient glow */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10">
+    <div className="flex min-h-screen flex-col justify-between bg-bg text-txt">
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -top-40 right-1/4 h-[600px] w-[600px] rounded-full bg-violet/10 blur-[140px]" />
         <div className="absolute top-1/2 -left-40 h-[500px] w-[500px] rounded-full bg-rose/10 blur-[140px]" />
       </div>
 
       <Nav />
 
-      {/* Top Breadcrumb & Status Bar */}
       <div className="border-b border-line/80 bg-surface/30">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 text-xs">
-          <div className="flex items-center gap-2 text-faint">
-            <Link to="/" className="hover:text-txt transition">Engram</Link>
-            <ChevronRight size={13} />
-            <span className="text-mut">Docs</span>
-            <ChevronRight size={13} />
-            <span className="text-txt font-medium">{activeArticle.category}</span>
-            <ChevronRight size={13} />
-            <span className="text-rose font-medium">{activeArticle.title}</span>
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-5 py-3 text-xs">
+          <div className="flex min-w-0 items-center gap-2 text-faint">
+            <Link to="/" className="transition hover:text-txt">Engram</Link>
+            <ChevronRight size={13} className="shrink-0" />
+            <button onClick={() => open(ARTICLES[0].id)} className="transition hover:text-txt">Docs</button>
+            <ChevronRight size={13} className="shrink-0" />
+            <span className="truncate font-medium text-rose">{activeArticle.title}</span>
           </div>
-
-          <div className="hidden sm:flex items-center gap-3 font-mono text-[11px]">
-            <span className="flex items-center gap-1.5 text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Walrus Mainnet
-            </span>
-            <span className="text-faint">·</span>
-            <span className="text-mut">Sui Network</span>
-            <span className="text-faint">·</span>
-            <span className="text-rose font-semibold">{activeArticle.badge || 'v0.1.0'}</span>
-          </div>
+          <Link to="/dashboard?tab=connect" className="hidden shrink-0 items-center gap-1 text-mut transition hover:text-rose sm:flex">
+            Connect guides <ArrowRight size={12} />
+          </Link>
         </div>
       </div>
 
-      {/* Standard 3-Column Web3 Documentation Layout */}
-      <div className="mx-auto w-full max-w-7xl px-5 py-8 flex-1">
-        {/* Mobile Topic Selector */}
-        <div className="lg:hidden mb-6 space-y-2">
-          <label className="block text-xs font-mono uppercase text-mut">Documentation Topic</label>
+      <div className="mx-auto w-full max-w-7xl flex-1 px-5 py-8">
+        <div className="mb-6 space-y-2 lg:hidden">
+          <label htmlFor="doc-topic" className="block font-mono text-xs uppercase text-mut">Topic</label>
           <select
-            value={activeArticleId}
-            onChange={(e) => {
-              setActiveArticleId(e.target.value)
-              window.scrollTo({ top: 0, behavior: 'smooth' })
-            }}
-            className="w-full rounded-2xl border border-line bg-surface/80 p-3 text-xs text-txt focus:border-rose/50"
+            id="doc-topic"
+            value={activeArticle.id}
+            onChange={(e) => open(e.target.value)}
+            className="w-full rounded-2xl border border-line bg-surface/80 p-3 text-sm text-txt focus:border-rose/50"
           >
-            {articles.map((a) => (
+            {ARTICLES.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.category} — {a.title}
               </option>
@@ -741,175 +754,117 @@ Output: "• (config) DATABASE_URL is in Render env  [blob 2iD9wF...]"`}
           </select>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[300px_1fr_220px] items-start">
-          {/* ── LEFT COLUMN: STATIONARY SIDEBAR NAVIGATION ── */}
-          <aside className="hidden lg:block sticky top-[72px] max-h-[calc(100vh-5.5rem)] overflow-y-auto pr-3 pb-24 space-y-5">
-            {/* Search Input pinned at top of stationary sidebar */}
-            <div className="sticky top-0 z-10 bg-bg/95 backdrop-blur-md pb-2 pt-1">
+        <div className="grid items-start gap-8 lg:grid-cols-[260px_1fr_200px]">
+          <aside className="sticky top-[72px] hidden max-h-[calc(100vh-5.5rem)] space-y-5 overflow-y-auto pb-24 pr-3 lg:block">
+            <div className="sticky top-0 z-10 bg-bg/95 pb-2 pt-1 backdrop-blur-md">
               <div className="relative">
                 <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
                 <input
-                  type="text"
+                  type="search"
+                  aria-label="Search the docs"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search documentation…"
-                  className="w-full rounded-2xl border border-line bg-surface/70 pl-9 pr-3 py-2 text-xs text-txt placeholder:text-faint focus:border-rose/50 focus:outline-none transition shadow-sm"
+                  placeholder="Search the docs"
+                  className="w-full rounded-2xl border border-line bg-surface/70 py-2 pl-9 pr-3 text-xs text-txt shadow-sm transition placeholder:text-faint focus:border-rose/50 focus:outline-none"
                 />
               </div>
             </div>
 
-            {/* Nav Tree (Stationary, with no layout shift on selection) */}
-            <div className="space-y-5">
-              {categories.map(([cat, items]) => (
-                <div key={cat}>
-                  <p className="font-mono text-[10.5px] uppercase tracking-wider text-faint mb-2 px-2">
-                    {cat}
-                  </p>
-                  <ul className="space-y-1 text-xs">
-                    {items.map((item) => (
-                      <li key={item.id}>
-                        <button
-                          onClick={() => {
-                            setActiveArticleId(item.id)
-                            window.scrollTo({ top: 0, behavior: 'smooth' })
-                          }}
-                          className={`w-full text-left py-2 px-3 rounded-xl transition flex items-center justify-between border ${
-                            activeArticleId === item.id
-                              ? 'bg-rose/15 text-rose font-medium border-rose/30 shadow-sm'
-                              : 'border-transparent text-mut hover:text-txt hover:bg-surface/40 hover:border-line/40'
-                          }`}
-                        >
-                          <span className="truncate min-w-0 flex-1">{item.title}</span>
-                          {item.badge && (
-                            <span className="ml-2 rounded bg-surface/80 px-1.5 py-0.5 font-mono text-[9.5px] uppercase text-faint shrink-0">
-                              {item.badge}
-                            </span>
-                          )}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-
-              <div className="border-t border-line/60 pt-4 px-2 space-y-2">
-                <p className="font-mono text-[10.5px] uppercase tracking-wider text-faint">Quick Resources</p>
-                <div className="space-y-1.5 text-xs text-mut">
-                  <a
-                    href="https://walruscan.com/mainnet"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 hover:text-rose transition"
-                  >
-                    <span>Walruscan Explorer</span> <ExternalLink size={11} className="text-faint" />
-                  </a>
-                  <a
-                    href="https://github.com/Ipramking/engram"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 hover:text-rose transition"
-                  >
-                    <span>GitHub Repository</span> <ExternalLink size={11} className="text-faint" />
-                  </a>
-                  <Link to="/dashboard" className="flex items-center gap-1.5 text-rose hover:underline">
-                    <span>Manage API Keys →</span>
-                  </Link>
-                </div>
+            {categories.length === 0 && <p className="px-2 text-xs text-faint">Nothing matches “{searchQuery}”.</p>}
+            {categories.map(([cat, items]) => (
+              <div key={cat}>
+                <p className="mb-2 px-2 font-mono text-[10.5px] uppercase tracking-wider text-faint">{cat}</p>
+                <ul className="space-y-1 text-xs">
+                  {items.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        onClick={() => open(item.id)}
+                        aria-current={activeArticle.id === item.id ? 'page' : undefined}
+                        className={`w-full rounded-xl border px-3 py-2 text-left transition ${
+                          activeArticle.id === item.id
+                            ? 'border-rose/30 bg-rose/15 font-medium text-rose shadow-sm'
+                            : 'border-transparent text-mut hover:border-line/40 hover:bg-surface/40 hover:text-txt'
+                        }`}
+                      >
+                        {item.title}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
+            ))}
+
+            <div className="space-y-1.5 border-t border-line/60 px-2 pt-4 text-xs text-mut">
+              <Link to="/dashboard?tab=connect" className="flex items-center gap-1.5 text-rose hover:underline">Dashboard guides →</Link>
+              <a href={NPM} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 transition hover:text-rose">
+                npm package <ExternalLink size={11} className="text-faint" />
+              </a>
+              <a href={REPO} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 transition hover:text-rose">
+                GitHub <ExternalLink size={11} className="text-faint" />
+              </a>
             </div>
           </aside>
 
-          {/* ── CENTER COLUMN: MAIN CONTENT ── */}
-          <main className="min-w-0 max-w-3xl">
-            {/* Header info */}
+          <main id="main" className="min-w-0 max-w-3xl">
             <div className="mb-8 border-b border-line/80 pb-6">
-              <span className="font-mono text-xs text-rose uppercase tracking-wider">
-                {activeArticle.category}
-              </span>
-              <h1 className="text-3xl sm:text-4xl font-display text-txt mt-1 mb-3">
-                {activeArticle.title}
-              </h1>
-              <p className="text-sm sm:text-base text-mut leading-relaxed">
-                {activeArticle.description}
-              </p>
+              <span className="font-mono text-xs uppercase tracking-wider text-rose">{activeArticle.category}</span>
+              <h1 className="mb-3 mt-1 text-3xl font-display text-txt sm:text-4xl">{activeArticle.title}</h1>
+              <p className="text-sm leading-relaxed text-mut sm:text-base">{activeArticle.description}</p>
             </div>
 
-            {/* Main content body */}
-            <div className="space-y-8">
-              {activeArticle.content}
-            </div>
+            <div className="space-y-5">{activeArticle.content}</div>
 
-            {/* Next / Previous Page Navigation Footer */}
-            <div className="mt-14 border-t border-line/80 pt-8 flex items-center justify-between gap-4">
-              {prevArticle ? (
+            <div className="mt-14 flex items-center justify-between gap-4 border-t border-line/80 pt-8">
+              {prev ? (
                 <button
-                  onClick={() => {
-                    setActiveArticleId(prevArticle.id)
-                    window.scrollTo({ top: 0, behavior: 'smooth' })
-                  }}
-                  className="flex items-center gap-2 rounded-2xl border border-line bg-surface/30 px-4 py-3 text-xs text-mut hover:text-txt hover:border-rose/40 transition text-left"
+                  onClick={() => open(prev.id)}
+                  className="flex items-center gap-2 rounded-2xl border border-line bg-surface/30 px-4 py-3 text-left text-xs text-mut transition hover:border-rose/40 hover:text-txt"
                 >
                   <ArrowLeft size={14} className="text-rose" />
-                  <div>
-                    <span className="block text-[10px] font-mono uppercase text-faint">Previous</span>
-                    <span className="font-medium text-txt">{prevArticle.title}</span>
-                  </div>
+                  <span>
+                    <span className="block font-mono text-[10px] uppercase text-faint">Previous</span>
+                    <span className="font-medium text-txt">{prev.title}</span>
+                  </span>
                 </button>
-              ) : <div />}
-
-              {nextArticle && (
+              ) : (
+                <div />
+              )}
+              {next && (
                 <button
-                  onClick={() => {
-                    setActiveArticleId(nextArticle.id)
-                    window.scrollTo({ top: 0, behavior: 'smooth' })
-                  }}
-                  className="flex items-center gap-2 rounded-2xl border border-line bg-surface/30 px-4 py-3 text-xs text-mut hover:text-txt hover:border-rose/40 transition text-right ml-auto"
+                  onClick={() => open(next.id)}
+                  className="ml-auto flex items-center gap-2 rounded-2xl border border-line bg-surface/30 px-4 py-3 text-right text-xs text-mut transition hover:border-rose/40 hover:text-txt"
                 >
-                  <div>
-                    <span className="block text-[10px] font-mono uppercase text-faint">Next</span>
-                    <span className="font-medium text-txt">{nextArticle.title}</span>
-                  </div>
+                  <span>
+                    <span className="block font-mono text-[10px] uppercase text-faint">Next</span>
+                    <span className="font-medium text-txt">{next.title}</span>
+                  </span>
                   <ArrowRight size={14} className="text-rose" />
                 </button>
               )}
             </div>
           </main>
 
-          {/* ── RIGHT COLUMN: STATIONARY "ON THIS PAGE" TOC & ECOSYSTEM ── */}
-          <aside className="hidden lg:block sticky top-[72px] max-h-[calc(100vh-5.5rem)] overflow-y-auto pl-2 pb-24 space-y-6">
+          <aside className="sticky top-[72px] hidden max-h-[calc(100vh-5.5rem)] space-y-6 overflow-y-auto pb-24 pl-2 lg:block">
             <div>
-              <p className="font-mono text-[10.5px] uppercase tracking-wider text-faint mb-3">
-                On this page
-              </p>
+              <p className="mb-3 font-mono text-[10.5px] uppercase tracking-wider text-faint">On this page</p>
               <ul className="space-y-2 text-xs">
                 {activeArticle.toc.map((t) => (
                   <li key={t.id}>
-                    <a
-                      href={`#${t.id}`}
-                      className="text-mut hover:text-rose transition block leading-relaxed"
-                    >
+                    <a href={`#${t.id}`} className="block leading-relaxed text-mut transition hover:text-rose">
                       {t.label}
                     </a>
                   </li>
                 ))}
               </ul>
             </div>
-
-            {/* Web3 Community Callout */}
-            <div className="rounded-2xl border border-line glass p-4 space-y-2.5">
-              <p className="font-mono text-[10.5px] uppercase tracking-wider text-rose font-bold">
-                Ecosystem
-              </p>
-              <p className="text-[11.5px] text-mut leading-relaxed">
-                Engram is built on Sui and Walrus for the autonomous agent ecosystem.
-              </p>
-              <a
-                href="https://walruscan.com/mainnet"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-txt hover:text-rose transition"
-              >
-                <span>Walrus Explorer</span> <ExternalLink size={11} />
+            <div className="space-y-2.5 rounded-2xl border border-line glass p-4">
+              <p className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-rose">Need help?</p>
+              <p className="text-[11.5px] leading-relaxed text-mut">Ask on GitHub. Report security problems privately.</p>
+              <a href={`${REPO}/issues`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs text-txt transition hover:text-rose">
+                Issues <ExternalLink size={11} />
+              </a>
+              <a href={`${REPO}/security/advisories/new`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs text-txt transition hover:text-rose">
+                Security report <ExternalLink size={11} />
               </a>
             </div>
           </aside>
