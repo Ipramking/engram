@@ -2,6 +2,7 @@ import { getUserFromRequest, isMachineToken } from './_lib/auth.js'
 import { createApiKey, listApiKeys, revokeApiKey } from './_lib/db.js'
 import { signLiveKey } from './_lib/token.js'
 import { startDeviceLogin, pollDeviceLogin, describeDeviceLogin, decideDeviceLogin } from './_lib/device.js'
+import { allowShared, clientIp, tooMany } from './_lib/ratelimit.js'
 
 const HOST = process.env.ENGRAM_MCP_HOST || 'https://engram-pearl.vercel.app'
 
@@ -21,6 +22,10 @@ export default async function handler(req: any, res: any) {
 
   // CLI device login: start and poll run before the CLI has any key.
   if (method === 'POST' && path.endsWith('/device/start')) {
+    // Each start stores a pending login, so cap how often one network can create them.
+    if (!(await allowShared(`device:${clientIp(req)}`, 20, 60 * 60 * 1000))) {
+      return tooMany(res, 'Too many sign-in attempts from this network. Try again in an hour.', 3600)
+    }
     const r = await startDeviceLogin(req.body, HOST)
     return res.status(r.status).json(r.body)
   }
@@ -104,19 +109,9 @@ export default async function handler(req: any, res: any) {
 
     // ── List Keys ──
     if (method === 'GET' || path.endsWith('/list')) {
-      let keys = await listApiKeys(user.id)
-      // Auto-provision a default personal key if the user has 0 keys so mobile/desktop setup is 1-tap ready
-      if (!keys || keys.length === 0) {
-        try {
-          await createApiKey({
-            userId: user.id,
-            name: 'Default Mobile & Desktop Key',
-            scope: 'personal',
-            room: 'my-space',
-          })
-          keys = await listApiKeys(user.id)
-        } catch {}
-      }
+      // Never create keys behind the user's back: someone who revoked every key meant it.
+      // The dashboard offers "Create a key" (or Sign in with Engram) when the list is empty.
+      const keys = await listApiKeys(user.id)
       // No secrets in the list: links come from POST /api/keys/link on demand.
       return res.status(200).json({ ok: true, keys })
     }

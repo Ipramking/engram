@@ -31,7 +31,7 @@ export function newTid(): string {
 export function sign(tid: string, secretOverride?: string): string {
   const secret = getSigningSecret(secretOverride)
   const iat = Math.floor(Date.now() / 1000)
-  // Space tokens expire after 90 days; older tokens without exp keep working until rotated.
+  // Space tokens expire after 90 days.
   const payload = b64u(JSON.stringify({ tid, iat, exp: iat + 90 * 86400 }))
   const mac = b64u(createHmac('sha256', secret).update('v1.' + payload).digest())
   return `v1.${payload}.${mac}`
@@ -67,6 +67,11 @@ function verifyHmacWithRotation(
   return false
 }
 
+/** A token is usable only with a numeric expiry that hasn't passed. */
+function isLive(exp: unknown): boolean {
+  return typeof exp === 'number' && Number.isFinite(exp) && Math.floor(Date.now() / 1000) <= exp
+}
+
 export function verify(token: string, secretOverride?: string): { tid: string; iat: number; exp?: number } | null {
   if (typeof token !== 'string') return null
   const parts = token.split('.')
@@ -78,7 +83,8 @@ export function verify(token: string, secretOverride?: string): { tid: string; i
 
   try {
     const parsed = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'))
-    if (typeof parsed?.exp === 'number' && Math.floor(Date.now() / 1000) > parsed.exp) return null
+    // Every token we issue carries exp; older space links without one are no longer accepted.
+    if (!isLive(parsed?.exp)) return null
     return parsed
   } catch {
     return null
@@ -126,12 +132,7 @@ export function verifySession(token: string, secretOverride?: string): SessionUs
 
   try {
     const parsed: SessionUser = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'))
-    if (parsed.exp && typeof parsed.exp === 'number') {
-      const now = Math.floor(Date.now() / 1000)
-      if (now > parsed.exp) {
-        return null // Session expired
-      }
-    }
+    if (!isLive(parsed.exp)) return null // missing or past expiry
     return parsed
   } catch {
     return null
@@ -177,12 +178,7 @@ export function verifyLiveKey(token: string, secretOverride?: string): LiveKeyPa
 
   try {
     const parsed: LiveKeyPayload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))
-    if (parsed.exp && typeof parsed.exp === 'number') {
-      const now = Math.floor(Date.now() / 1000)
-      if (now > parsed.exp) {
-        return null // Token expired
-      }
-    }
+    if (!isLive(parsed.exp)) return null // missing or past expiry
     return parsed
   } catch {
     return null

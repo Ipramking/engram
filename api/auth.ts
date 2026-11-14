@@ -2,7 +2,7 @@ import { getSupabaseAuth, getSupabaseAdmin, authApi } from './_lib/supabase.js'
 import { createProfile, getProfile } from './_lib/db.js'
 import { getUserFromRequest, isMachineToken } from './_lib/auth.js'
 import { signSession } from './_lib/token.js'
-import { allow, clientIp } from './_lib/ratelimit.js'
+import { allowShared, clientIp } from './_lib/ratelimit.js'
 
 const EMAIL_RE = /^[^s@]+@[^s@]+.[^s@]{2,}$/
 
@@ -47,7 +47,7 @@ export default async function handler(req: any, res: any) {
       if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
         return res.status(400).json({ error: 'Use a password of at least 8 characters.' })
       }
-      if (!allow(`register:${clientIp(req)}`, 10, 60 * 60 * 1000)) {
+      if (!(await allowShared(`register:${clientIp(req)}`, 10, 60 * 60 * 1000))) {
         return res.status(429).json({ error: 'Too many sign-ups from this network. Try again in an hour.' })
       }
 
@@ -122,7 +122,10 @@ export default async function handler(req: any, res: any) {
       }
       // Slow down password guessing: per IP and per account.
       const ip = clientIp(req)
-      if (!allow(`login:${ip}`, 30, 15 * 60 * 1000) || !allow(`login:${String(email).toLowerCase()}`, 10, 15 * 60 * 1000)) {
+      if (
+        !(await allowShared(`login:${ip}`, 30, 15 * 60 * 1000)) ||
+        !(await allowShared(`login:${String(email).toLowerCase()}`, 10, 15 * 60 * 1000))
+      ) {
         return res.status(429).json({ error: 'Too many sign-in attempts. Wait 15 minutes and try again.' })
       }
 

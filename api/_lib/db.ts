@@ -322,6 +322,17 @@ export async function listTeams(userId: string) {
   return out
 }
 
+/** A team's plan (free_team unless the team row says otherwise). */
+export async function getTeamPlanTier(teamId: string): Promise<string> {
+  const supabase = getSupabaseAdmin()
+  if (supabase && teamId) {
+    const { data } = await supabase.from('teams').select('plan_tier').eq('id', teamId).maybeSingle()
+    if (data?.plan_tier && PLAN_LIMITS[data.plan_tier]) return data.plan_tier
+  }
+  const local = memTeams.get(teamId)?.plan_tier
+  return local && PLAN_LIMITS[local] ? local : 'free_team'
+}
+
 export async function listTeamMembers(teamId: string) {
   const supabase = getSupabaseAdmin()
   if (supabase) {
@@ -353,8 +364,9 @@ export async function addTeamMember(opts: {
   if (members.some((m: any) => m.email.toLowerCase() === opts.email.toLowerCase())) {
     throw new Error('This user is already a member of this team.')
   }
-  if (members.length >= 3) {
-    throw new Error('The Free Team Plan is limited to a maximum of 3 members. Please upgrade to Pro to add more members.')
+  const seats = (PLAN_LIMITS[await getTeamPlanTier(opts.teamId)] || PLAN_LIMITS.free_team).maxTeamMembers
+  if (members.length >= seats) {
+    throw new Error(`This team has used all ${seats} of its seats. Remove someone before inviting another person.`)
   }
 
   // Invites can never create owners, and only an owner can appoint an admin.

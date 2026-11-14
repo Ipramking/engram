@@ -9,7 +9,7 @@ import {
   type MemoryType,
 } from './memwal.js'
 import { authorizeMemoryAccess } from './auth.js'
-import { checkAndIncrementUsage } from './db.js'
+import { checkAndIncrementUsage, getTeamPlanTier } from './db.js'
 import { getSupabaseAdmin } from './supabase.js'
 import { detectAndResolveConflicts } from './conflicts.js'
 import { scanForSecrets, sanitizeMemoryText } from './security.js'
@@ -151,8 +151,8 @@ export async function executeMemoryCreationLifecycle(
       entityType: effectiveScope === 'team' ? 'team' : 'user',
       entityId: effectiveScope === 'team' ? effectiveTeamId! : user.id,
       operation: 'save',
-      // Team saves draw on the team's pool, not the saver's personal plan.
-      planTier: effectiveScope === 'team' ? 'free_team' : user.plan_tier,
+      // Team saves draw on the team's pool and plan, not the saver's personal plan.
+      planTier: effectiveScope === 'team' ? await getTeamPlanTier(effectiveTeamId!) : user.plan_tier,
     })
   } catch (quotaErr: any) {
     return {

@@ -10,6 +10,7 @@ import {
   registerClient,
 } from './_lib/oauth.js'
 import { approveTelegramLink, handleTelegramUpdate, telegramInfo } from './_lib/telegram.js'
+import { allowShared, clientIp, tooMany } from './_lib/ratelimit.js'
 
 const HOST = (globalThis as any).process?.env?.ENGRAM_MCP_HOST || 'https://engram-pearl.vercel.app'
 
@@ -34,8 +35,19 @@ export default async function handler(req: any, res: any) {
   if (sub === 'prm') return res.status(200).json(protectedResourceMetadata(HOST))
 
   // Client-facing OAuth endpoints (no user session; the client app calls these).
-  if (sub === 'register' && method === 'POST') return send(await registerClient(req.body))
-  if (sub === 'token' && method === 'POST') return send(await exchangeToken(req.body))
+  // Registration stores a client row and token exchange checks codes: both get per-network caps.
+  if (sub === 'register' && method === 'POST') {
+    if (!(await allowShared(`oauth-register:${clientIp(req)}`, 20, 60 * 60 * 1000))) {
+      return tooMany(res, 'Too many app registrations from this network. Try again in an hour.', 3600)
+    }
+    return send(await registerClient(req.body))
+  }
+  if (sub === 'token' && method === 'POST') {
+    if (!(await allowShared(`oauth-token:${clientIp(req)}`, 120, 10 * 60 * 1000))) {
+      return tooMany(res, 'Too many token requests. Try again in a few minutes.', 600)
+    }
+    return send(await exchangeToken(req.body))
+  }
   if (sub === 'client' && method === 'GET') return send(await describeClient(String(req.query?.client_id || searchParams.get('client_id') || '')))
 
   // Telegram webhook (authenticated by Telegram's secret header) and public bot info.

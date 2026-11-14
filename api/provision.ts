@@ -1,43 +1,11 @@
 import { getUserFromRequest, isMachineToken } from './_lib/auth.js'
 import { newTid, sign } from './_lib/token.js'
+import { allowShared } from './_lib/ratelimit.js'
 
 const env = ((globalThis as any).process?.env ?? {}) as Record<string, string | undefined>
 
-interface RateBucket {
-  count: number
-  resetAt: number
-}
-
-const rateBuckets = new Map<string, RateBucket>()
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000 // 10 minutes
-const RATE_LIMIT_MAX = 5 // max 5 provisions per 10 min per IP
-const MAX_BUCKET_MAP_SIZE = 5000
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now()
-
-  // Evict expired entries if map gets large
-  if (rateBuckets.size > MAX_BUCKET_MAP_SIZE) {
-    for (const [key, bucket] of rateBuckets.entries()) {
-      if (bucket.resetAt <= now) {
-        rateBuckets.delete(key)
-      }
-    }
-  }
-
-  const existing = rateBuckets.get(ip)
-  if (!existing || existing.resetAt <= now) {
-    rateBuckets.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
-    return true
-  }
-
-  if (existing.count >= RATE_LIMIT_MAX) {
-    return false
-  }
-
-  existing.count += 1
-  return true
-}
+const RATE_LIMIT_MAX = 5 // max 5 space links per 10 min per network
 
 function slugify(room: unknown): string {
   if (typeof room !== 'string') return 'my-space'
@@ -65,7 +33,7 @@ export default async function handler(req: any, res: any) {
     req.ip ||
     '127.0.0.1'
 
-  if (!checkRateLimit(ip)) {
+  if (!(await allowShared(`provision:${ip}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS))) {
     return res.status(429).json({
       error: 'Rate limit exceeded: maximum 5 space tokens per 10 minutes. Please try again later.',
     })
