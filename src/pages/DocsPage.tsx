@@ -440,9 +440,10 @@ const ARTICLES: DocArticle[] = [
         </P>
         <H id="secrets">What not to save</H>
         <P>
-          Passwords, API keys and private keys. Engram refuses text that looks like a known key format (OpenAI, Anthropic, Groq,
-          GitHub, Google, AWS, Stripe, Paystack, Slack, npm, Hugging Face, Telegram bots, Engram itself, PEM private keys and a
-          few more). Save where a secret lives instead: <i>“The Paystack key is in Vercel env as PAYSTACK_SECRET.”</i>
+          Passwords, API keys and private keys. Engram refuses text that looks like one of these key formats: OpenAI, Anthropic and
+          Groq keys, GitHub tokens, Google and Firebase keys, AWS access keys, Slack tokens, Supabase service keys, Sui wallet keys
+          and PEM private keys. It can't recognise every kind of secret, so keep passwords and other keys out of your memories
+          yourself. Save where a secret lives instead: <i>“The Paystack key is in Vercel env as PAYSTACK_SECRET.”</i>
         </P>
       </>
     ),
@@ -615,7 +616,8 @@ const ARTICLES: DocArticle[] = [
           items={[
             'Give each app its own key, limit it to read-only or save-only, and revoke it on its own.',
             'Export your memories as Markdown or JSON from the Memories page.',
-            'Delete single memories, or your whole account from the Usage page.',
+            'Change your password, disconnect every app at once, or delete your whole account from the Settings page.',
+            'Delete single memories from the Memories page.',
           ]}
         />
         <H id="report">Reporting a problem</H>

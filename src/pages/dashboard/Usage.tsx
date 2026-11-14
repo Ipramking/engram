@@ -1,9 +1,7 @@
-import { useState } from 'react'
-import { Check, Trash2 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { Check } from 'lucide-react'
 import type { Dashboard } from './data'
 import type { QuotaBlock } from './types'
-import { Button, Callout, PageHeader, Panel, Sheet, Skeleton, inputCls } from './ui'
+import { Button, Callout, PageHeader, Panel, Skeleton } from './ui'
 
 function countdown(sec?: number) {
   if (!sec || sec <= 0) return 'at midnight UTC'
@@ -53,23 +51,7 @@ const plans = (personalLimit = 50, teamLimit = 150, seats = 3) => [
   },
 ]
 
-export function Usage({ d, go }: { d: Dashboard; go?: (t: 'memories') => void }) {
-  const { logout } = useAuth()
-  const [deleting, setDeleting] = useState(false)
-  const [confirmText, setConfirmText] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function deleteAccount() {
-    setBusy(true)
-    setError(null)
-    const r = await d.deleteAccount()
-    setBusy(false)
-    if (!r.ok) return setError(r.error)
-    logout()
-    window.location.href = '/'
-  }
-
+export function Usage({ d, go }: { d: Dashboard; go?: (t: 'settings') => void }) {
   const u = d.usage
   const p = u?.personal
   const nearLimit = p && p.saves >= p.dailyLimit * 0.8
@@ -133,47 +115,17 @@ export function Usage({ d, go }: { d: Dashboard; go?: (t: 'memories') => void })
           )
         })}
       </div>
-      <h2 className="mb-4 mt-10 font-display text-[22px] text-txt">Your account</h2>
-      <Panel className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
-        <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-medium text-txt">Delete account</p>
-          <p className="mt-1 text-[13px] leading-relaxed text-mut">
-            Permanently deletes your account, memories, keys and connected apps. Export your memories first if you want a copy
-            {go && (
-              <>
-                {' '}(<button type="button" className="text-rose underline-offset-2 hover:underline" onClick={() => go('memories')}>Memories → Export</button>)
-              </>
-            )}
-            . Copies already written to Walrus may remain there until their storage period ends.
-          </p>
-        </div>
-        <Button variant="danger" onClick={() => setDeleting(true)}>
-          <Trash2 size={14} /> Delete account
-        </Button>
-      </Panel>
-
-      <Sheet
-        open={deleting}
-        onClose={() => setDeleting(false)}
-        eyebrow="Delete account"
-        title="This can't be undone"
-        footer={
-          <div className="flex gap-2">
-            <Button className="flex-1" onClick={() => setDeleting(false)}>
-              Cancel
-            </Button>
-            <Button className="flex-1" variant="danger" onClick={deleteAccount} disabled={busy || confirmText !== 'DELETE'}>
-              {busy ? 'Deleting…' : 'Delete everything'}
-            </Button>
-          </div>
-        }
-      >
-        <p className="text-[13.5px] leading-relaxed text-mut">
-          Every app connected to Engram stops working immediately. Type <b className="font-medium text-txt">DELETE</b> to confirm.
-        </p>
-        <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="DELETE" aria-label="Type DELETE to confirm" className={`${inputCls} mt-4 font-mono`} />
-        {error && <p className="mt-3 text-[13px] text-rose">{error}</p>}
-      </Sheet>
+      {go && (
+        <>
+          <h2 className="mb-4 mt-10 font-display text-[22px] text-txt">Your account</h2>
+          <Panel className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
+            <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-mut">
+              Change your password, export your memories or delete your account in Settings.
+            </p>
+            <Button onClick={() => go('settings')}>Open settings</Button>
+          </Panel>
+        </>
+      )}
     </div>
   )
 }

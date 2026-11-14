@@ -244,6 +244,34 @@ export function useDashboard(authToken: string | null) {
     return r.ok ? { ok: true as const } : { ok: false as const, error: r.data?.error || 'Could not delete the account.' }
   }
 
+  async function changePassword(currentPassword: string, newPassword: string) {
+    const r = await call('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) })
+    if (r.ok) return { ok: true as const }
+    return {
+      ok: false as const,
+      error: (r.data?.error as string) || 'Could not change the password.',
+      wrongPassword: r.data?.code === 'WRONG_PASSWORD',
+    }
+  }
+
+  async function updateProfile(name: string) {
+    const r = await call('/api/auth/profile', { method: 'POST', body: JSON.stringify({ name }) })
+    return r.ok ? { ok: true as const } : { ok: false as const, error: (r.data?.error as string) || 'Could not save your name.' }
+  }
+
+  /** Revokes every active key. Connectors, computers and phones stop working until they are connected again. */
+  async function revokeAllKeys() {
+    let revoked = 0
+    let failed = 0
+    for (const k of [...keys]) {
+      const r = await revokeKey(k.id)
+      if (r.ok) revoked++
+      else failed++
+    }
+    await refresh()
+    return { revoked, failed }
+  }
+
   async function approveTelegram(code: string) {
     const r = await call('/api/connect/telegram-link', { method: 'POST', body: JSON.stringify({ code }) })
     return r.ok ? { ok: true as const } : { ok: false as const, error: r.data?.error || 'Could not connect the chat.' }
@@ -298,6 +326,9 @@ export function useDashboard(authToken: string | null) {
     decideDevice,
     approveTelegram,
     deleteAccount,
+    changePassword,
+    updateProfile,
+    revokeAllKeys,
   }
 }
 

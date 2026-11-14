@@ -97,7 +97,7 @@ reached the tool returns a readable error instead of failing silently.
 ## Advanced: direct Walrus
 
 `npx engram-walrus login --walrus` signs in to Walrus Memory itself (MemWal) instead of Engram, for running the
-server against your own Walrus account. This needs the optional `@mysten-incubation/memwal-mcp` package.
+server against your own Walrus account. Most people don't need this.
 
 ## License
 

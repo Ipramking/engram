@@ -60,7 +60,7 @@ export interface MemoryStats {
   superseded: number
 }
 
-export type TabId = 'home' | 'connect' | 'memories' | 'keys' | 'teams' | 'usage' | 'guide'
+export type TabId = 'home' | 'connect' | 'memories' | 'keys' | 'teams' | 'usage' | 'guide' | 'settings'
 
 /** A key the user can connect with: its long-lived secret (only right after creation) or its 30-day link token. */
 export interface ActiveCredential {

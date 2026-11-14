@@ -130,7 +130,7 @@ const PRIVACY: Section[] = [
         <ul>
           <li>access and export your memories (Memories → Export);</li>
           <li>correct or delete individual memories;</li>
-          <li>delete your account and its data (Dashboard → Usage → Delete account);</li>
+          <li>delete your account and its data (Dashboard → Settings → Delete account);</li>
           <li>object to or ask us to restrict processing, and withdraw consent;</li>
           <li>complain to a data protection authority, such as the Nigeria Data Protection Commission.</li>
         </ul>

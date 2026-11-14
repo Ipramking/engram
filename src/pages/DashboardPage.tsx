@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  BarChart3, BookOpen, Brain, House, KeyRound, Layers, LogOut, MoreHorizontal, PlugZap, RefreshCw, Users,
+  BarChart3, BookOpen, Brain, House, KeyRound, Layers, LogOut, MoreHorizontal, PlugZap, RefreshCw, Settings as SettingsIcon, Users,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Wordmark } from '../components/Chrome'
@@ -16,6 +16,7 @@ import { Keys, CreateKeySheet } from './dashboard/Keys'
 import { Teams } from './dashboard/Teams'
 import { Usage } from './dashboard/Usage'
 import { Guide } from './dashboard/Guide'
+import { Settings } from './dashboard/Settings'
 import { DeviceApproval } from './dashboard/DeviceApproval'
 import { TelegramApproval } from './dashboard/TelegramApproval'
 import { setReturnTo } from '../lib/returnTo'
@@ -30,6 +31,7 @@ const NAV: Array<{ id: TabId; label: string; hint: string; icon: typeof House; m
   { id: 'teams', label: 'Teams', hint: 'Shared memory', icon: Users },
   { id: 'usage', label: 'Usage', hint: 'Limits & plans', icon: BarChart3 },
   { id: 'guide', label: 'Guide', hint: 'How it works', icon: BookOpen },
+  { id: 'settings', label: 'Settings', hint: 'Account & security', icon: SettingsIcon },
 ]
 
 const isTab = (t: string | null): t is TabId => NAV.some((n) => n.id === t)
@@ -155,6 +157,7 @@ function Dashboard() {
     teams: <Teams d={d} onCreateKey={() => setKeySheet(true)} />,
     usage: <Usage d={d} go={go} />,
     guide: <Guide go={go} />,
+    settings: <Settings d={d} go={go} onSignOut={signOut} />,
   }
 
   return (
@@ -202,7 +205,12 @@ function Dashboard() {
         </nav>
 
         <div className="rounded-2xl border border-line/70 bg-bg/40 p-3.5">
-          <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => go('settings')}
+            aria-label="Account settings"
+            className="ring-focus flex w-full items-center gap-3 rounded-xl text-left transition hover:opacity-90"
+          >
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-rose/80 to-violet/80 font-display text-[15px] text-bg">
               {name[0]?.toUpperCase()}
             </span>
@@ -210,7 +218,7 @@ function Dashboard() {
               <p className="truncate text-[13px] text-txt">{name}</p>
               <p className="truncate text-[11.5px] text-faint">{user.email}</p>
             </div>
-          </div>
+          </button>
           <div className="mt-3 flex items-center justify-between">
             <span className="font-mono text-[10.5px] uppercase tracking-wider text-faint">{d.usage?.plan || user.plan_tier || 'free'} plan</span>
             <button type="button" onClick={signOut} className="ring-focus inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[12px] text-mut transition hover:text-txt">
@@ -223,9 +231,14 @@ function Dashboard() {
       {/* Phone top bar */}
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line/70 bg-bg/85 px-4 py-3 backdrop-blur-xl lg:hidden">
         <Wordmark />
-        <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-rose/80 to-violet/80 font-display text-[14px] text-bg" aria-label={`Signed in as ${name}`}>
+        <button
+          type="button"
+          onClick={() => go('settings')}
+          className="ring-focus grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-rose/80 to-violet/80 font-display text-[14px] text-bg"
+          aria-label={`Account settings for ${name}`}
+        >
           {name[0]?.toUpperCase()}
-        </span>
+        </button>
       </header>
 
       <main id="main" className="relative z-10 mx-auto w-full max-w-[1120px] px-4 pb-32 pt-6 sm:px-6 sm:pt-8 lg:px-10 lg:pb-16 lg:pt-12">
@@ -281,10 +294,10 @@ function Dashboard() {
           type="button"
           onClick={() => setMoreOpen(true)}
           className={`ring-focus flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl text-[10.5px] ${
-            ['teams', 'usage', 'guide'].includes(tab) ? 'text-txt' : 'text-faint'
+            ['teams', 'usage', 'guide', 'settings'].includes(tab) ? 'text-txt' : 'text-faint'
           }`}
         >
-          <MoreHorizontal size={19} className={['teams', 'usage', 'guide'].includes(tab) ? 'text-rose' : ''} />
+          <MoreHorizontal size={19} className={['teams', 'usage', 'guide', 'settings'].includes(tab) ? 'text-rose' : ''} />
           More
         </button>
       </nav>

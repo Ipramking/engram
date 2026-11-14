@@ -2,9 +2,9 @@ import { getSupabaseAuth, getSupabaseAdmin, authApi } from './_lib/supabase.js'
 import { createProfile, getProfile } from './_lib/db.js'
 import { getUserFromRequest, isMachineToken } from './_lib/auth.js'
 import { signSession } from './_lib/token.js'
-import { allowShared, clientIp } from './_lib/ratelimit.js'
+import { allowShared, clientIp, tooMany } from './_lib/ratelimit.js'
 
-const EMAIL_RE = /^[^s@]+@[^s@]+.[^s@]{2,}$/
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 export default async function handler(req: any, res: any) {
   const rawUrl = req.url || ''
@@ -179,6 +179,73 @@ export default async function handler(req: any, res: any) {
         return res.status(500).json({ error: 'Could not delete the account. Try again or contact us.' })
       }
       return res.status(200).json({ ok: true })
+    }
+
+    // ── Change password (signed-in session; the current password must be entered again) ──
+    if (path.endsWith('/change-password') && method === 'POST') {
+      if (isMachineToken(req)) return res.status(403).json({ error: 'Sign in to the dashboard to change your password.' })
+      const user = await getUserFromRequest(req)
+      if (!user) return res.status(401).json({ error: 'Your session has ended. Sign in again.' })
+
+      const { currentPassword, newPassword } = req.body || {}
+      if (typeof currentPassword !== 'string' || !currentPassword || typeof newPassword !== 'string') {
+        return res.status(400).json({ error: 'Enter your current password and a new one.' })
+      }
+      if (newPassword.length < 8 || newPassword.length > 128) {
+        return res.status(400).json({ error: 'Use a new password of 8 to 128 characters.' })
+      }
+      if (newPassword === currentPassword) {
+        return res.status(400).json({ error: 'The new password must be different from the current one.' })
+      }
+      // This endpoint checks a password, so guessing is limited per account and per network.
+      if (
+        !(await allowShared(`password:${user.id}`, 5, 15 * 60 * 1000)) ||
+        !(await allowShared(`password-ip:${clientIp(req)}`, 20, 15 * 60 * 1000))
+      ) {
+        return tooMany(res, 'Too many attempts. Wait 15 minutes and try again.', 900)
+      }
+
+      const admin = getSupabaseAdmin()
+      const anon = getSupabaseAuth()
+      if (!admin || !anon || !user.email) {
+        return res.status(503).json({ error: 'Password changes are unavailable right now. Try again later.' })
+      }
+      const { error: verifyError } = await authApi(anon).signInWithPassword({ email: user.email, password: currentPassword })
+      if (verifyError) {
+        // Rejected credentials mean a wrong password; anything else (network, server) is not the user's fault.
+        if ([400, 401, 403, 422].includes(Number(verifyError.status))) {
+          return res.status(400).json({ error: 'That is not your current password.', code: 'WRONG_PASSWORD' })
+        }
+        console.error('[api/auth] password check failed:', verifyError.message)
+        return res.status(502).json({ error: 'Could not check your password. Try again in a moment.' })
+      }
+      const { error: updateError } = await authApi(admin).admin.updateUserById(user.id, { password: newPassword })
+      if (updateError) {
+        console.error('[api/auth] change-password failed:', updateError.message)
+        return res.status(500).json({ error: 'Could not change the password. Try again.' })
+      }
+      return res.status(200).json({ ok: true })
+    }
+
+    // ── Update display name (signed-in session) ──
+    if (path.endsWith('/profile') && method === 'POST') {
+      if (isMachineToken(req)) return res.status(403).json({ error: 'Sign in to the dashboard to edit your profile.' })
+      const user = await getUserFromRequest(req)
+      if (!user) return res.status(401).json({ error: 'Your session has ended. Sign in again.' })
+
+      const name = typeof req.body?.name === 'string' ? req.body.name.replace(/\s+/g, ' ').trim() : ''
+      if (!name || name.length > 60 || /[\u0000-\u001f\u007f]/.test(name)) {
+        return res.status(400).json({ error: 'Use a name of 1 to 60 characters.' })
+      }
+      const admin = getSupabaseAdmin()
+      if (!admin) return res.status(503).json({ error: 'Profile changes are unavailable right now. Try again later.' })
+      const { data: updated, error } = await admin.from('profiles').update({ name }).eq('id', user.id).select('id').maybeSingle()
+      if (error) {
+        console.error('[api/auth] profile update failed:', error.message)
+        return res.status(500).json({ error: 'Could not save your name. Try again.' })
+      }
+      if (!updated) await createProfile(user.id, user.email, name, 'free_personal')
+      return res.status(200).json({ ok: true, name })
     }
 
     // ── Me / Current User ──

@@ -31,6 +31,7 @@ export interface AuthApi {
   admin: {
     createUser(attrs: Record<string, unknown>): Promise<{ data: any; error: any }>
     deleteUser(id: string): Promise<{ data: any; error: any }>
+    updateUserById(id: string, attrs: Record<string, unknown>): Promise<{ data: any; error: any }>
   }
   signInWithPassword(creds: { email: string; password: string }): Promise<{ data: any; error: any }>
   getUser(jwt?: string): Promise<{ data: any; error: any }>

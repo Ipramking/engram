@@ -9,16 +9,9 @@ import {
   inputCls, relTime, useToast,
 } from './ui'
 
-const WALRUSCAN = 'https://walruscan.com/mainnet/blob/'
+import { downloadMemories } from './exportFile'
 
-function download(name: string, mime: string, content: string) {
-  const url = URL.createObjectURL(new Blob([content], { type: mime }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  a.click()
-  URL.revokeObjectURL(url)
-}
+const WALRUSCAN = 'https://walruscan.com/mainnet/blob/'
 
 export function Memories({ d }: { d: Dashboard }) {
   const toast = useToast()
@@ -114,16 +107,8 @@ export function Memories({ d }: { d: Dashboard }) {
     if (!r.ok) return toast(r.error, 'error')
     const all = r.memories
     if (!all.length) return toast('Nothing to export yet.', 'info')
-    const stamp = new Date().toISOString().slice(0, 10)
     toast(`Exported ${all.length} memor${all.length === 1 ? 'y' : 'ies'}.`)
-    if (fmt === 'json') return download(`engram-${scope}-${stamp}.json`, 'application/json', JSON.stringify(all, null, 2))
-    const body = all
-      .map((m, i) => {
-        const proof = isWalrusBlobId(m.blobId) ? `\n- Walrus blob: ${WALRUSCAN}${m.blobId}` : ''
-        return `### ${i + 1}. ${TYPE_META[m.type]?.label || m.type}${m.isSuperseded ? ' (replaced)' : ''}\n${m.text}\n- Saved: ${m.createdAt || 'unknown'}${proof}\n`
-      })
-      .join('\n')
-    download(`engram-${scope}-${stamp}.md`, 'text/markdown', `# Engram memories — ${scope}\nExported ${new Date().toISOString()}\n\n${body}`)
+    downloadMemories(all, scope, fmt)
   }
 
   const byDay = items.reduce<Record<string, Memory[]>>((acc, m) => {
