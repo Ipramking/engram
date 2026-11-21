@@ -9,7 +9,20 @@ export interface PlanLimits {
   maxMemories: number
 }
 
+/**
+ * Stand-in for "no limit". The database counter is a 32-bit integer, so the limit has to be a real number;
+ * one billion saves a day can't be reached. Anything at or above this is shown as "Unlimited".
+ */
+export const UNLIMITED = 1_000_000_000
+
 export const PLAN_LIMITS: Record<string, PlanLimits> = {
+  // Granted by the operator to specific accounts (profiles.plan_tier); never self-serve.
+  unlimited: {
+    dailySaves: UNLIMITED,
+    maxTeamMembers: 1000,
+    maxRooms: 1000,
+    maxMemories: UNLIMITED,
+  },
   free_personal: {
     dailySaves: 50,
     maxTeamMembers: 1,

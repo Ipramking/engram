@@ -343,6 +343,11 @@ export function relTime(iso?: string | null) {
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+/** Plans without a real cap use a limit of one billion (see UNLIMITED in the API); show that as a word. */
+export const UNLIMITED_FROM = 1_000_000_000
+export const isUnlimited = (limit?: number | null) => typeof limit === 'number' && limit >= UNLIMITED_FROM
+export const fmtLimit = (limit?: number | null) => (isUnlimited(limit) ? 'Unlimited' : String(limit ?? 0))
+
 /** A missing or unparseable date shows as a dash; it must never throw and blank the page. */
 export function fmtDate(d?: Date | string | null) {
   if (!d) return '—'

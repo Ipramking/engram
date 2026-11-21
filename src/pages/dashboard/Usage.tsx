@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react'
 import type { Dashboard } from './data'
 import type { QuotaBlock } from './types'
-import { Button, Callout, PageHeader, Panel, Skeleton } from './ui'
+import { Button, Callout, PageHeader, Panel, Skeleton, isUnlimited } from './ui'
 
 function countdown(sec?: number) {
   if (!sec || sec <= 0) return 'at midnight UTC'
@@ -11,7 +11,8 @@ function countdown(sec?: number) {
 }
 
 function Meter({ title, q, accent }: { title: string; q: QuotaBlock; accent: string }) {
-  const pct = q.percentUsed ?? Math.min(100, Math.round((q.saves / Math.max(1, q.dailyLimit)) * 100))
+  const unlimited = isUnlimited(q.dailyLimit)
+  const pct = unlimited ? 0 : (q.percentUsed ?? Math.min(100, Math.round((q.saves / Math.max(1, q.dailyLimit)) * 100)))
   const left = q.remaining ?? Math.max(0, q.dailyLimit - q.saves)
   return (
     <Panel className="p-5 sm:p-6">
@@ -19,7 +20,7 @@ function Meter({ title, q, accent }: { title: string; q: QuotaBlock; accent: str
       <div className="mt-3 flex items-end justify-between gap-3">
         <p className="tabular font-display text-[34px] leading-none text-txt">
           {q.saves}
-          <span className="font-sans text-[14px] text-faint"> / {q.dailyLimit} saves</span>
+          <span className="font-sans text-[14px] text-faint">{unlimited ? ' saves today' : ` / ${q.dailyLimit} saves`}</span>
         </p>
         <p className="tabular text-[12.5px] text-mut">{q.recalls} recalls</p>
       </div>
@@ -27,7 +28,7 @@ function Meter({ title, q, accent }: { title: string; q: QuotaBlock; accent: str
         <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${pct}%`, background: accent }} />
       </div>
       <p className="tabular mt-2.5 text-[12px] text-faint">
-        {left} left today · resets {countdown(q.secondsUntilReset)}
+        {unlimited ? 'No daily limit on this plan' : `${left} left today · resets ${countdown(q.secondsUntilReset)}`}
       </p>
     </Panel>
   )
@@ -37,7 +38,11 @@ const plans = (personalLimit = 50, teamLimit = 150, seats = 3) => [
   {
     name: 'Personal',
     price: 'Free',
-    points: ['Your own memory', `${personalLimit} saves a day, unlimited recalls`, 'Every app: web, desktop, phone, terminal'],
+    points: [
+      'Your own memory',
+      isUnlimited(personalLimit) ? 'No daily save limit, unlimited recalls' : `${personalLimit} saves a day, unlimited recalls`,
+      'Every app: web, desktop, phone, terminal',
+    ],
   },
   {
     name: 'Team',
@@ -54,7 +59,7 @@ const plans = (personalLimit = 50, teamLimit = 150, seats = 3) => [
 export function Usage({ d, go }: { d: Dashboard; go?: (t: 'settings') => void }) {
   const u = d.usage
   const p = u?.personal
-  const nearLimit = p && p.saves >= p.dailyLimit * 0.8
+  const nearLimit = p && !isUnlimited(p.dailyLimit) && p.saves >= p.dailyLimit * 0.8
 
   return (
     <div>

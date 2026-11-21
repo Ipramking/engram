@@ -5,7 +5,7 @@ import { ENGRAM_PROMPT } from '../../lib/promptText'
 import type { Dashboard } from './data'
 import { MEMORY_TYPES } from './data'
 import type { TabId } from './types'
-import { Button, CopyButton, Panel, Skeleton, TYPE_META, TypeBadge, inputCls, relTime, useToast } from './ui'
+import { Button, CopyButton, Panel, Skeleton, TYPE_META, TypeBadge, inputCls, isUnlimited, relTime, useToast } from './ui'
 import { ConnectionCard } from './ConnectionCard'
 
 const PROMPT_FLAG = 'engram.promptInstalled'
@@ -169,7 +169,7 @@ export function Overview({ d, name, go, onCreateKey }: { d: Dashboard; name: str
             <Stat
               label="Saves today"
               value={d.usage ? d.usage.personal.saves : d.loading ? null : 0}
-              suffix={d.usage ? `/ ${d.usage.personal.dailyLimit}` : undefined}
+              suffix={d.usage ? (isUnlimited(d.usage.personal.dailyLimit) ? '· no limit' : `/ ${d.usage.personal.dailyLimit}`) : undefined}
             />
             <Stat label="Recalls today" value={d.usage ? recalls : d.loading ? null : 0} />
             <Stat label="Apps connected" value={d.loading ? null : usedKeys.length} />
