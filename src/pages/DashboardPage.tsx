@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Wordmark } from '../components/Chrome'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { useDashboard } from './dashboard/data'
 import type { TabId } from './dashboard/types'
 import { Button, Callout, Sheet, ToastProvider } from './dashboard/ui'
@@ -39,7 +40,10 @@ const isTab = (t: string | null): t is TabId => NAV.some((n) => n.id === t)
 export default function DashboardPage() {
   return (
     <ToastProvider>
-      <Dashboard />
+      {/* Last resort: catches errors outside a page (sheets, the shell) so they never blank the app. */}
+      <ErrorBoundary variant="screen">
+        <Dashboard />
+      </ErrorBoundary>
     </ToastProvider>
   )
 }
@@ -264,7 +268,8 @@ function Dashboard() {
               </div>
             )}
             <div key={tab} className="step-in">
-              {page[tab]}
+              {/* A bug on one page shows a message here and leaves the navigation working. */}
+              <ErrorBoundary variant="page">{page[tab]}</ErrorBoundary>
             </div>
           </>
         )}

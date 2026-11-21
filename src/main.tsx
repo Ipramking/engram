@@ -6,6 +6,7 @@ import App from './App.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import RegisterPage from './pages/RegisterPage.tsx'
 import { AuthProvider } from './context/AuthContext.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 
 // Heavy pages load on demand so the landing page stays light.
 const DocsPage = lazy(() => import('./pages/DocsPage.tsx'))
@@ -25,24 +26,26 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
       <BrowserRouter>
-        <Suspense fallback={<Loading />}>
-          <Routes>
-            <Route path="/" element={<App />} />
-            <Route path="/docs" element={<DocsPage />} />
-            <Route path="/setup" element={<DocsPage />} />
-            {/* The old setup wizard and anonymous space links were retired: setup lives in the dashboard. */}
-            <Route path="/setup/wizard" element={<Navigate to="/dashboard?tab=connect" replace />} />
-            <Route path="/setup/token" element={<Navigate to="/dashboard?tab=keys" replace />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/oauth/authorize" element={<OAuthPage />} />
-            <Route path="/share" element={<SharePage />} />
-            <Route path="/privacy" element={<LegalPage doc="privacy" />} />
-            <Route path="/terms" element={<LegalPage doc="terms" />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
+        <ErrorBoundary variant="screen">
+          <Suspense fallback={<Loading />}>
+            <Routes>
+              <Route path="/" element={<App />} />
+              <Route path="/docs" element={<DocsPage />} />
+              <Route path="/setup" element={<DocsPage />} />
+              {/* The old setup wizard and anonymous space links were retired: setup lives in the dashboard. */}
+              <Route path="/setup/wizard" element={<Navigate to="/dashboard?tab=connect" replace />} />
+              <Route path="/setup/token" element={<Navigate to="/dashboard?tab=keys" replace />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/oauth/authorize" element={<OAuthPage />} />
+              <Route path="/share" element={<SharePage />} />
+              <Route path="/privacy" element={<LegalPage doc="privacy" />} />
+              <Route path="/terms" element={<LegalPage doc="terms" />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </BrowserRouter>
     </AuthProvider>
   </StrictMode>,

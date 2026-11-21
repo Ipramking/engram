@@ -310,7 +310,8 @@ export async function listTeams(userId: string) {
       .from('team_members')
       .select('team_id, role, teams(id, name, owner_id, plan_tier, created_at)')
       .eq('user_id', userId)
-    if (data) return data.map((d: any) => ({ ...d.teams, role: d.role }))
+    // A membership whose team row is gone would otherwise reach the dashboard as an object with no id or name.
+    if (data) return data.filter((d: any) => d.teams).map((d: any) => ({ ...d.teams, role: d.role }))
   }
   const out: any[] = []
   for (const [tid, members] of memTeamMembers) {

@@ -343,8 +343,11 @@ export function relTime(iso?: string | null) {
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export function fmtDate(d: Date | string) {
+/** A missing or unparseable date shows as a dash; it must never throw and blank the page. */
+export function fmtDate(d?: Date | string | null) {
+  if (!d) return '—'
   const x = typeof d === 'string' ? new Date(d) : d
+  if (Number.isNaN(x.getTime())) return '—'
   return x.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 

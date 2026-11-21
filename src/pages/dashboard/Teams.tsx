@@ -97,7 +97,7 @@ export function Teams({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => voi
                   }`}
                 >
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-violet/30 bg-violet/10 font-display text-violet-soft">
-                    {t.name[0]?.toUpperCase()}
+                    {t.name?.[0]?.toUpperCase() ?? '?'}
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-[13.5px] font-medium text-txt">{t.name}</span>
@@ -131,18 +131,7 @@ export function Teams({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => voi
                 ) : (
                   <ul className="space-y-2">
                     {members.map((m) => (
-                      <li key={m.id} className="flex items-center justify-between gap-3 rounded-2xl border border-line/70 bg-bg/35 px-4 py-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-surface-2 font-mono text-[12px] uppercase text-mut">
-                            {m.email[0]}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="truncate text-[13.5px] text-txt">{m.email}</p>
-                            <p className="text-[11.5px] text-faint">Joined {fmtDate(m.created_at)}</p>
-                          </div>
-                        </div>
-                        <span className="shrink-0 font-mono text-[10.5px] uppercase tracking-wider text-mut">{m.role}</span>
-                      </li>
+                      <MemberRow key={m.id} member={m} />
                     ))}
                   </ul>
                 )}
@@ -186,6 +175,23 @@ export function Teams({ d, onCreateKey }: { d: Dashboard; onCreateKey: () => voi
 
       <CreateTeam open={creating} onClose={() => setCreating(false)} d={d} onCreated={(t) => setSelectedId(t.id)} />
     </div>
+  )
+}
+
+export function MemberRow({ member: m }: { member: TeamMember }) {
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-2xl border border-line/70 bg-bg/35 px-4 py-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-surface-2 font-mono text-[12px] uppercase text-mut">
+          {m.email?.[0] ?? '?'}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-[13.5px] text-txt">{m.email}</p>
+          <p className="text-[11.5px] text-faint">Joined {fmtDate(m.joined_at ?? m.created_at)}</p>
+        </div>
+      </div>
+      <span className="shrink-0 font-mono text-[10.5px] uppercase tracking-wider text-mut">{m.role}</span>
+    </li>
   )
 }
 

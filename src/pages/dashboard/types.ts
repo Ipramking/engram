@@ -20,12 +20,15 @@ export interface Team {
   plan_tier?: string
 }
 
+/** A row of team_members as the API returns it (joined_at is the column; created_at is not there). */
 export interface TeamMember {
   id: string
-  user_id: string
+  user_id?: string | null
   email: string
   role: string
-  created_at: string
+  status?: string
+  joined_at?: string
+  created_at?: string
 }
 
 export interface QuotaBlock {
